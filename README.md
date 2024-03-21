@@ -4,7 +4,6 @@ SD is based on the GPL Version of OpenQM v2.6.6, released in 2007 by Ladybridge 
 
 ScarletDME is a 32 and 64 bit fork of the original OpenQM database maintained by Greg Buckle
 
-The code repository for SD is also on github in the stringdatabase/sdb64 repository.
 SD is 64 bit only and runs only on Linux.  Releases are tested on the most current release
 of Linux Mint LMDE (Debian based).  It should run on any Ubuntu flavor 22.04 or later, and 
 probably on other distros derived from Debian 12 orfrom Ubuntu 22.04 or later. Other distros, YMMV.
