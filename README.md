@@ -1,10 +1,8 @@
-SD, the Multivalue String Database
-
-The changelog can be found in the sd64/sdsys directory
+SD, the Multivalue String Databasehttps://u.pcloud.link/publink/show?code=kZPFiF0ZPwAIVHdaDa0KcJnMd9CBPyimQJVX
 
 Links
 -----
-
+https://u.pcloud.link/publink/show?code=kZPFiF0ZPwAIVHdaDa0KcJnMd9CBPyimQJVX
 SD is based on the GPL Version of OpenQM v2.6.6, released in 2007 by Ladybridge Systems.
 
 ScarletDME is a 32 and 64 bit fork of the original OpenQM database maintained by Greg Buckle
