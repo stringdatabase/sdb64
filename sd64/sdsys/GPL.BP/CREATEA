@@ -1,0 +1,483 @@
+* CREATEA
+* CREATE.ACCOUNT verb
+* Copyright (c) 2007 Ladybridge Systems, All Rights Reserved
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+* 
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+* 
+* 
+* START-HISTORY:
+* 20240309 mab create file BP for new accounts
+* 20240219 mab dflt user and group parent directory for accounts
+* mods to command line:
+*  Rem was
+*    CREATE.ACCOUNT acc.name pathname {NO.QUERY}
+*  Now 
+*    CREATE.ACCOUNT USER <user acct name>  {NO.QUERY} - account created in  /home/sd/user_accounts/<user acct name>  owner:group set to <username>:<username>
+*                                                 <username> must be found in sdusers group!
+*    CREATE.ACCOUNT GROUP <grp acct name  {NO.QUERY} - account created in  /home/sd/group_accounts/<grp acct name> owner:group set to root:sdusers
+*    CREATE.ACCOUNT OTHER acc.name pathname {NO.QUERY} - account created in pathname
+* 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
+* END-HISTORY
+*
+* START-DESCRIPTION:
+*
+* CREATE.ACCOUNT account.name  path.name [NO.QUERY]
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+program $create.account
+$catalog $CREATEA
+
+$include keys.h
+$include int$keys.h
+$include parser.h
+$include err.h
+* 20240219 mab user must be member of sdusers  
+deffun is_grp_member(user,group) calling '!is_grp_member'
+
+   prompt ''
+
+* 20240225 mab only admins allowed to create accounts
+   if system(27) # 0 then
+      stop sysmsg(2001)  ;* Command requires administrator privileges
+   end     
+* we run as root, and the root umask is usually 022, that will not work for us
+   if umask(002) then null
+
+   parser = "!PARSER"
+   no.query = @false
+
+   @system.return.code = -ER$ARGS     ;* Preset for argument errors
+
+
+   openpath @sdsys:@ds:'ACCOUNTS' to acc.f else
+      @system.return.code = -status()
+      stop sysmsg(6000) ;* Cannot open ACCOUNTS file in SDSYS account
+   end
+
+
+   call @parser(PARSER$RESET, 0, @sentence, 0)
+   call @parser(PARSER$GET.TOKEN, token.type, token, keyword) ;* Verb create-account
+   * 20240219 mab dflt user and group parent directory for accounts
+   * Get next token, could be USER, GROUP or account name
+
+   call @parser(PARSER$GET.TOKEN, token.type, acc.type, keyword)
+   *
+   uid = ''
+   begin case
+   case upcase(acc.type) = 'USER' 
+*    CREATE.ACCOUNT USER <user acct name>  {NO.QUERY}   
+     pathname = CONFIG('USRDIR')
+     if pathname = '' then pathname = '/home/sd/user_accounts'
+     call @parser(PARSER$GET.TOKEN, token.type, acc.name, keyword)
+     if token.type = PARSER$END then stop
+     * is this user a member or sdusers?
+     if not(is_grp_member(acc.name,'sdusers')) then
+       stop sysmsg(5009) ;* This user is not registered for String Database (sd) use
+     end
+     * save uid and gid for set.owner of USER account
+     uid = acc.name  
+     gid = acc.name
+     pathname := @ds:acc.name
+*   
+   case upcase(acc.type) = 'GROUP' 
+*    CREATE.ACCOUNT GROUP <grp acct name>  {NO.QUERY}     
+       pathname = CONFIG('GRPDIR')
+       if pathname = '' then pathname = '/home/sd/group_accounts'
+       call @parser(PARSER$GET.TOKEN, token.type, acc.name, keyword)
+       if token.type = PARSER$END then stop
+       pathname := @ds:acc.name
+*
+   case upcase(acc.type) = 'OTHER'  
+* process as original 
+       call @parser(PARSER$GET.TOKEN, token.type, acc.name, keyword)
+       if token.type = PARSER$END then
+         display sysmsg(6001) :  ;* Account name:
+         input acc.name
+         acc.name = upcase(trim(acc.name))
+         if acc.name = '' then stop
+       end
+*
+   case 1
+*   invalid command arg
+    stop sysmsg(10001,acc.type) ;* Invalid Create-Account argument 
+   end case
+
+   * Check if already exists in ACCOUNTS file.  We will need to do this
+   * again when we are ready to create the account but doing it here
+   * saves the user typing the path name before we spot the error.
+
+   read acc.rec from acc.f, acc.name then      ;* 0275
+      @system.return.code = -ER$ACC.EXISTS
+      stop sysmsg(6002) ;* Account already exists
+   end
+
+   * Validate account name
+
+   acc.name = upcase(acc.name)
+
+   if len(acc.name) > 32 or not(alpha(acc.name[1,1])) or index(acc.name, ' ', 1) then
+      stop sysmsg(6003) ;* Account name is invalid
+   end
+
+   * Get and process pathname
+   if acc.type = "OTHER" then
+      call @parser(parser$get.token, token.type, pathname, keyword)
+      if token.type = PARSER$END then
+         dflt.dir = ''
+         openpath @sdsys:@ds:'VOC' to sdsys.voc then
+            read voc.rec from sdsys.voc, '$ACCOUNT.ROOT.DIR' then
+               if upcase(voc.rec[1,1]) = 'X' then
+                  dflt.dir = voc.rec<2>
+                  if dflt.dir[1] # @ds then dflt.dir := @ds
+                  dflt.dir := acc.name
+               end
+            end
+            close sdsys.voc
+         end
+
+         if dflt.dir # '' then
+            display sysmsg(6034, dflt.dir) :  ;* Pathname:
+         end else
+            display sysmsg(6004) :  ;* Pathname:
+         end
+         input pathname
+         if pathname = '' then pathname = dflt.dir
+         pathname = trim(pathname)
+      end
+   end
+
+   * Validate pathname
+
+   if not(ospath(pathname, OS$PATHNAME)) then
+      stop sysmsg(6005) ;* Invalid account pathname
+   end
+
+   * Check for further command arguments
+
+   loop
+      call @parser(parser$get.token, token.type, token, keyword)
+   until token.type = PARSER$END
+      begin case
+         case keyword = KW$NO.QUERY
+            no.query = @true
+
+         case 1
+            stop sysmsg(2018, token) ;* Unexpected token (xx)
+      end case
+   repeat
+
+   * Check if already exists in ACCOUNTS file
+
+   readu acc.rec from acc.f, acc.name locked
+      stop sysmsg(6006, status()) ;* ACCOUNTS record is locked by user xx
+   end then
+      @system.return.code = -ER$ACC.EXISTS
+      stop sysmsg(6002) ;* Account already exists
+   end
+
+   * Check parent directory exists
+
+   if index(pathname, @ds, 1) then
+      parent.dir = field(pathname, @ds, 1, dcount(pathname, @ds) - 1)
+      if parent.dir # '' and not(parent.dir matches "1A':") then
+         if not(ospath(parent.dir, OS$EXISTS)) then
+            @system.return.code = -ER$NO.DIR
+            stop sysmsg(6008) ;* Parent directory does not exist
+         end
+      end
+   end
+
+   pathname = ospath(pathname, OS$FULLPATH)
+
+   * Check if account directory exists
+
+   if ospath(pathname, OS$EXISTS) then
+      * Check for presence of a VOC file
+      openpath pathname:@ds:'VOC' to voc.f then
+         if not(no.query) then
+            display sysmsg(6009) ;* Directory already contains a VOC file
+            loop
+               display sysmsg(6010) :  ;* Add to ACCOUNTS register (Y/N)?
+               input yn
+               yn = upcase(yn)
+               if yn = 'N' then
+                  @system.return.code = -ER$STOPPED
+                  stop sysmsg(6011) ;* Account not created
+               end
+            until yn = 'Y'
+            repeat
+         end
+      end else
+         gosub make.account
+      end
+   end else
+      if not(no.query) then
+         loop
+            display sysmsg(6012) :  ;* Create new directory for account (Y/N)?
+            input yn
+            yn = upcase(yn)
+            if yn = 'N' then
+               @system.return.code = -ER$STOPPED
+               stop sysmsg(6011) ;* Account not created
+            end
+         until yn = 'Y'
+         repeat
+      end
+
+      create.file pathname directory on error
+         @system.return.code = -ER$NOT.CREATED
+         stop sysmsg(6013) ;* Unable to create account directory
+      end
+
+      gosub make.account
+
+ * 20240225 mab set file ownership for account parent dir
+      set.owner.path = pathname
+      gosub set.owner
+
+   end
+
+   * Add ACCOUNTS entry
+
+   display sysmsg(6014) ;* Adding to register of accounts...
+
+   acc.rec = ''
+   acc.rec<ACC$PATH> = pathname
+   write acc.rec to acc.f, acc.name
+   close acc.f
+
+   @system.return.code = 0
+   return
+
+* ======================================================================
+
+make.account:
+   * Set up VOC
+
+   display sysmsg(6015) ;* Creating VOC...
+
+   create.file pathname:@ds:'VOC' directory on error
+      @system.return.code = -6
+      stop sysmsg(6016) ;* Unable to create VOC
+   end
+
+   openpath pathname:@ds:'VOC' to voc.f else
+      @system.return.code = -status()
+      stop sysmsg(6017) ;* Unable to open new VOC
+   end
+
+   openpath @sdsys:@ds:"NEWVOC" to newvoc.f else
+      @system.return.code = -status()
+      stop sysmsg(6018) ;* Cannot open SDSYS NEWVOC
+   end
+
+   vocfn = pathname:@ds:'VOC':@ds
+   select newvoc.f to 11
+   loop
+      readnext id from 11 else exit
+
+      read rec from newvoc.f, id then
+         rec<1> = if upcase(rec[1,1]) = 'P' then rec<1>[1,2] else rec[1,1]
+
+         if upcase(rec<1>) = 'K' and rec<3> # '' then   ;* Keyword with other use
+            s = rec<3>
+            rec<3> = if upcase(s[1,1]) = 'P' then s<1>[1,2] else s[1,1]
+         end
+
+         write rec to voc.f, id
+*  20240302 mab set file ownership accordingly  
+*  we need to handle file name funny business, see pdf manual section 3.2, Directory Files and Rec Id Translation
+*  I am only converting the ones in newvoc I know about, if any get added you will get error
+* "Unable change ownership of directory error <fn>"
+*  And need to revised this Kludge. A routine to handle all cases could be written, but I am not doing it, sorry
+         Begin Case
+           case id = '%'
+             fnid = '%P'
+           case id = '<'
+             fnid = '%L'
+           case id = '<='
+             fnid = '%L%E'
+           case id = '<>'
+             fnid = '%L%G'
+           case id = '='
+             fnid = '%E'
+           case id = '=<'
+             fnid = '%E%L'
+           case id = '=>'
+             fnid = '%E%G'
+           case id = '>'
+             fnid = '%G'
+           case id = '><'
+             fnid = '%G%L'
+           case id = '>='
+             fnid = '%G%E'
+           case 1
+             fnid = id
+         end case    
+         set.owner.path = vocfn:fnid
+         gosub set.owner        
+      end
+   repeat
+
+   close newvoc.f
+
+   * Set up $COMMAND,STACK VOC entry
+
+   write 'X' to voc.f, '$COMMAND.STACK'
+   *  20240302 mab set file ownership accordingly  
+   set.owner.path = vocfn:'$COMMAND.STACK'
+   gosub set.owner  
+
+   * Create $HOLD
+
+   fn = '$HOLD'
+   os.name = '$HOLD'
+   descr = 'File for deferred prints'
+   dict = @true
+   gosub create.dir.file
+
+
+   * Create $SAVEDLISTS
+
+   fn = '$SAVEDLISTS'
+   os.name = '$SVLISTS'
+   descr = 'File for saved select lists'
+   dict = @false
+   gosub create.dir.file
+
+* 20240308 mab add BP when creating new account
+  * Create BP
+
+   fn = 'BP'
+   os.name = 'BP'
+   descr = 'File for BASIC programs'
+   dict = @false
+   gosub create.dir.file
+
+
+   * Create private catalogue
+
+   display sysmsg(6019) ;* Creating private catalogue directory..."
+
+   s = pathname:@ds:'cat'
+   if not(ospath(s, OS$EXISTS)) then
+      create.file s directory on error
+         @system.return.code = -ER$NOT.CREATED
+         stop sysmsg(6020) ;* Unable to create private catalogue directory
+      end
+
+ * 20240225 mab set file ownership for cat
+      set.owner.path = pathname:@ds:'cat'
+      gosub set.owner
+   end
+
+ * 20240225 mab set file ownership for VOC
+   set.owner.path = pathname:@ds:'VOC'
+   gosub set.owner
+
+
+   return
+
+* ======================================================================
+
+create.dir.file:
+   display sysmsg(6021, fn) ;* Creating xx...
+
+   create.file pathname:@ds:os.name directory on error
+      @system.return.code = -ER$NOT.CREATED
+      stop sysmsg(6022, fn) ;* Unable to create data part of xx
+   end
+* 20240225 mab set file ownership accordingly  
+   set.owner.path = pathname:@ds:os.name
+   gosub set.owner
+
+   begin case
+      case descr[1,1]= 'F'       ; voc.rec = descr
+      case descr # ''            ; voc.rec = 'F ' : descr
+      case 1                     ; voc.rec = 'F'
+   end case
+
+   voc.rec<2> = os.name
+
+   if dict then
+      create.file pathname:@ds:os.name:'.DIC' dynamic on error
+         @system.return.code = -ER$NOT.CREATED
+         stop sysmsg(6023, fn) ;* Unable to create dictionary part of xx
+      end
+* 20240302 mab set file ownership accordingly  
+      set.owner.path = pathname:@ds:os.name:'.DIC':@ds:'~0'
+      gosub set.owner
+      set.owner.path = pathname:@ds:os.name:'.DIC':@ds:'~1'
+      gosub set.owner            
+
+      openpath pathname:@ds:os.name:'.DIC' to dict.f else
+         @system.return.code = -status()
+         stop sysmsg(6024, fn) ;* Unable to open dictionary part of xx
+      end
+* 20240121 mab use @VM not hard coded hex fd 
+      write raise('D':@VM:'0':@VM:@VM:fn:@VM:'10L':@VM:'S') to dict.f, '@ID'
+      close dict.f
+
+* 20240225 mab set file ownership accordingly  
+      set.owner.path = pathname:@ds:os.name:'.DIC'
+      gosub set.owner
+
+      voc.rec<3> = os.name:'.DIC'
+   end
+
+   write voc.rec to voc.f, fn
+ * 20240302 mab set file ownership accordingly  
+    set.owner.path = pathname:@ds:'VOC':@ds:fn
+    gosub set.owner  
+
+   return
+
+
+* ======================================================================
+* 20240225 mab set file ownership accordingly   
+* assumes:
+* set.owner.path - file path
+* acc.type - USER/GROUP/OTHER
+* acc.name - populated
+set.owner:
+
+   begin case
+      case upcase(acc.type) = 'USER'
+        null ;* uid/gid set at is_grp_member validation
+      case upcase(acc.type) = 'GROUP' 
+        uid='root'
+        gid='sdusers'
+      case 1
+        uid='root'
+        gid='sdusers'
+   end case
+   chown_parm = uid:@VM:gid:@VM:set.owner.path
+   * print 'set.owner: ':chown_parm
+   result = ospath(chown_parm,OS$CHOWN)
+   if result <= 0 then
+     st = set.owner.path:' err: ':status()
+     display sysmsg(10000,st) ;* Unable change ownership of directory error %1 
+   end
+
+return
+
+
+end
+
+* END-CODE

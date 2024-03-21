@@ -1,0 +1,646 @@
+* LOGIN
+* LOGIN  -  Startup user session
+* Copyright (c) 2007 Ladybridge Systems, All Rights Reserved
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+* 
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+* 
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+* 
+* 
+* START-HISTORY:
+* 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
+* END-HISTORYPTION:
+*
+* Mode argument:
+*   0   Interactive user
+*   1   SDApiSrvr session
+*   2   Updating VOC only
+*   3   End of install - offer to upgrade all VOCs (non-GPL version only)
+*
+* END-DESCRIPTION
+*
+* START-CODE
+
+$internal
+$flags trusted
+
+subroutine login(ok, mode)
+$catalogue $LOGIN
+
+$include revstamp.h
+
+$include syscom.h
+$include header.h
+$include parser.h
+$include int$keys.h
+$include debug.h
+
+$include err.h
+$include keys.h
+$include keyin.h
+$include keycode.h
+* 20240219 mab user must be member of sdusers  
+deffun is_grp_member(user,group) calling '!is_grp_member'
+
+   ok = @false
+   is.phantom = kernel(K$IS.PHANTOM, 0)
+
+   * If the terminal type has not yet been set, work out what it is
+
+   if mode = 0 then    ;* Interactive session startup
+      s = system(7)
+      if s = '' then
+			if system(42) or system(1027) then   ;* Network/serial connection
+			   * Kernal has fired off telnet negotiation commands but we may
+			   * have got here before the response arrives. Pause for up to
+			   * two seconds waiting for the terminal type to be set.
+
+			   for i = 1 to 20
+				  s = system(7)
+			   until s # ''
+				  nap 100
+			   next i   
+
+			   if s = '' then s = 'vt100'
+			end else
+				* This user has come in from a command prompt of some sort.
+				s = env('TERM')
+				if s = '' then s = 'vt100'
+			end
+      end
+
+      void kernel(K$TERM.TYPE, s)
+
+      * Set terminal depth and width
+
+      s = env('LINES');
+      if not(s matches '1N0N') then s = terminfo('lines')
+      if s <= 0 then s = DEFAULT.DEPTH
+      setpu PU$LENGTH, -1, max(s, MIN.DEPTH)
+
+      s = env('COLUMNS');
+      if not(s matches '1N0N') then s = terminfo('cols')
+      if s <= 0 then s = DEFAULT.WIDTH
+      setpu PU$WIDTH, -1, max(s, MIN.WIDTH)
+
+      * Clear screen except for phantoms and single command execution
+
+      if not(is.phantom) and system(1026) = '' then
+         if not(bitand(kernel(K$COMMAND.OPTIONS, 0), CMD.QUIET)) then
+            display @(-1) :
+         end
+
+         if system(7) = 'sdterm' then
+            if getpu(PU$WIDTH, -1) < 256 and getpu(PU$LENGTH, -1) < 256 then
+               display @(-256, getpu(PU$WIDTH, -1) + 256 * getpu(PU$LENGTH, -1)) :
+            end
+         end
+      end
+   end
+
+   if mode = 2 or mode = 3 then     ;* Just doing a VOC upgrade or install
+      if mode = 2 then              ;* VOC update
+         update.voc.f = voc
+         gosub update.voc
+         close update.voc.f
+      end
+
+      if @who = 'SDSYS' and kernel(K$ADMINISTRATOR,-1) then
+         loop
+            display sysmsg(5003) :  ;* Update VOC in all registered accounts (Y/N)?
+            input yn
+            yn = upcase(yn)
+         until yn = 'Y' or yn = 'N'
+         repeat
+
+         if yn = 'Y' then
+            voc.paths = @path
+            openpath @sdsys:@ds:'ACCOUNTS' to acc.f then
+               select acc.f to 12
+               loop
+                  readnext acc.name from 12 else exit
+                  read acc.rec from acc.f, acc.name then
+                     acc.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
+
+                     locate acc.path in voc.paths<1> setting i else
+                        s = acc.path:@ds:'VOC'
+                        openpath s to update.voc.f then
+                           display sysmsg(5004, s) ;* Updating xx
+                           gosub update.voc
+                           close update.voc.f
+                           voc.paths<-1> = acc.path
+                        end
+                     end
+                  end
+               repeat
+               close acc.f
+            end else
+               display sysmsg(2200) ;* Cannot open accounts register
+            end
+         end
+      end 
+
+      ok = @true
+      return
+   end
+
+
+
+   if not(bitand(kernel(K$COMMAND.OPTIONS, 0), CMD.QUIET)) then
+      *display "[ ScarletDME Rev " : SD.REV.STAMP : "   Copyright Ladybridge Systems, " : SD.COPYRIGHT.YEAR : " ]"
+* 20240126 mab add revstamp mods, VM rev and SD rev * 
+      display "SD, the Multivalue String Database, version " : SD.REV.STAMP : " Virtual Machine Version ": VM.REV.STAMP
+      display "(c) 2000-2024 by Ladybridge Systems and Other Contributors"
+      display
+      * following must be left to comply with clause 1 of the gpl licence
+      display "This program is free software and is supplied with ABSOLUTELY NO WARRANTY."
+      display "You are welcome to modify or redistribute this software subject to certain"
+      display "conditions.  For details type CONFIG GPL, for contributors type CONFIG CONTRIB."
+      display
+   end
+
+
+   * Display origin of network connection for telnet sessions
+
+   if not(bitand(kernel(K$COMMAND.OPTIONS, 0), CMD.QUIET)) then
+      if system(42) then crt sysmsg(5008, system(42)) ;* Telnet connection from %1
+      else if system(1027) then crt sysmsg(5074, system(1027)) ;* Serial connection from %1
+   end
+
+   * Open the ACCOUNTS register
+
+   openpath @sdsys:@ds:'ACCOUNTS' to acc.f else
+      display sysmsg(2200) ;* Cannot open accounts register
+      goto terminate.connection
+   end
+
+   * Open the $LOGINS file
+   
+   openpath @sdsys:@ds:'$LOGINS' to lgn.f else
+      display sysmsg(6050) ;* Cannot open $LOGINS register in SDSYS account
+      goto terminate.connection
+   end
+
+* 20240219 mab always run in secure mode, no changes allowed to K$SECURE flag!! * 
+*               we also no longer allow telnet connections via the internal
+*               telnet server, nor are we supporting serial connections
+*               SO we should never be true at the follow test.
+*               BUT just to be safe, terminate if we get here as Network/serial connection
+
+  if system(42) or system(1027) then   ;* Network/serial connection
+
+      logmsg sysmsg(5063, 'security test')  ;* Failed login authentication from %1
+		goto terminate.connection
+  end else
+* This user has come in from a command prompt.
+	 lgn.id = @logname
+* 20240219 mab user must be member of sdusers     
+    if  not(is_grp_member(lgn.id,'sdusers')) then
+	   display sysmsg(5009) ;* This user is not registered for SD use
+	   goto terminate.connection
+	 end
+	 read lgn.rec from lgn.f, lgn.id else null
+  end
+
+   * Set administrator rights if appropriate
+
+   i = kernel(K$ADMINISTRATOR, lgn.rec<LGN$ADMIN>)
+
+   i = pterm(PT$INVERT, @true)
+
+   * Determine account
+
+   forced.account = lgn.rec<LGN$FORCE.ACCOUNT>
+   initial.account = ''
+   begin case
+      case bitand(kernel(K$COMMAND.OPTIONS,0),CMD.QUERY.ACCOUNT)
+         * Entry from console shortcut
+         gosub query.account
+
+      case forced.account # ''            ;* $LOGINS forces specific account
+         * Read ACCOUNTS record
+
+         read acc.rec from acc.f, forced.account else
+            display sysmsg(5018, forced.account) ;* Account %1 not in register
+            goto terminate.connection
+         end
+
+         acc.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
+
+         if not(ospath(acc.path, OS$CD)) then
+            display sysmsg(5019, acc.rec<1>) ;* Unable to change to directory xx
+            goto terminate.connection
+         end
+
+         initial.account = forced.account
+         lgn.rec<LGN$LAST.ACCOUNT> = lgn.rec<LGN$FORCE.ACCOUNT>
+
+      case kernel(K$FORCED.ACCOUNT,0) # ''   ;* SD -Aname
+         initial.account = upcase(kernel(K$FORCED.ACCOUNT,0))
+
+         read acc.rec from acc.f, initial.account else
+            display sysmsg(5018, initial.account) ;* Account %1 not in register
+            goto terminate.connection
+         end
+
+         acc.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
+
+         if not(ospath(acc.path, OS$CD)) then
+            display sysmsg(5019, acc.path) ;* Unable to change to directory xx
+            goto terminate.connection
+         end
+
+         lgn.rec<LGN$LAST.ACCOUNT> = initial.account
+
+      case system(42) or system(1027)     ;* Network/serial connection
+         gosub query.account
+
+      case 1                              ;* Must be console
+      * 20240219 mab sd command from console with no account specified, we default to 
+      *              user's account
+         initial.account = upcase(@logname)
+
+         read acc.rec from acc.f, initial.account else
+            display sysmsg(5018, initial.account) ;* Account %1 not in register
+            goto terminate.connection
+         end
+
+         acc.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
+
+         if not(ospath(acc.path, OS$CD)) then
+            display sysmsg(5019, acc.path) ;* Unable to change to directory xx
+            goto terminate.connection
+         end
+
+         lgn.rec<LGN$LAST.ACCOUNT> = initial.account
+   end case
+
+   if kernel(K$SECURE, -1) or (system(42) = '' and system(1027) = '') then
+      lgn.rec<LGN$DATE> = date()
+      lgn.rec<LGN$TIME> = time()
+      recordlocku lgn.f, lgn.id
+      write lgn.rec to lgn.f, lgn.id on error
+         display 'Error ' : status() : ' writing to $LOGINS.'
+         goto terminate.connection
+      end
+   end
+
+   close lgn.f
+
+   * Set @PATH
+
+   account.path = ospath("", OS$CWD)
+
+   initial.account.path = account.path
+   if initial.account = '' then
+      * Try to work out account name by checking to see if it is in the
+      * ACCOUNTS register.
+
+      select acc.f to 12
+      loop
+         readnext acc.id from 12 else exit
+         read acc.rec from acc.f, acc.id then
+            acc.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
+            if account.path = acc.path then
+               initial.account = acc.id
+               exit
+            end
+         end
+      repeat
+      clearselect 12
+
+      if initial.account = '' then
+         * Just use final part of pathname
+         initial.account = upcase(account.path[index(account.path, @ds, count(account.path, @ds)) + 1, 99999])
+      end
+   end
+
+   who = initial.account
+   close acc.f
+
+   * Set @TTY
+
+   begin case
+      case is.phantom          ; tty = 'phantom'
+      case system(42) # ''     ; tty = 'telnet'
+      case system(1027) # ''   ; tty = 'port'
+      case 1                   ; tty = kernel(K$TTY, 0)
+   end case
+
+   * Open the VOC file
+
+   openpath "VOC" to voc on error
+      display 'Error ' : status() : ' opening VOC file. Check access rights.'
+      goto terminate.connection
+   end else
+   * 20240219 mab as part of the security changes, do not allow auto creation of account !
+   *   gosub create.account
+       display sysmsg(5163)    ;* Directory is not a  sd account
+       goto terminate.connection 
+   end
+
+   if catalogued('CCALL.INIT') then call ccall.init
+
+
+   * Open IPC file and delete any items for old versions of this process id
+
+   openpath @sdsys:@ds:'$IPC' to ipc.f then
+      recordlocku ipc.f,'M':@userno     ;* Message queue
+      delete ipc.f, 'M':@userno
+
+      recordlocku ipc.f,'P':@userno     ;* Phantom register
+      delete ipc.f, 'P':@userno
+
+      void fcontrol(ipc.f, FC$NON.TXN, 0) ;* Set non-transactional
+   end
+
+   if not(is.phantom) and not(fileinfo(voc, FL$READONLY)) then
+      read voc.rec from voc, "$RELEASE" then
+         * ----- Field 2 - Release level
+         s = matchfield(voc.rec<2>, "0X0A", 1)
+         if s # VM.REV.STAMP then
+            display sysmsg(5025, s) ;* Your VOC is at release level xx
+            loop
+               display char(7) :
+               display sysmsg(5026) :  ;* Update VOC to new release?
+               input s
+
+               s = upcase(s[1,1])
+               begin case
+                  case s = "N"
+                     exit
+                  case s = "Y"
+                     update.voc.f = voc
+                     gosub update.voc
+                     close update.voc.f
+                     exit
+               end case
+               display sysmsg(5027) ;* Please answer Y or N"
+            repeat
+         end
+
+         * ----- Field 3 - Command processing modes
+         s = voc.rec<3>
+         cursor.at.end = (index(s, 'E', 1) # 0)
+         command.overlay = (index(s, 'O', 1) # 0)
+         show.stack = (index(s, 'S', 1) # 0)
+         clear.on.data = not(index(s, 'X', 1)) and not(cursor.at.end)
+      end else
+         display sysmsg(5028) ;* $RELEASE VOC record not found
+         goto terminate.connection
+      end
+
+      * Cross-check revisions
+
+      if compare(system(1012), VM.REV.STAMP) then
+         display sysmsg(5029) ;* Revision level cross-check error
+         if not(kernel(K$INTERNAL,-1)) then goto terminate.connection
+      end
+
+      * Look for a saved command stack
+
+      read voc.rec from voc,"$COMMAND.STACK" then
+         if upcase(voc.rec[1,1]) = "X" THEN
+
+		   openpath initial.account.path:@ds:'stacks' to stk.f then
+			  read command.stack from stk.f, @logname else null
+			  close stk.f
+		   end
+
+         end
+      end
+   end
+
+   ok = @true
+   return
+
+terminate.connection:
+   display sysmsg(5024) ;* Connection terminated
+   sleep 2
+abort.login:
+   return to abort.login
+
+* ======================================================================
+
+query.account:
+   * Do not offer a default account if it no longer exists
+
+   if lgn.rec<LGN$LAST.ACCOUNT> # '' then
+      readv acc.rec from acc.f, lgn.rec<LGN$LAST.ACCOUNT>, 0 else
+         lgn.rec<LGN$LAST.ACCOUNT> = ''
+      end
+   end
+
+   for i = 1 to 3
+      if lgn.rec<LGN$LAST.ACCOUNT> # '' then
+         crt sysmsg(5033, lgn.rec<LGN$LAST.ACCOUNT>) :  ;* Account (%1):
+      end else
+         crt sysmsg(5032) :  ;* Account:
+      end
+
+      input initial.account,50_ timeout 30 else
+         display sysmsg(5075)  ;* Timeout
+         goto terminate.connection
+      end
+
+      initial.account = trim(upcase(initial.account))
+      if initial.account = '' then initial.account = lgn.rec<LGN$LAST.ACCOUNT>
+      if initial.account = '' or initial.account = 'Q' then goto terminate.connection
+
+      * Read ACCOUNTS record
+
+      read acc.rec from acc.f, initial.account else
+         crt sysmsg(5018, initial.account) ;* Account xx not in register
+         continue
+      end
+
+      acc.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
+
+      if not(ospath(acc.path, OS$CD)) then
+         display sysmsg(5019, acc.path) ;* Unable to change to directory xx
+         continue
+      end
+
+      lgn.rec<LGN$LAST.ACCOUNT> = initial.account
+      return
+   next i
+
+   goto terminate.connection
+
+* ======================================================================
+* CREATE.ACCOUNT  -  Make current directory into an account
+
+create.account:
+   loop
+      * This is not a valid account directory. Query whether to make it one.
+
+      display char(7)
+      display sysmsg(5034, @path) :
+      * Current directory %1 is not a valid account. Create account?
+      prompt ""
+      input s
+      if upcase(s[1,1]) = "N" then goto abort.login
+
+   until upcase(s[1,1]) = "Y"
+   repeat
+
+   openpath @sdsys:@ds:'ACCOUNTS' to acc.f else
+      display sysmsg(2200) ;* Cannot open accounts register
+      goto abort.login
+   end
+
+   loop
+      readu acc.rec from acc.f, who else
+         release acc.f, who
+         exit
+      end
+
+      display sysmsg(5035, who) ;* An account with this name (xx) already exists
+      loop
+         display sysmsg(5036) : ;* Enter alternative account name:
+         input who
+         who = upcase(who)
+         if who = '' then goto abort.login
+      until len(who) <= 16 and convert('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-', '', who) = ''
+         display sysmsg(5037) ;* Invalid account name
+      repeat
+   repeat
+
+* ----------------------------------------
+   display "Creating VOC..."
+
+   create.file "VOC" directory on error
+      release acc.f, who
+      display sysmsg(5038) ;* Cannot create new VOC
+      goto abort.login
+   end
+
+   openpath "VOC" to voc else
+      release acc.f, who
+      display sysmsg(5039) ;* Cannot open new VOC
+      goto abort.login
+   end
+
+   update.voc.f = voc
+   gosub update.voc
+   close update.voc.f
+
+   * Set up $COMMAND,STACK VOC entry
+
+   write 'X' to voc, '$COMMAND.STACK'
+
+* ----------------------------------------
+   display sysmsg(6021, '$HOLD') ;* Creating $HOLD...
+
+   execute "CREATE.FILE $HOLD DIRECTORY"
+
+* ----------------------------------------
+   display sysmsg(6021, '$SAVEDLISTS') ;* Creating $SAVEDLISTS...
+
+   create.file "$SVLISTS" directory on error
+      release acc.f, who
+      display sysmsg(1431, status(), '$SAVEDLISTS') ;* Error %1 creating $SAVEDLISTS
+      goto abort.login
+   end
+
+   write "F":@fm:"$SVLISTS" to voc, "$SAVEDLISTS"
+
+* ----------------------------------------
+   display sysmsg(6019) ;* Creating private catalogue directory...
+
+   create.file "cat" directory on error
+      release acc.f, who
+      display sysmsg(6020) ;* Unable to create private catalogue directory
+      goto abort.login
+   end
+
+* ----------------------------------------
+   display sysmsg(6014) ;* Adding to register of accounts...
+   s = ''
+   s<ACC$PATH> = account.path
+   write s to acc.f, who
+   close acc.f
+
+   return
+
+* ======================================================================
+* UPDATE.VOC  -  Copy NEWVOC to VOC
+
+update.voc:
+   yn = ''
+
+   openpath @sdsys:@ds:"NEWVOC" to sdsys.file else
+      display sysmsg(2210) ;* Cannot open SDSYS NEWVOC
+      goto abort.login
+   end
+
+   select sdsys.file to 11
+   loop
+      readnext id from 11 else exit
+
+      read rec from sdsys.file,id then
+         new.type = upcase(rec[1,1])
+         if new.type = 'P' then new.type = upcase(rec[1,2])
+
+         readu old.rec from update.voc.f, id then
+            old.type = upcase(old.rec[1,1])
+            if old.type = 'P' then old.type = upcase(old.rec[1,2])
+
+            * Special case to avoid prompt for 2.4-15 change to MD item
+
+            if id = 'MD' and (old.type = 'Q' or old.type = 'F') then
+               goto accept.without.query
+            end
+
+            if new.type # old.type then
+               if yn # 'A' then
+                  display
+                  display sysmsg(5048, id, old.type) ;* Existing VOC record %1 is of type %2
+                  display sysmsg(5049, new.type) :  ;* Update VOC record is of type %1. Replace record(Y/N)?
+                  loop
+                     input yn
+                     yn = upcase(yn)
+                  until yn = 'Y' or yn = 'N' or yn = 'A'
+                    display sysmsg(5058) : ;* Replace record (Yes/No/All)?
+                  repeat
+                  if yn = 'N' then
+                     release update.voc.f, id
+                     continue
+                  end
+               end
+            end
+         end
+
+accept.without.query:
+         rec<1> = new.type   ;* Remove comment text
+         if new.type = 'K' and rec<3> # '' then   ;* Keyword with other use
+            s = upcase(rec<3>)
+            rec<3> = if s[1,1] = 'P' then s<1>[1,2] else s[1,1]
+         end
+
+         if compare(old.rec, rec) then
+            write rec to update.voc.f, id
+            display '.' :
+         end else
+            release update.voc.f, id
+         end
+      end
+   repeat
+   display 
+
+   close sdsys.file
+
+   return
+end
+
+* END-CODE

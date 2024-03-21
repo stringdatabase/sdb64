@@ -1,0 +1,163 @@
+SD, the Multivalue String Database
+
+Change Log:
+-----------------------
+
+Version 0.6.3
+-----------------------
+(mab) mods date tagged in source as 20240219 and 20240225 mab 
+    Remove the ability to run the system in "insecure mode".
+    Remove SECURITY program from GPL.BP and $secure from  gcat 
+    Do not allow kernel(K$SECURE, >=0) to reset security flag. 
+    
+    VM - Add CHOWN function to OSPATH.
+         Example:   CALL ospath(chown_parm,OS$CHOWN)
+         where chown_parm is a VM separated string <owner_name> VM <group_name> VM <file_path>
+         Note in version 2.6.6 OSPATH is an internal function (requires -internal at login to compile).
+         Also for most OS$CHOWN operations to work, user will need to be root.
+
+    GPL.BP/LOGIN
+      No longer allow NETWORK or SERIAL connections.
+      Always run in secure mode.
+      Do not auto create missing user account.
+      System admin will need to add user to sdusers group and create user default account ("create-account USER <username>" , see below) prior user login. 
+    
+      Change login behavior to:
+      on command:
+      sd -a<account> - if account exists, login otherwise terminate connection.
+                         
+      sd - if /home/sd/user_accounts/<username> exists, log to user account
+            else display "Account <user> not in register" and terminate connection
+
+      User must be member of sdusers group, if not terminate connection.      
+
+      Note -  This changes the current behavior of logging into the account found at the current directory.
+     
+      Remove option to create account.
+                
+    Mod CREATE-ACCOUNT
+      Rem was
+        CREATE.ACCOUNT acc.name pathname {NO.QUERY}
+      Now 
+        CREATE.ACCOUNT USER <username>  {NO.QUERY} - account created in  /home/sd/user_accounts/<username>,  owner:group set to <username>:<username>
+                                                     <username> must be found in sdusers group!
+        CREATE.ACCOUNT GROUP acc.name  {NO.QUERY} - account created in  /home/sd/group_accounts/<acc.name>, owner:group set to root:sdusers
+        CREATE.ACCOUNT OTHER acc.name pathname {NO.QUERY} - account created in pathname, owner:group set to root:sdusers
+        
+      User must be privileged (root) to use CREATE-ACCOUNT verb.  
+   
+    Mod DELETE-ACCOUNT
+      User must be privileged (root) to use DELETE-ACCOUNT verb.
+      
+    Add to install script:
+      Create  directories /home/sd/user_accounts and  /home/sd/group_accounts
+      Add command to create user account in  /home/sd/user_accounts/<$tuser>   
+  
+    Implementing AF_UNIX sockets (and removing AF_INET). All remote connections will only be allowed via a tunnel (ssh tunnel).
+
+    API changes:
+       
+        Rebrand the GPL.BP/VBSRVR to APISRVR and associated notation.
+
+        SDConnectlocal(Account) - No Change. This connection method only works on the local system. It creates a forked process of sd and communicates via pipes,
+        no network involved.
+
+        SDConnectUDS(Account) - New connection method mostly for testing. This is still a local system connection only,
+        but connects via the Unix Domain Socket /tmp/sdsys/sdclient.socket. Connection method connects as initiating local user (the peer).
+
+        SDConnect(Host,Port,UserName,Password,Account) - Connect from remote via ssh tunnel.
+
+        If configuration file has APILOGIN=1 or not found:  User and Password are validated, API server process runs with usr_id and grp_id as UserName
+       (remember all server connections start out as root).
+
+        If APILOGIN=0:  UserName and Password are NOT validated, API server process runs with usr_id and grp_id as the User creating the ssh tunnel (peer)
+        User still must be a valid linux user. 
+ 
+        Regardless of connection method, User MUST be member of sdusers group!
+    
+    Update MESSAGES file, change references from SCARLETDME  to String Database (sd)
+
+    Remove hold over users in $LOGINS
+    
+    NOTE!! In order for this rev to build, libbsd-dev must be installed (sudo apt-get install libbsd-dev)
+    
+(mab) Create separate revision numbers for both the Virtual Machine and SD (defined in gplsrc/revstamp.h). 
+(mab) Add to SYSLOG sd command line.
+(dsm) Created Depreciated directory for features that have been removed or modified from original function.
+      GPL.BP.zip contains code fore removed features.  
+      SD.VOCLIB.zip contains LISTxx code for 80x24 screen size.
+
+Version 0.6.2 1/21/2024
+-----------------------
+(mab) Corrected issues with C code that were generating errors during make
+(dsm) Updated GPL.BP CONFIG to use 'less' to display the licence file
+(dsm) Updated all sentences in SD.VOCLIB for larger terminal display
+(dsm) Added a globally cataloged shell for the micro console based editor
+(mab) Replaced hard coded hex valuss in GPL.BP with @VM and other hex alternatives
+(mab) Fixed possible endless loop in DELETE-FILE
+
+Version 0.6.1 1/19/2024
+-----------------------
+- Removed COPYP and PROC functionality
+- Removed reference to the openqm website which no longer exists
+  in all code.
+- Removed history entries from parent databases
+- Changed the install scripts to
+  - wait until after installation to /usr/local/sdsys to recompile c code
+  - avoid starting SD during installation or compile Basic code
+- Modified SD.VOCLIB to be a directory file
+- Set up a pcloud directory to hold zip file of each release
+
+Prior to 1/19/2024
+------------------
+SD, the String Database is based on code originally released under the
+GPL license in 2007 as a GPL release of the OpenQM database. Later
+on, that code was forked and modified. The result became the ScarletDME
+database.  It was a 32 bit only database until 2022 when the first
+iteration of the 64 bit version was released.
+
+SD is based on the 64 bit code in the geneb/ScarletDME github repository
+as of the end of 2023.
+
+2024-01-15 In creating SD the following changes have been made:
+
+Some features have been removed. These include :
+1 the Big Letter capability for large print titles on printed reports
+  and terminal displays.
+2 The package capability that allowed for installation of third party
+  packages in the original commercial product.
+3 TAPE related packages that included the account and file save and
+  restore features.
+4  PROC capability
+5 COPYP functionality (COPY using Pick syntax).
+
+The SD_SHM_KEY and SD_SEM_KEY offsets have been changed so that SD
+can be run in parallel with commercial and open source databases that
+use the same underlying architecture.
+
+The sockets used for the API and telnet access have been changed:
+	The telnet socket from 4242 to 4244
+	The API socket from 4243 to 4245
+	
+The original database was called OpenQM and is still available as a
+commercial product from Rocket Software.  For SD, the original QM
+branding has been entirely removed.  Even internal variables and program
+and file names have been changed to reflect the SD branding.
+
+Some references to ScarletDME and Ladybridge Software have been
+removed.  Copyright statements have been retained.
+
+The default location of the database has been changed to
+/usr/local/sdsys.
+
+The default terminal type is Linux and the default terminal size is 120x36.
+
+The C and Basic object code is included in the download.  To install without
+recompiling everything, comment out the Make -B command and the two
+lines  containing FIRST.COMPILE and SECOND.COMPILE respectively.
+
+This database is in development. So far everything I have tested seems to
+work as expected. However, I'm sure there are things that need to
+be found and corrected. Other testers are appreciated.
+
+Send comments and errors to sd.string.database at gmail dot com.

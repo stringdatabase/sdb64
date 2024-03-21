@@ -1,0 +1,108 @@
+
+ Program sdTests
+ *
+ * program to test revisions to sd code (minimal testing that is)
+ *
+ $internal
+ include GPL.BP INT$KEYS.H
+ *
+ deffun is_grp_member(user,group) calling "!is_grp_member"
+ *
+ print 'minimal test of hardcoded value mark removal:'
+ print 'The current time and date is: ':TIMEDATE()
+ print
+ *
+ *
+ print 'rev updates:'
+ print 'VM rev level (1012) is: ':system(1012)
+ print 'MESSAGE 3061: ':sysmsg(3061)
+ print
+ * new config options
+ print 'new config options:'
+ print 'APILOGIN: ':config('APILOGIN')
+ print 'USRDIR: ':config('USRDIR')
+ print 'GRPDIR:' :config('GRPDIR')
+ print
+ *
+ print 'testing is_grp_member fucntion'
+ print 'is ':@user:' a member of sdusers? ':is_grp_member(@user,'sdusers')
+ print 'is joeblow a member of sdusers? ':is_grp_member('joeblow','sdusers')
+ Print
+ *
+ * new ospath function OSPATH(OS$CHOWN)
+ * rem this most likely will only work if we are running as root
+ * 
+ print "testing ospath function OSPATH(param,S$$CHOWN)"
+ if system(27) = 0 then
+   print 'running as root!'
+ end else
+   print 'not running as root, OSPATH(OS$CHOWN,param) should fail with permission issue!'
+ end
+ print
+* 
+ mypath = '/home/sd/testdir'
+ if ospath(mypath,OS$EXISTS) then
+   print mypath: ' exists, delete it'
+    result = ospath(mypath,OS$DELETE)
+    if result then
+      print 'delete successful'
+    end else
+      print 'delete failed?'
+    end
+ end
+ print
+ *
+ print 'create: ': mypath
+ result = ospath(mypath,OS$MKDIR)
+ if result then
+   print 'create successful'
+ end else
+   print 'create failed?'
+ end
+ print
+ *
+ print 'create should have created test directory with owner root:root'
+ print 'pause to check, <enter>':
+ input ok
+ print
+ *
+ print 'attempt change to sdsys:sdusers'
+ chown_parm = 'sdsys':@vm:'sdusers':@vm:mypath
+ result = ospath(chown_parm,OS$CHOWN)
+ print 'result: ':result
+ print 'status(): ':status()
+ Print
+ print 'throw some junk at ospath(chown_parm,OS$CHOWN)'
+ print 'unkown owner "xyz"'
+ chown_parm = 'xyz':@vm:'sdusers':@vm:mypath
+ result = ospath(chown_parm,OS$CHOWN)
+ print 'result: ':result
+ print 'status(): ':status()
+ Print
+ print 'empty chown_parm'
+ chown_parm = ''
+ result = ospath(chown_parm,OS$CHOWN)
+ print 'result: ':result
+ print 'status(): ':status()
+ Print
+ print 'not enough params'
+ chown_parm = 'xyz':'sdusers':@vm:mypath
+ result = ospath(chown_parm,OS$CHOWN)
+ print 'result: ':result
+ print 'status(): ':status()
+ Print
+ print 'too many params'
+ chown_parm = 'xyz':@vm:'sdusers':@vm:mypath:@vm:mypath
+ result = ospath(chown_parm,OS$CHOWN)
+ print 'result: ':result
+ print 'status(): ':status()
+ Print
+ print 'attempt buffer overflow'
+ chown_parm = 'sdsys':@vm:'sdusers':@vm:str('a',321)
+ result = ospath(chown_parm,OS$CHOWN)
+ print 'result: ':result
+ print 'status(): ':status()
+ Print
+ *
+ print 'thats all folks!'
+ End
