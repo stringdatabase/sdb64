@@ -1,0 +1,6 @@
+Sentence to list remote items
+LIST VOC @ID COL.HDG "Name" FMT "16L"_
+DESC FMT "20T" F2 COL.HDG "File" FMT "18L"_
+F3 COL.HDG "Record" FMT "18L"_
+WITH TYPE = "R" BY @ID ID.SUP_
+HEADING "Remote items referenced in the VOC'G'Page 'S'"

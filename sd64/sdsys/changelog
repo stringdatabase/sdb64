@@ -3,6 +3,27 @@ SD, the Multivalue String Database
 Change Log:
 -----------------------
 
+Version 0.6.4
+
+(dsm) Removed MED from GPL.BP, GPL.BP.OUT, gcat, NEWVOC & VOC
+      Moved GPL.BP/MED source code to Depreciated
+(dsm) Removed SED from GPL.BP, GPL.BP.OUT, gcat, NEWVOC & VOC
+      Moved GPL.BP/SED source code to Depreciated
+(dsm) Removed SCRB from GPL.BP, GPL.BP.OUT, gcat, NEWVOC & VOC
+      Moved GPL.BP/SCRB source code to Depreciated
+(dsm) Removed SCREEN$STOP.SCR from GPL.BP
+(dsm) Removed SCREEN from GPL.BP and BPL.BP.OUT
+      Moved GPL.BP/SCREEN source code to Depreciated
+(dsm) Removed ADMUSER/ADMIN.USER from GPL.BP, GPL.BP.OUT, gcat, NEWVOC & VOC
+      Moved GPL.BP/ADMUSER source code to Depreciated
+      Removed GPL.BP/$ADMUSER.SCR
+(dsm) Removed files $FORMS, $SCREENS, $SCREENS.DIC, ERRMSG, ERRMSG.DIC
+      Remove ERRMSG in VOC and NEWVOC 
+(dsm) Remove GPL.BP SP.ASSIGN & SET.QUEUE progrrams from GPL.BP, GPL.BP.OUT, gcat, NEWVOC & VOC
+      Move GPL.BP/SP.ASSIGN and SET.QUEUE to Depreceiated
+(dsm) Delete all records in MESSAGES starting with PL (Polish)
+
+
 Version 0.6.3
 -----------------------
 (mab) mods date tagged in source as 20240219 and 20240225 mab 

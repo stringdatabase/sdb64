@@ -1,0 +1,3 @@
+Sentence to list verbs
+SORT VOC @ID COL.HDG "Verb name" FMT "16L" DESC FMT "28T" DISPATCH PROCESSOR_
+WITH TYPE = "V" ID.SUP HEADING "Verbs defined in the VOC'G'Page 'S'"

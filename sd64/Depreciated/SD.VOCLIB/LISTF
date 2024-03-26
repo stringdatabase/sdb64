@@ -1,0 +1,3 @@
+Sentence to list files
+LIST VOC @ID COL.HDG "File name" FTYPE DESC DATA.NAME DICT.NAME WITH TYPE = "F"_
+BY @ID ID.SUP HEADING "Files referenced by the VOC'G'Page 'S'"
