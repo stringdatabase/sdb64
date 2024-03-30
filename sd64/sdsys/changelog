@@ -4,7 +4,18 @@ Change Log:
 -----------------------
 
 Version 0.6.4
-
+(mab) sd command as privileged user (sudo sd) will start out in account SDSYS  
+(mab) Only allow non privileged user to LOGIN or LOGTO:
+      Their own account.
+      Group account which they have access to.
+         A list of allowed users is found in ACCOUNTS record, field <ACC$USERS>
+	 CREATE-ACCOUNT USER adds user to their own account list.
+	 Use the MODIFY command ie) "MODIFY ACCOUNTS <account name>" to edit user list for now.
+(mab) Change install script template of ACCOUNTS / SDSYS file to ownership from  
+        -rwxrwxr-x 1 sdsys sdusers
+      To
+        -rw-rw-r-- 1 root  root 
+(mab) LIST-USERS now reports for user: Last Login Account, Time and Date        
 (dsm) Removed MED from GPL.BP, GPL.BP.OUT, gcat, NEWVOC & VOC
       Moved GPL.BP/MED source code to Depreciated
 (dsm) Removed SED from GPL.BP, GPL.BP.OUT, gcat, NEWVOC & VOC

@@ -4,6 +4,7 @@
       
       $list off
       
+      * 20240330 mab add ACC$USERS
       * 30Mar09 gwb Added missing defines, SKT$STREAM, SKT$DGRAM, SKT$TCP,
       *             SKT$UDP, SKT$ICMP
       *
@@ -249,5 +250,7 @@
       * Id = account name (forced to uppercase)
       $define ACC$PATH         1     ;* Account pathname
       $define ACC$DESCR        2     ;* Account description
+      * 20240330 mab add ACC$USERS
+      $define ACC$USERS        3     ;* List of Users allowed to access this Account
       deffun parse.pathname.tokens(path) calling "!PATHTKN"
       
