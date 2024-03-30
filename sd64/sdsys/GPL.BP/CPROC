@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 20240330 mab restrict logto account to allowed users
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * END-HISTORY
 *
@@ -2381,6 +2382,12 @@ int.logto:
       unwinding = 2
       return
    end
+* 20240330 mab only root can logto sdsys
+   if (upcase(new.account) = "SDSYS") and (system(27) > 0) then
+      display sysmsg(10002) ;* SDSYS Account access is restricted to privileged users
+      unwinding = 2
+      return    
+   end 
 
    * Look for options
 
@@ -2406,8 +2413,9 @@ int.logto:
    @system.return.code = -ER$ARGS
 
    openpath @sdsys:@ds:'ACCOUNTS' to acc.f then
-      readv acc.rec from acc.f, upcase(new.account), ACC$PATH then
-         acc.rec = parse.pathname.tokens(acc.rec)
+*      readv acc.rec from acc.f, upcase(new.account), ACC$PATH then
+      read acc.record from acc.f, upcase(new.account) then
+         acc.rec = parse.pathname.tokens(acc.record<ACC$PATH>)
          new.account = upcase(new.account)
       end else
          acc.rec = new.account
@@ -2418,6 +2426,17 @@ int.logto:
 
    * new.account contains the account name, null if attaching by path
    * acc.rec contains the pathname of the account (other fields removed)
+   * acc.record contains the full ACCOUNT record 
+
+* 20240330 mab user must be allowed in new account   
+
+   IF not(locate(@logname,acc.record,ACC$USERS,1)) then            
+      display sysmsg(10003) ;* User not allowed in requested account
+      if ospath(account.path, OS$CD) then return
+      display sysmsg(5162) ;* Fatal error : Cannot return to previous account
+      return to abort.cproc
+   end
+
 
    if not(ospath(acc.rec, OS$CD)) then
       display sysmsg(5161) ;* Unable to change to new directory

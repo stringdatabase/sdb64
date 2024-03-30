@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 20240330 mab rev 064 mods to $LOGINS / ACCOUNTS
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * END-HISTORYPTION:
 *
@@ -60,23 +61,9 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
    if mode = 0 then    ;* Interactive session startup
       s = system(7)
       if s = '' then
-			if system(42) or system(1027) then   ;* Network/serial connection
-			   * Kernal has fired off telnet negotiation commands but we may
-			   * have got here before the response arrives. Pause for up to
-			   * two seconds waiting for the terminal type to be set.
-
-			   for i = 1 to 20
-				  s = system(7)
-			   until s # ''
-				  nap 100
-			   next i   
-
-			   if s = '' then s = 'vt100'
-			end else
-				* This user has come in from a command prompt of some sort.
-				s = env('TERM')
-				if s = '' then s = 'vt100'
-			end
+			* This user has come in from a command prompt of some sort.
+			s = env('TERM')
+			if s = '' then s = 'vt100'
       end
 
       void kernel(K$TERM.TYPE, s)
@@ -132,7 +119,7 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
                   read acc.rec from acc.f, acc.name then
                      acc.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
 
-                     locate acc.path in voc.paths<1> setting i else
+                     locate acc.path in voc.paths<1> setting s else
                         s = acc.path:@ds:'VOC'
                         openpath s to update.voc.f then
                            display sysmsg(5004, s) ;* Updating xx
@@ -167,14 +154,6 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
       display "You are welcome to modify or redistribute this software subject to certain"
       display "conditions.  For details type CONFIG GPL, for contributors type CONFIG CONTRIB."
       display
-   end
-
-
-   * Display origin of network connection for telnet sessions
-
-   if not(bitand(kernel(K$COMMAND.OPTIONS, 0), CMD.QUIET)) then
-      if system(42) then crt sysmsg(5008, system(42)) ;* Telnet connection from %1
-      else if system(1027) then crt sysmsg(5074, system(1027)) ;* Serial connection from %1
    end
 
    * Open the ACCOUNTS register
@@ -212,41 +191,52 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 	 read lgn.rec from lgn.f, lgn.id else null
   end
 
-   * Set administrator rights if appropriate
+* 20240330 mab for sd the only way to be and admin is to be root
+* Set administrator rights if appropriate
+*   i = kernel(K$ADMINISTRATOR, lgn.rec<LGN$ADMIN>)
 
-   i = kernel(K$ADMINISTRATOR, lgn.rec<LGN$ADMIN>)
-
-   i = pterm(PT$INVERT, @true)
+   s = pterm(PT$INVERT, @true)
 
    * Determine account
-
-   forced.account = lgn.rec<LGN$FORCE.ACCOUNT>
+* 20240330 mab we no longer support forced accounts from $LOGINS
+*   forced.account = lgn.rec<LGN$FORCE.ACCOUNT>
    initial.account = ''
    begin case
-      case bitand(kernel(K$COMMAND.OPTIONS,0),CMD.QUERY.ACCOUNT)
-         * Entry from console shortcut
-         gosub query.account
+      
+      case kernel(K$FORCED.ACCOUNT,0) # ''   ;* account specified on command line with "sd -Aname"
+         initial.account = upcase(kernel(K$FORCED.ACCOUNT,0))
 
-      case forced.account # ''            ;* $LOGINS forces specific account
-         * Read ACCOUNTS record
+         read acc.rec from acc.f, initial.account else
+            display sysmsg(5018, initial.account) ;* Account %1 not in register
+            goto terminate.connection
+         end
 
-         read acc.rec from acc.f, forced.account else
-            display sysmsg(5018, forced.account) ;* Account %1 not in register
+
+         * 20240330 mab must be privilaged to enter sdsys
+         IF upcase(initial.account) = "SDSYS" and system(27) > 0 then            
+            display sysmsg(10002) ;* SDSYS Account access is restricted to privileged users
+            goto terminate.connection
+         end
+
+         * 20240330 mab user's access to account is spec in ACCOUNTS Rec<ACC$USERS>
+         IF not(locate(lgn.id,acc.rec,ACC$USERS,1)) then            
+            display sysmsg(10003) ;* User not allowed in requested account
             goto terminate.connection
          end
 
          acc.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
 
          if not(ospath(acc.path, OS$CD)) then
-            display sysmsg(5019, acc.rec<1>) ;* Unable to change to directory xx
+            display sysmsg(5019, acc.path) ;* Unable to change to directory xx
             goto terminate.connection
          end
 
-         initial.account = forced.account
-         lgn.rec<LGN$LAST.ACCOUNT> = lgn.rec<LGN$FORCE.ACCOUNT>
+         
 
-      case kernel(K$FORCED.ACCOUNT,0) # ''   ;* SD -Aname
-         initial.account = upcase(kernel(K$FORCED.ACCOUNT,0))
+* 20240323 mab if sd command issued with sudo (system(27) = 0 )
+*   and no account given wirh -a command, assume sdsys 
+      case system(27) = 0  ;* user id 0, "sudo sd"
+         initial.account = "SDSYS"
 
          read acc.rec from acc.f, initial.account else
             display sysmsg(5018, initial.account) ;* Account %1 not in register
@@ -260,12 +250,8 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
             goto terminate.connection
          end
 
-         lgn.rec<LGN$LAST.ACCOUNT> = initial.account
-
-      case system(42) or system(1027)     ;* Network/serial connection
-         gosub query.account
-
       case 1                              ;* Must be console
+
       * 20240219 mab sd command from console with no account specified, we default to 
       *              user's account
          initial.account = upcase(@logname)
@@ -281,18 +267,16 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
             display sysmsg(5019, acc.path) ;* Unable to change to directory xx
             goto terminate.connection
          end
-
-         lgn.rec<LGN$LAST.ACCOUNT> = initial.account
+         
    end case
-
-   if kernel(K$SECURE, -1) or (system(42) = '' and system(1027) = '') then
-      lgn.rec<LGN$DATE> = date()
-      lgn.rec<LGN$TIME> = time()
-      recordlocku lgn.f, lgn.id
-      write lgn.rec to lgn.f, lgn.id on error
-         display 'Error ' : status() : ' writing to $LOGINS.'
-         goto terminate.connection
-      end
+* 20240330 mab always update $LOGINS with login info
+   lgn.rec<LGN$LAST.ACCOUNT> = initial.account
+   lgn.rec<LGN$DATE> = date()
+   lgn.rec<LGN$TIME> = time()
+   recordlocku lgn.f, lgn.id
+   write lgn.rec to lgn.f, lgn.id on error
+       display 'Error ' : status() : ' writing to $LOGINS.'
+       goto terminate.connection
    end
 
    close lgn.f
@@ -430,149 +414,7 @@ terminate.connection:
 abort.login:
    return to abort.login
 
-* ======================================================================
-
-query.account:
-   * Do not offer a default account if it no longer exists
-
-   if lgn.rec<LGN$LAST.ACCOUNT> # '' then
-      readv acc.rec from acc.f, lgn.rec<LGN$LAST.ACCOUNT>, 0 else
-         lgn.rec<LGN$LAST.ACCOUNT> = ''
-      end
-   end
-
-   for i = 1 to 3
-      if lgn.rec<LGN$LAST.ACCOUNT> # '' then
-         crt sysmsg(5033, lgn.rec<LGN$LAST.ACCOUNT>) :  ;* Account (%1):
-      end else
-         crt sysmsg(5032) :  ;* Account:
-      end
-
-      input initial.account,50_ timeout 30 else
-         display sysmsg(5075)  ;* Timeout
-         goto terminate.connection
-      end
-
-      initial.account = trim(upcase(initial.account))
-      if initial.account = '' then initial.account = lgn.rec<LGN$LAST.ACCOUNT>
-      if initial.account = '' or initial.account = 'Q' then goto terminate.connection
-
-      * Read ACCOUNTS record
-
-      read acc.rec from acc.f, initial.account else
-         crt sysmsg(5018, initial.account) ;* Account xx not in register
-         continue
-      end
-
-      acc.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
-
-      if not(ospath(acc.path, OS$CD)) then
-         display sysmsg(5019, acc.path) ;* Unable to change to directory xx
-         continue
-      end
-
-      lgn.rec<LGN$LAST.ACCOUNT> = initial.account
-      return
-   next i
-
-   goto terminate.connection
-
-* ======================================================================
-* CREATE.ACCOUNT  -  Make current directory into an account
-
-create.account:
-   loop
-      * This is not a valid account directory. Query whether to make it one.
-
-      display char(7)
-      display sysmsg(5034, @path) :
-      * Current directory %1 is not a valid account. Create account?
-      prompt ""
-      input s
-      if upcase(s[1,1]) = "N" then goto abort.login
-
-   until upcase(s[1,1]) = "Y"
-   repeat
-
-   openpath @sdsys:@ds:'ACCOUNTS' to acc.f else
-      display sysmsg(2200) ;* Cannot open accounts register
-      goto abort.login
-   end
-
-   loop
-      readu acc.rec from acc.f, who else
-         release acc.f, who
-         exit
-      end
-
-      display sysmsg(5035, who) ;* An account with this name (xx) already exists
-      loop
-         display sysmsg(5036) : ;* Enter alternative account name:
-         input who
-         who = upcase(who)
-         if who = '' then goto abort.login
-      until len(who) <= 16 and convert('ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789.-', '', who) = ''
-         display sysmsg(5037) ;* Invalid account name
-      repeat
-   repeat
-
-* ----------------------------------------
-   display "Creating VOC..."
-
-   create.file "VOC" directory on error
-      release acc.f, who
-      display sysmsg(5038) ;* Cannot create new VOC
-      goto abort.login
-   end
-
-   openpath "VOC" to voc else
-      release acc.f, who
-      display sysmsg(5039) ;* Cannot open new VOC
-      goto abort.login
-   end
-
-   update.voc.f = voc
-   gosub update.voc
-   close update.voc.f
-
-   * Set up $COMMAND,STACK VOC entry
-
-   write 'X' to voc, '$COMMAND.STACK'
-
-* ----------------------------------------
-   display sysmsg(6021, '$HOLD') ;* Creating $HOLD...
-
-   execute "CREATE.FILE $HOLD DIRECTORY"
-
-* ----------------------------------------
-   display sysmsg(6021, '$SAVEDLISTS') ;* Creating $SAVEDLISTS...
-
-   create.file "$SVLISTS" directory on error
-      release acc.f, who
-      display sysmsg(1431, status(), '$SAVEDLISTS') ;* Error %1 creating $SAVEDLISTS
-      goto abort.login
-   end
-
-   write "F":@fm:"$SVLISTS" to voc, "$SAVEDLISTS"
-
-* ----------------------------------------
-   display sysmsg(6019) ;* Creating private catalogue directory...
-
-   create.file "cat" directory on error
-      release acc.f, who
-      display sysmsg(6020) ;* Unable to create private catalogue directory
-      goto abort.login
-   end
-
-* ----------------------------------------
-   display sysmsg(6014) ;* Adding to register of accounts...
-   s = ''
-   s<ACC$PATH> = account.path
-   write s to acc.f, who
-   close acc.f
-
-   return
-
+*
 * ======================================================================
 * UPDATE.VOC  -  Copy NEWVOC to VOC
 

@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 20240330 mab rev 064 list of valid users required in ACCOUNTS<2>
 * 20240309 mab create file BP for new accounts
 * 20240219 mab dflt user and group parent directory for accounts
 * mods to command line:
@@ -84,16 +85,17 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 *    CREATE.ACCOUNT USER <user acct name>  {NO.QUERY}   
      pathname = CONFIG('USRDIR')
      if pathname = '' then pathname = '/home/sd/user_accounts'
-     call @parser(PARSER$GET.TOKEN, token.type, acc.name, keyword)
+     call @parser(PARSER$GET.TOKEN, token.type, acc.uname, keyword)
      if token.type = PARSER$END then stop
      * is this user a member or sdusers?
-     if not(is_grp_member(acc.name,'sdusers')) then
+     if not(is_grp_member(acc.uname,'sdusers')) then
        stop sysmsg(5009) ;* This user is not registered for String Database (sd) use
      end
      * save uid and gid for set.owner of USER account
-     uid = acc.name  
-     gid = acc.name
-     pathname := @ds:acc.name
+     uid = acc.uname  
+     gid = acc.uname
+     pathname := @ds:acc.uname
+     acc.name = acc.uname
 *   
    case upcase(acc.type) = 'GROUP' 
 *    CREATE.ACCOUNT GROUP <grp acct name>  {NO.QUERY}     
@@ -259,6 +261,10 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 
    acc.rec = ''
    acc.rec<ACC$PATH> = pathname
+   * 20240330 mab add user name to user account allowed users list
+   if upcase(acc.type) = "USER" then
+     acc.rec<ACC$USERS> = acc.uname
+   end
    write acc.rec to acc.f, acc.name
    close acc.f
 

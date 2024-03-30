@@ -62,6 +62,8 @@ sudo cp Makefile /usr/local/sdsys
 sudo cp gpl.src /usr/local/sdsys
 sudo cp terminfo.src /usr/local/sdsys
 sudo chown -R sdsys:sdusers /usr/local/sdsys
+sudo chown root:root /usr/local/sdsys/ACCOUNTS/SDSYS
+sudo chmod 664 /usr/local/sdsys/ACCOUNTS/SDSYS
 sudo chown -R sdsys:sdusers /usr/local/sdsys/terminfo
 sudo chown root:root /usr/local/sdsys
 sudo cp sd.conf /etc/sd.conf
