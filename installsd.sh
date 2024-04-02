@@ -36,8 +36,7 @@ case $yn in
 esac
 echo
 echo If requested, enter your account password:
-sudo pwd
-echo
+sudo date
 echo
 echo Installing required packages
 echo

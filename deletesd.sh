@@ -24,6 +24,9 @@ echo
 echo "Do you want to delete /home/sd and all subdirectories."
 echo "WARNING: this will delete all SD User and Group accounts."
 echo 
+echo If requested, enter your account password:
+sudo date
+echo
 read -p "Delete /home/sd? (y/n) " yn
 case $yn in
 	[yY] )  echo /home/sd Directory Deleted;
