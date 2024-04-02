@@ -115,21 +115,42 @@ fi
 cd /usr/local/sdsys
 sudo make -B
 
-cd $cwd
+# Copy saved directories if they exist
+if [ -d /home/sd/ACCOUNTS ]; then
+  echo Moved existing ACCOUNTS directory
+  sudo rm -fr /usr/local/sdsys/ACCOUNTS
+  sudo mv /home/sd/ACCOUNTS /usr/local/sdsys
+else
+  echo Saved Accounts Directory Does Not Exist
+fi
+
+if [ -d '/home/sd/$LOGINS' ]; then
+  echo 'Moved existing $LOGINS directory'
+  sudo rm -fr '/usr/local/sdsys/$LOGINS'
+  sudo mv '/home/sd/$LOGINS' /usr/local/sdsys
+else
+  echo 'Saved $LOGINS Directory Does Not Exist' 
+fi
+
+cd /usr/local/sdsys
 
 #	Start ScarletDME server
 echo "Starting SD server."
-sudo /usr/local/sdsys/bin/sd -start
+sudo bin/sd -start
 echo
 echo "Recompiling GPL.BP (only required for dev work)"
-sudo /usr/local/sdsys/bin/sd -asdsys -internal FIRST.COMPILE
-sudo /usr/local/sdsys/bin/sd -asdsys -internal SECOND.COMPILE
+sudo bin/sd -internal FIRST.COMPILE
+sudo bin/sd -internal SECOND.COMPILE
 
-#  create a user account for the crrent user
+#  create a user account for the current user
 echo
 echo
-echo "Creating a user account for" $tuser
-sudo /usr/local/sdsys/bin/sd -asdsys create-account USER $tuser
+if [ ! -d /home/sd/user_accounts/$tuser ]; then	
+	echo "Creating a user account for" $tuser
+	sudo bin/sd create-account USER $tuser no.query
+fi
+
+cd $cwd
 
 # display end of script message
 echo

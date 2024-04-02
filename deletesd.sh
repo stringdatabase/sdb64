@@ -20,12 +20,21 @@
 clear
 echo REMOVE SD Completely
 echo ------------------------------------
-	read -p "Are you sure? (y/n) " yn
-	case $yn in
-		[yY] ) echo;;
-		[nN] ) break;;
-		* ) break;;
-	esac
+echo
+echo "Do you want to delete /home/sd and all subdirectories."
+echo "WARNING: this will delete all SD User and Group accounts."
+echo 
+read -p "Delete /home/sd? (y/n) " yn
+case $yn in
+	[yY] )  echo /home/sd Directory Deleted;
+			sudo rm -fr /home/sd;;
+	[nN] )  
+		echo Saving Accounts Directory;
+		sudo mv /usr/local/sdsys/ACCOUNTS /home/sd;
+		echo 'Saving $LOGINS Directory';
+		sudo mv '/usr/local/sdsys/$LOGINS' /home/sd;;
+esac
+echo
 # remove the /usr/sdsys directory
 sudo rm -fr /usr/local/sdsys
 echo
@@ -56,16 +65,7 @@ echo "Removed systemd service files."
 sudo userdel sdsys
 sudo groupdel sdusers
 echo "Removed sdsys user and sdusers group."
-echo
-echo "Do you want to delete /home/sd and all subdirectories."
-echo "WARNING: this will delete all SD User and Group accounts."
-echo 
-read -p "Delete all user and group  accounts? (y/n) " yn
-case $yn in
-	[yY] ) sudo rm -fr /home/sd && echo "User and group accounts removed";;
-	[nN] ) ;;
-	* ) exit ;;
-esac
+
 echo
 echo "----------------------------------------------"
 echo "deletesd.sh script completed."
