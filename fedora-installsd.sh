@@ -41,7 +41,7 @@ sudo date
 echo
 echo Installing required packages
 echo
-sudo dnf install make automake gcc gcc-c++ kernel-devel micro lynx libbsd-devel
+sudo dnf -y install make automake gcc gcc-c++ kernel-devel micro lynx libbsd-devel
  
 cd sd64
 

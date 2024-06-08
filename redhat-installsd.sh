@@ -41,8 +41,8 @@ sudo date
 echo
 echo Installing required packages
 echo
-sudo apt install epel-release
-sudo dnf install make automake gcc gcc-c++ kernel-devel lynx libbsd*
+sudo dnf -y install epel-release
+sudo dnf -y install make automake gcc gcc-c++ kernel-devel lynx libbsd*
  
 cd sd64
 
@@ -87,7 +87,7 @@ if [ ! -d "$ACCT_PATH" ]; then
    sudo chmod 775 "$ACCT_PATH"/user_accounts
 fi
 
-sudo ln -s /usr/local/sdsys/bin/sd /usr/local/bin/sd
+sudo ln -s /usr/local/sdsys/bin/sd /usr/bin/sd
 
 # Install sd service for systemd
 SYSTEMDPATH=/usr/lib/systemd/system
@@ -152,11 +152,8 @@ if [ ! -d /home/sd/user_accounts/$tuser ]; then
 fi
 
 # installing micro editor
-sudo curl https://getmic.ro | bash
+curl https://getmic.ro | sudo bash
 sudo mv micro /usr/bin
-
-# copying sd binary to /usr/local/bin
-sudo cp /usr/local/sdsys/bin/sd /usr/local/bin
 
 cd $cwd
 
