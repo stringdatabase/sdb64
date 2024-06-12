@@ -33,7 +33,7 @@
 #define BUILD          6
 #define VM_REV_STAMP   "2.6-6"
 
-#define SD_REV_STAMP   "0.6.3"
+#define SD_REV_STAMP   "0.6.4 beta"
 
 
 #define SD_COPYRIGHT_YEAR "2007"

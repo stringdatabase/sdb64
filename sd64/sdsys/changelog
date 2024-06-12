@@ -33,6 +33,8 @@ Version 0.6.4
 (dsm) Remove GPL.BP SP.ASSIGN & SET.QUEUE progrrams from GPL.BP, GPL.BP.OUT, gcat, NEWVOC & VOC
       Move GPL.BP/SP.ASSIGN and SET.QUEUE to Depreceiated
 (dsm) Delete all records in MESSAGES starting with PL (Polish)
+(dsm) Removed system verbs ADMSRVR CREATE-USER, DELETE-USER, LIST-USERS, RECOVER-USERS and
+      related files if VOC, NEWVOC, GPL.BP, GPL.BP.OUT and gcat
 
 
 Version 0.6.3
