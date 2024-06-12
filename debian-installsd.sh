@@ -105,9 +105,6 @@ if [ -d  "$SYSTEMDPATH" ]; then
 		sudo chmod 644 $SYSTEMDPATH/sd.service
 		sudo chmod 644 $SYSTEMDPATH/sdclient.socket
 		sudo chmod 644 $SYSTEMDPATH/sdclient@.service
-
-		sudo systemctl enable sd.service
-		sudo systemctl enable sdclient.socket
     fi
 fi
 
@@ -148,6 +145,21 @@ if [ ! -d /home/sd/user_accounts/$tuser ]; then
 	echo "Creating a user account for" $tuser
 	sudo bin/sd create-account USER $tuser no.query
 fi
+
+echo
+echo Stopping sd
+sudo sd -stop
+
+echo
+echo Enabling services
+sudo systemctl start sd.service
+sudo systemctl start sdclient.socket
+sudo systemctl enable sd.service
+sudo systemctl enable sdclient.socket
+
+sudo sd -stop
+sudo sd -start
+sudo sd -stop
 
 cd $cwd
 
