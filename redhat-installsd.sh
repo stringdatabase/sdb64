@@ -29,7 +29,7 @@ echo
 echo "  2 run this script as a normal (not root) user"
 echo
 echo
-read -p "Continue? (y/n) " yn
+read -p "Continue? (y/N) " yn
 case $yn in
 	[yY] ) echo;;
 	[nN] ) exit;;
@@ -43,6 +43,8 @@ echo Installing required packages
 echo
 sudo dnf -y install epel-release
 sudo dnf -y install make automake gcc gcc-c++ kernel-devel lynx libbsd*
+sudo curl htts://getmic.ro | sudo bash
+sudo mv micro /usr/bin
  
 cd sd64
 
@@ -191,4 +193,11 @@ echo "deletesd.sh bash script provided."
 echo
 echo -----------------------------------------------------
 echo
+read -p "Restart computer now? (y/N) " yn
+case $yn in
+	[yY] ) sudo reboot;;
+	[nN] ) echo;;
+	* ) echo ;;
+esac
+
 exit

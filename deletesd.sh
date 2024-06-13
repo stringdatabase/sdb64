@@ -75,4 +75,11 @@ echo "deletesd.sh script completed."
 echo "Reboot to update user and group information."
 echo "----------------------------------------------"
 echo
+read -p "Restart computer now? (y/n) " yn
+case $yn in
+	[yY] ) sudo reboot;;
+	[nN] ) echo;;
+	* ) echo ;;
+esac
+echo
 

@@ -28,7 +28,7 @@ echo "  1 be running a distro based on Debian 12 or Ubuntu 22.04 or later"
 echo
 echo "  2 have sudo installed and be a member of the sudo group"
 echo
-read -p "Continue? (y/n) " yn
+read -p "Continue? (y/N) " yn
 case $yn in
 	[yY] ) echo;;
 	[nN] ) exit;;
@@ -185,4 +185,10 @@ echo "deletesd.sh bash script provided."
 echo
 echo -----------------------------------------------------
 echo
+read -p "Restart computer now? (y/N) " yn
+case $yn in
+	[yY] ) sudo reboot;;
+	[nN] ) echo;;
+	* ) echo ;;
+esac
 exit
