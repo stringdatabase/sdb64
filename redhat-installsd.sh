@@ -43,8 +43,6 @@ echo Installing required packages
 echo
 sudo dnf -y install epel-release
 sudo dnf -y install make automake gcc gcc-c++ kernel-devel lynx libbsd*
-sudo curl htts://getmic.ro | sudo bash
-sudo mv micro /usr/bin
  
 cd sd64
 
@@ -150,10 +148,6 @@ if [ ! -d /home/sd/user_accounts/$tuser ]; then
 	sudo bin/sd create-account USER $tuser no.query
 fi
 
-# installing micro editor
-curl https://getmic.ro | sudo bash
-sudo mv micro /usr/bin
-
 echo
 echo Stopping sd
 sudo sd -stop
@@ -168,6 +162,12 @@ sudo systemctl enable sdclient.socket
 sudo sd -stop
 sudo sd -start
 sudo sd -stop
+
+# installing micro editor
+curl https://getmic.ro 
+chmod 774 gitmic.ro
+./gitmic.ro
+sudo mv micro /usr/bin
 
 cd $cwd
 
