@@ -42,7 +42,7 @@ echo Installing required packages
 echo
 sudo apt-get install build-essential micro lynx libbsd-dev
  
-cd ~/sdb64/sd64
+cd $cwd/sd64
 
 # Create sd system user and group
 echo "Creating group: sdusers"

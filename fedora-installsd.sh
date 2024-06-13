@@ -43,7 +43,7 @@ echo Installing required packages
 echo
 sudo dnf -y install make automake gcc gcc-c++ kernel-devel micro lynx libbsd-devel
  
-cd sd64
+cd $cwd/sd64
 
 # Create sd system user and group
 echo "Creating group: sdusers"

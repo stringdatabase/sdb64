@@ -44,7 +44,7 @@ echo
 sudo dnf -y install epel-release
 sudo dnf -y install make automake gcc gcc-c++ kernel-devel lynx libbsd*
  
-cd ~/sdb64/sd64
+cd $cwd/sd64
 
 # Create sd system user and group
 echo "Creating group: sdusers"
