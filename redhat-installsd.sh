@@ -164,11 +164,8 @@ sudo sd -start
 sudo sd -stop
 
 # installing micro editor
-curl https://getmic.ro 
-chmod 774 gitmic.ro
-./gitmic.ro
+curl https://getmic.ro | bash
 sudo mv micro /usr/bin
-
 cd $cwd
 
 # display end of script message
