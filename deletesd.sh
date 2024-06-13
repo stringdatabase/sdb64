@@ -44,6 +44,7 @@ echo
 echo "Removed /usr/local/sdsys directory."
 # remove the symbolic link to sd in /usr/local/bin
 sudo rm /usr/local/bin/sd
+sudo rm /usr/bin/sd
 echo "Removed symbolic link /usr/local/bin/sd."
 #remove config file
 sudo rm /etc/sd.conf
