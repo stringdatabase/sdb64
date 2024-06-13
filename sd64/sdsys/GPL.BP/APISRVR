@@ -836,11 +836,11 @@ vb.endcommand:
                *      password padded to 2 byte multiple
 
 vb.login:
-               openpath @sdsys:@ds:'$LOGINS' to lgn.f else
-                  abort.message = sysmsg(6050) ;* Cannot open $LOGINS register
-                  server.error = SV$ON.ERROR
-                  return
-               end
+*              * dsm 20240612 openpath @sdsys:@ds:'$LOGINS' to lgn.f else
+*              * dsm 20240612    abort.message = sysmsg(6050) ;* Cannot open $LOGINS register
+*              * dsm 20240612    server.error = SV$ON.ERROR
+*              * dsm 20240612    return
+*              * dsm 20240612 end
 
                * mab 20240219 read security.rec from lgn.f, '$SECURE' then
                * mab 20240219    i = kernel(K$SECURE, security.rec<1>)
@@ -887,23 +887,23 @@ vb.login:
                      username = kernel(K$USERNAME, 0)
                   end
                   * require entry of valid sd username? (rem connection from ssh tunnel, so user already validated)
-                  readu lgn.rec from lgn.f, username else null 
+                  * readu lgn.rec from lgn.f, username else null 
                   * 20240219 mab user must be member of sdusers   
-                  if logging then
-                      writeseq '>  vb.login username: ' : username  to log.f else null
-                  end        
+                  * if logging then
+                  *    writeseq '>  vb.login username: ' : username  to log.f else null
+                  * end        
                   if  not(is_grp_member(username,'sdusers')) then
                      server.error = SV$ON.ERROR
                      abort.message = sysmsg(5009) ;* This user is not registered for SD use
                      goto exit.vb.login
                   end
+                  
+                  * dsm 20240612 lgn.rec<LGN$DATE> = date()
+                  * dsm 20240612 lgn.rec<LGN$TIME> = time()
+                  * dsm 20240612 recordlocku lgn.f, username
+                  * dsm 20240612 write lgn.rec to lgn.f, username
 
-                  lgn.rec<LGN$DATE> = date()
-                  lgn.rec<LGN$TIME> = time()
-                  recordlocku lgn.f, username
-                  write lgn.rec to lgn.f, username
-
-                  i = kernel(K$ADMINISTRATOR,lgn.rec<LGN$ADMIN>)
+                  * dsm 20240612i = kernel(K$ADMINISTRATOR,lgn.rec<LGN$ADMIN>)
                end else
                   server.error = SV$ON.ERROR
                   abort.message = sysmsg(5017) ;* Invalid user name or password
@@ -914,7 +914,7 @@ vb.login:
                * mab 20240219  end
 
 exit.vb.login:
-               close lgn.f
+               * dsm 20240612 close lgn.f
                if server.error = SV$OK then logged.in = @true
                else done = @true
 
@@ -924,11 +924,11 @@ exit.vb.login:
                * Login user for SDLocal connection
 
 vb.local.login:
-               openpath @sdsys:@ds:'$LOGINS' to lgn.f else
-                  abort.message = sysmsg(6050) ;* Cannot open $LOGINS register
-                  server.error = SV$ON.ERROR
-                  return
-               end
+              * dsm 20240612 openpath @sdsys:@ds:'$LOGINS' to lgn.f else
+              * dsm 20240612    abort.message = sysmsg(6050) ;* Cannot open $LOGINS register
+              * dsm 20240612    server.error = SV$ON.ERROR
+              * dsm 20240612    return
+              * dsm 20240612 end
 
                * mab 20240219  read security.rec from lgn.f, '$SECURE' then
                * mab 20240219     = kernel(K$SECURE, security.rec<1>)
@@ -937,7 +937,7 @@ vb.local.login:
                username = logname
 
                * mab 20240219 if kernel(K$SECURE, -1) then
-               readu lgn.rec from lgn.f, username else null
+               * dsm 20240612 readu lgn.rec from lgn.f, username else null
                * 20240219 mab user must be member of sdusers           
                if  not(is_grp_member(username,'sdusers')) then
                      server.error = SV$ON.ERROR
@@ -945,19 +945,19 @@ vb.local.login:
                      goto exit.vb.local.login
                end
 
-               lgn.rec<LGN$DATE> = date()
-               lgn.rec<LGN$TIME> = time()
-               recordlocku lgn.f, username
-               write lgn.rec to lgn.f, username
+               * dsm 20240612 lgn.rec<LGN$DATE> = date()
+               * dsm 20240612 lgn.rec<LGN$TIME> = time()
+               * dsm 20240612 recordlocku lgn.f, username
+               * dsm 20240612 write lgn.rec to lgn.f, username
 
                logname = username
-               i = kernel(K$ADMINISTRATOR,lgn.rec<LGN$ADMIN>)
+               * dsm 20240612 i = kernel(K$ADMINISTRATOR,lgn.rec<LGN$ADMIN>)
                * mab 20240219    end else      ;* System is insecure
                * mab 20240219      i = kernel(K$ADMINISTRATOR,1)    ;* All users are administrators
                * mab 20240219    end
 
 exit.vb.local.login:
-               close lgn.f
+               * dsm 20240612close lgn.f
                if server.error = SV$OK then logged.in = @true
                else done = @true
 

@@ -19,6 +19,7 @@
 * 
 * START-HISTORY:
 * 20240330 mab rev 064 mods to $LOGINS / ACCOUNTS
+* 20240612 dsm removed read/write $LOGINS
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * END-HISTORYPTION:
 *
@@ -36,6 +37,7 @@ $internal
 $flags trusted
 
 subroutine login(ok, mode)
+
 $catalogue $LOGIN
 
 $include revstamp.h
@@ -165,10 +167,6 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 
    * Open the $LOGINS file
    
-   openpath @sdsys:@ds:'$LOGINS' to lgn.f else
-      display sysmsg(6050) ;* Cannot open $LOGINS register in SDSYS account
-      goto terminate.connection
-   end
 
 * 20240219 mab always run in secure mode, no changes allowed to K$SECURE flag!! * 
 *               we also no longer allow telnet connections via the internal
@@ -177,21 +175,19 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 *               BUT just to be safe, terminate if we get here as Network/serial connection
 
   if system(42) or system(1027) then   ;* Network/serial connection
-
-      logmsg sysmsg(5063, 'security test')  ;* Failed login authentication from %1
-		goto terminate.connection
+    logmsg sysmsg(5063, 'security test')  ;* Failed login authentication from %1
+	goto terminate.connection
   end else
-* This user has come in from a command prompt.
+     * This user has come in from a command prompt.
 	 lgn.id = @logname
-* 20240219 mab user must be member of sdusers     
-    if  not(is_grp_member(lgn.id,'sdusers')) then
-	   display sysmsg(5009) ;* This user is not registered for SD use
-	   goto terminate.connection
+     * 20240219 mab user must be member of sdusers     
+     if  not(is_grp_member(lgn.id,'sdusers')) then
+	    display sysmsg(5009) ;* This user is not registered for SD use
+	    goto terminate.connection
 	 end
-	 read lgn.rec from lgn.f, lgn.id else null
   end
 
-* 20240330 mab for sd the only way to be and admin is to be root
+* 20240330 mab for sd the only way to be an admin is to be root
 * Set administrator rights if appropriate
 *   i = kernel(K$ADMINISTRATOR, lgn.rec<LGN$ADMIN>)
 
@@ -270,16 +266,17 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
          
    end case
 * 20240330 mab always update $LOGINS with login info
-   lgn.rec<LGN$LAST.ACCOUNT> = initial.account
-   lgn.rec<LGN$DATE> = date()
-   lgn.rec<LGN$TIME> = time()
-   recordlocku lgn.f, lgn.id
-   write lgn.rec to lgn.f, lgn.id on error
-       display 'Error ' : status() : ' writing to $LOGINS.'
-       goto terminate.connection
-   end
+* 20240612 dsm removed write to $LOGINS as it no longer exists
+*   lgn.rec<LGN$LAST.ACCOUNT> = initial.account
+*   lgn.rec<LGN$DATE> = date()
+*   lgn.rec<LGN$TIME> = time()
+*   recordlocku lgn.f, lgn.id
+*   write lgn.rec to lgn.f, lgn.id on error
+*       display 'Error ' : status() : ' writing to $LOGINS.'
+*       goto terminate.connection
+*   end
 
-   close lgn.f
+*   close lgn.f
 
    * Set @PATH
 
