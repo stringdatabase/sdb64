@@ -164,7 +164,7 @@ sudo sd -start
 sudo sd -stop
 
 # installing micro editor
-curl https://getmic.ro | bash
+curl https://getmic.ro | sudo bash
 sudo mv micro /usr/bin
 cd $cwd
 
