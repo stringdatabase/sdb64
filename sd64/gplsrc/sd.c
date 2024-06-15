@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 15 Jun 24 add bootstrap build option install option -I
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -29,6 +30,7 @@
  *         -Bn           Telnet binary mode? Additive: 1=input, 2=output,
  *                                                     4 = suppress telnet
  *         -D            Diagnostic dump
+ *         -I            Bootstrap Install
  *         -K n          Kill user n
  *         -K ALL        Kill all users
  *         -L            Apply new licence
@@ -199,11 +201,12 @@ int main(int argc, char *argv[]) {
  * 
  */
  
-#define Pcode(a)                     \
-  if (!load_pcode(#a, &pcode_##a)) { \
-    clean_stop();                    \
-    return status;                   \
-  }
+#define Pcode(a)                       \
+     if (!load_pcode(#a, &pcode_##a)) { \
+      clean_stop();                    \
+      return status;                   \
+    }                                  \
+ 
 
 #include "pcode.h" /* this loads up all the pcode object code from the "pcode" file. */
 
@@ -287,6 +290,13 @@ Private bool comlin(int argc, char *argv[]) {
         strcpy(tio.term_type, argv[arg]);
     } else {
       switch (UpperCase(argv[arg][1])) {
+/* 20240615 mab Bootstrap build */		  
+        case 'I': /* Bootstrap Install*/
+          check_admin();
+          is_bootstrap = TRUE;
+          internal_mode = TRUE;
+          strcpy(command_processor, "$BBPROC");
+        
         case 'A': /* Query account */
           if (argv[arg][2] == '\0') {
             command_options |= CMD_QUERY_ACCOUNT;
@@ -294,7 +304,7 @@ Private bool comlin(int argc, char *argv[]) {
             forced_account = argv[arg] + 2;
           }
           break;
-
+        
         case 'B': /* Enable telnet binary mode */
           c = argv[arg][2];
           telnet_binary_mode_in = c & 1;

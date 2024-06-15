@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 11 Jun 24 mab remove pickmsg op_errmsg and pick style abort op_pabort
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -36,7 +37,6 @@
 void op_dspnl(void);
 void op_abort(void);
 
-Private void pickmsg(bool is_abort);
 
 /* ====================================================================== */
 
@@ -90,38 +90,6 @@ void op_abortmsg() {
     k_error("Abort");
 }
 
-/* ======================================================================
-   op_errmsg()  -  Pick style error message (ERRMSG or STOP)              */
-
-void op_errmsg() {
-  pickmsg(FALSE);
-}
-
-Private void pickmsg(bool is_abort) {
-  /* Stack:
-
-     |=============================|=============================|
-     |            BEFORE           |           AFTER             |
-     |=============================|=============================|
- top |  Arguments                  |                             |
-     |-----------------------------|-----------------------------|
-     |  Message id                 |                             |
-     |=============================|=============================|
- */
-
-  InitDescr(e_stack, INTEGER);
-  (e_stack++)->data.value = is_abort;
-
-  k_recurse(pcode_pickmsg, 3); /* Execute recursive code */
-}
-
-/* ======================================================================
-   op_pabort()  -  Pick style abort                                       */
-
-void op_pabort() {
-  pickmsg(TRUE);
-  op_abort();
-}
 
 /* ====================================================================== */
 
