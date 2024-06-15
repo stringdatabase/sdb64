@@ -53,6 +53,12 @@ echo "Creating user: sdsys."
 sudo useradd --system sdsys -G sdusers
 
 sudo cp -R sdsys /usr/local
+# build program objects for bootstrap install
+sudo python3 gplbld/bbcmp.py /usr/local/sdsys GPL.BP/BBPROC GPL.BP.OUT/BBPROC
+sudo python3 gplbld/bbcmp.py /usr/local/sdsys GPL.BP/BCOMP GPL.BP.OUT/BCOMP
+sudo python3 gplbld/bbcmp.py /usr/local/sdsys GPL.BP/PATHTKN GPL.BP.OUT/PATHTKN
+sudo python3 gplbld/pcode_bld.py
+
 sudo cp -R bin /usr/local/sdsys
 sudo cp -R gplsrc /usr/local/sdsys
 sudo cp -R gplobj /usr/local/sdsys
@@ -134,8 +140,9 @@ cd /usr/local/sdsys
 echo "Starting SD server."
 sudo bin/sd -start
 echo
-echo "Recompiling GPL.BP (only required for dev work)"
-sudo bin/sd -internal FIRST.COMPILE
+echo "Bootstap pass 1"
+sudo bin/sd -i
+echo "Bootstap pass 2"
 sudo bin/sd -internal SECOND.COMPILE
 
 #  create a user account for the current user
