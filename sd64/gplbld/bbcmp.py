@@ -10457,7 +10457,6 @@ def main():
     # Write bytes to file
     with open(binfn, "wb") as binary_file:
         binary_file.write(immutable_bytes)
-        print ('REM - shutil.chown(binfn,user="sdsys",group="sdusers")')
 
     if len(catalog_name) > 0:
         print('saving code_image to gcat as: ' + catalog_name)
@@ -10465,7 +10464,7 @@ def main():
         gcatfn = os.path.join(sdsys, gcatpn)
         with open(gcatfn, "wb") as binary_file:
             binary_file.write(immutable_bytes)
-            print('REM - shutil.chown(gcatfn,user="sdsys",group="sdusers")')     
+ 
 
     if debugging == debug_log:
         sfn=os.getcwd() + os.sep + 'get_line_db.txt'

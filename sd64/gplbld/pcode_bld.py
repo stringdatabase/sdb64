@@ -40,7 +40,6 @@ pcode_fs = ["_AK",
 "_ITYPE"      ,
 "_KEYCODE"    ,
 "_KEYEDIT"    ,
-"_LOGIN"      ,
 "_MAXIMUM"    ,
 "_MESSAGE"    ,
 "_MINIMUM"    ,
@@ -70,8 +69,6 @@ pcode_fs = ["_AK",
 "_SYSTEM"     ,
 "_TCONV"      ,
 "_TRANS"      ,
-"_TTYGET"     ,
-"_TTYSET"     ,
 "_VOC_CAT"    ,
 "_VOC_REF"    ,
 "_WRITEV"     ]
@@ -100,10 +97,13 @@ def main():
     # If $catlog directive found in source  bbcmp will also write the pcode object file to the global catalog file
     #         ie) for BCOMP,  $catalog $BCOMP is found in source.  bbcmp will write the pcode object file to
     #         sdsys/gcat/$BCOMP
+    cwd = os.getcwd()
+    bbcmp = cwd + os.sep +'gplbld' + os.sep + 'bbcmp.py'
+    logger.info('bbcmp.py path: ' + bbcmp)
     for src in pcode_fs:
         logger.info('**********************************************************************')
         result =   subprocess.run(
-            ['python3','bbcmp.py',SDSYS,'GPL.BP/'+src,'PCODE.OUT/'+src],
+            ['python3',bbcmp,SDSYS,'GPL.BP/'+src,'PCODE.OUT/'+src],
              capture_output=True,
              text = True)
         logger.info(result.stdout)
