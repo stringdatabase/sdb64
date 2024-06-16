@@ -148,6 +148,8 @@ end
       goto abort.bbproc
    end
    
+   mark.mapping gcat.f, off
+   
    source.file.name = 'GPL.BP'
    openpath @sdsys:@ds:source.file.name to src.f else
      crt 'Cannot open ':source.file.name:'!, ABORT'
@@ -181,9 +183,13 @@ src.list<-1> = 'BASIC'
 src.list<-1> = 'BCOMP'
 src.list<-1> = 'PTERM'
 src.list<-1> = 'CATALOG'
+src.list<-1> = 'PARSER'
+src.list<-1> = 'IS_GRP_MEMBER'
+src.list<-1> = 'TERM'
+
 src.cnt = dcount(src.list,@FM) 
     
-for pi = 1 to 1
+for pi = 1 to src.cnt
 		prg.name = src.list<pi>
 		
 		crt 'compile: ':prg.name
@@ -201,7 +207,7 @@ for pi = 1 to 1
         
         if errors = 0 then
            write object.code to out.f, prg.name
-           if pass1 > 1 then
+
              if catalogue.name # '' then
                write object.code to gcat.f, catalogue.name
              end else
@@ -209,7 +215,7 @@ for pi = 1 to 1
                if logging then writeseq 'No Catalog Name for ':prg.name:', ABORT!' to log.f else null
                goto abort.bbproc
              end 
-           end   
+ 
         end else
            crt 'Errors in compile of ':prg.name:', ABORT!'
            if logging then writeseq 'Errors in compile of ':prg.name:', ABORT!' to log.f else null

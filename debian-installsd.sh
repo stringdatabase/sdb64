@@ -44,6 +44,8 @@ sudo apt-get install build-essential micro lynx libbsd-dev
  
 cd $cwd/sd64
 
+sudo make 
+
 # Create sd system user and group
 echo "Creating group: sdusers"
 sudo groupadd --system sdusers
@@ -53,16 +55,17 @@ echo "Creating user: sdsys."
 sudo useradd --system sdsys -G sdusers
 
 sudo cp -R sdsys /usr/local
+sudo cp -R bin /usr/local/sdsys
+sudo cp -R gplsrc /usr/local/sdsys
+sudo cp -R gplobj /usr/local/sdsys
+sudo cp -R terminfo /usr/local/sdsys
+
 # build program objects for bootstrap install
 sudo python3 gplbld/bbcmp.py /usr/local/sdsys GPL.BP/BBPROC GPL.BP.OUT/BBPROC
 sudo python3 gplbld/bbcmp.py /usr/local/sdsys GPL.BP/BCOMP GPL.BP.OUT/BCOMP
 sudo python3 gplbld/bbcmp.py /usr/local/sdsys GPL.BP/PATHTKN GPL.BP.OUT/PATHTKN
 sudo python3 gplbld/pcode_bld.py
 
-sudo cp -R bin /usr/local/sdsys
-sudo cp -R gplsrc /usr/local/sdsys
-sudo cp -R gplobj /usr/local/sdsys
-sudo cp -R terminfo /usr/local/sdsys
 sudo cp Makefile /usr/local/sdsys
 sudo cp gpl.src /usr/local/sdsys
 sudo cp terminfo.src /usr/local/sdsys
@@ -114,8 +117,8 @@ if [ -d  "$SYSTEMDPATH" ]; then
     fi
 fi
 
-cd /usr/local/sdsys
-sudo make -B
+#cd /usr/local/sdsys
+#sudo make -B
 
 # Copy saved directories if they exist
 if [ -d /home/sd/ACCOUNTS ]; then

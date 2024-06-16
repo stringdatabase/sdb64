@@ -238,8 +238,6 @@ restart.cproc:
 
       prompt ''
       
-      crt 'call $LOGIN'
-
       i = '$LOGIN'
       call @i(j,0)
       if not(j) then goto abort.cproc
