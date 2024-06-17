@@ -1,0 +1,12 @@
+ACCT_PATH=/home/sd
+CWD=$(pwd)
+SDSYS_PATH=/usr/local/sdsys
+SYSTEMD_PATH=/usr/lib/systemd/system
+TGROUP=sdusers
+TUSER=$USER
+echo $CWD/sd64/usr/lib/systemd/system/
+echo $SYSTEMD_PATH
+
+		sudo chmod 644 $SYSTEM_DPATH/sd.service
+		sudo chmod 644 $SYSTEM_DPATH/sdclient.socket
+		sudo chmod 644 $SYSTEM_DPATH/sdclient@.service

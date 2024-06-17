@@ -4,6 +4,9 @@
 #	This software is released under the Blue Oak Model License
 #	a copy can be found on the web here: https://blueoakcouncil.org/license/1.0.0
 #
+#------------------------------------------------------------------
+# CHECK IF ALREADY INSTALLED
+#------------------------------------------------------------------
     if [[ $EUID -eq 0 ]]; then
         echo "This script must NOT be run as root" 1>&2
         exit
@@ -14,10 +17,19 @@
 		exit
 	fi
 #
-tgroup=sdusers
-tuser=$USER
-cwd=$(pwd)
-#
+#------------------------------------------------------------------	
+# VARIABLE DEFINITIONS
+#------------------------------------------------------------------
+ACCT_PATH=/home/sd
+CWD=$(pwd)
+SDSYS_PATH=/usr/local/sdsys
+SYSTEMD_PATH=/usr/lib/systemd/system
+TGROUP=sdusers
+TUSER=$USER
+
+#------------------------------------------------------------------
+# STARTUP USER MESSAGEE
+#------------------------------------------------------------------
 clear 
 echo SD installer
 echo --------------------
@@ -34,17 +46,22 @@ case $yn in
 	[nN] ) exit;;
 	* ) exit ;;
 esac
+
+#------------------------------------------------------------------
+# INSTALL REQUIRED DEB PACKAGES
+#------------------------------------------------------------------
 echo
-echo If requested, enter your account password:
-sudo date
+echo "If requested, enter your account password:"
+sudo pwd
 echo
 echo Installing required packages
 echo
-sudo apt-get install build-essential micro lynx libbsd-dev
- 
-cd $cwd/sd64
+sudo apt-get install build-essential micro lynx libbsd-dev python3
 
-# Create sd system user and group
+#------------------------------------------------------------------
+# INSTALL SYSTEM USER AND GROUP
+#------------------------------------------------------------------
+echo
 echo "Creating group: sdusers"
 sudo groupadd --system sdusers
 sudo usermod -a -G sdusers root
@@ -52,30 +69,38 @@ sudo usermod -a -G sdusers root
 echo "Creating user: sdsys."
 sudo useradd --system sdsys -G sdusers
 
-sudo cp -R sdsys /usr/local
-sudo cp -R bin /usr/local/sdsys
-sudo cp -R gplsrc /usr/local/sdsys
-sudo cp -R gplobj /usr/local/sdsys
-sudo cp -R terminfo /usr/local/sdsys
-sudo cp Makefile /usr/local/sdsys
-sudo cp gpl.src /usr/local/sdsys
-sudo cp terminfo.src /usr/local/sdsys
-sudo chown -R sdsys:sdusers /usr/local/sdsys
-sudo chown root:root /usr/local/sdsys/ACCOUNTS/SDSYS
-sudo chmod 664 /usr/local/sdsys/ACCOUNTS/SDSYS
-sudo chown -R sdsys:sdusers /usr/local/sdsys/terminfo
-sudo chown root:root /usr/local/sdsys
-sudo cp sd.conf /etc/sd.conf
+#------------------------------------------------------------------
+# COPY FILES & DIRECTORIES TO SDSYS DIRECTORY & SET RIGHTS
+#------------------------------------------------------------------
+echo
+echo "Setting up sdsys directory tree and permissions"
+sudo cp -R $CWD/sd64/sdsys /usr/local
+sudo cp -R $CWD/sd64/bin $SDSYS_PATH
+sudo cp -R $CWD/sd64/gplsrc $SDSYS_PATH
+sudo cp -R $CWD/sd64/gplobj $SDSYS_PATH
+sudo cp -R $CWD/sd64/terminfo $SDSYS_PATH
+sudo cp $CWD/sd64/Makefile $SDSYS_PATH
+sudo cp $CWD/sd64/gpl.src $SDSYS_PATH
+sudo cp $CWD/sd64/terminfo.src $SDSYS_PATH
+sudo cp $CWD/sd64/sd.conf /etc/sd.conf
+
+#set rights
+sudo chown -R sdsys:sdusers $SDSYS_PATH
+sudo chown root:root $SDSYS_PATH/ACCOUNTS/SDSYS
+sudo chmod 664 $SDSYS_PATH/ACCOUNTS/SDSYS
+sudo chown -R sdsys:sdusers $SDSYS_PATH/terminfo
+sudo chown root:root $SDSYS_PATH
 sudo chmod 644 /etc/sd.conf
-sudo chmod -R 775 /usr/local/sdsys
-sudo chmod 775 /usr/local/sdsys/bin
-sudo chmod 775 /usr/local/sdsys/bin/*
+sudo chmod -R 775 $SDSYS_PATH
+sudo chmod 775 $SDSYS_PATH/bin
+sudo chmod 775 $SDSYS_PATH/bin/*
 
-#	Add $tuser to sdusers group
-sudo usermod -aG sdusers $tuser
-
-# directories for sd accounts
-ACCT_PATH=/home/sd
+#------------------------------------------------------------------
+# SETUP THE USER AND GROUP ACCOUNT BASE DIRECTORIES
+# OWNERSHIP & RIGHTS
+#------------------------------------------------------------------
+echo
+echo "Setup user and group accounts tree"
 if [ ! -d "$ACCT_PATH" ]; then
    sudo mkdir -p "$ACCT_PATH"/user_accounts
    sudo mkdir "$ACCT_PATH"/group_accounts
@@ -85,86 +110,91 @@ if [ ! -d "$ACCT_PATH" ]; then
    sudo chmod 775 "$ACCT_PATH"/user_accounts
 fi
 
-sudo ln -s /usr/local/sdsys/bin/sd /usr/local/bin/sd
-
-# Install sd service for systemd
-SYSTEMDPATH=/usr/lib/systemd/system
-
-if [ -d  "$SYSTEMDPATH" ]; then
-    if [ -f "$SYSTEMDPATH/sd.service" ]; then
-        echo "SD systemd service is already installed."
-    else
-		echo "Installing sd.service for systemd."
-
-		sudo cp usr/lib/systemd/system/* $SYSTEMDPATH
-
-		sudo chown root:root $SYSTEMDPATH/sd.service
-		sudo chown root:root $SYSTEMDPATH/sdclient.socket
-		sudo chown root:root $SYSTEMDPATH/sdclient@.service
-
-		sudo chmod 644 $SYSTEMDPATH/sd.service
-		sudo chmod 644 $SYSTEMDPATH/sdclient.socket
-		sudo chmod 644 $SYSTEMDPATH/sdclient@.service
-    fi
-fi
-
-cd /usr/local/sdsys
+#------------------------------------------------------------------
+# MAKE THE EXECUTABLES AND LINK TO SYSTEM BINARY DIRECTORY
+#------------------------------------------------------------------
+echo
+echo "Build executables" 
+cd $CWD/sd64
 sudo make -B
+cd $CWD
 
-# Copy saved directories if they exist
+# create link to sd executable
+sudo ln -s $SDSYS_PATH/bin/sd /usr/local/bin/sd
+
+#------------------------------------------------------------------
+# COPY THE ACCOUNTS DIRECTORY IF SAVED DURING LAST DELETION
+#------------------------------------------------------------------
+echo
+echo "Restore the accounts directory tree if saved during last deletion"
 if [ -d /home/sd/ACCOUNTS ]; then
   echo Moved existing ACCOUNTS directory
-  sudo rm -fr /usr/local/sdsys/ACCOUNTS
-  sudo mv /home/sd/ACCOUNTS /usr/local/sdsys
+  sudo rm -fr $SDSYS_PATH/ACCOUNTS
+  sudo mv /home/sd/ACCOUNTS $SDSYS_PATH
 else
   echo Saved Accounts Directory Does Not Exist
 fi
 
-if [ -d '/home/sd/$LOGINS' ]; then
-  echo 'Moved existing $LOGINS directory'
-  sudo rm -fr '/usr/local/sdsys/$LOGINS'
-  sudo mv '/home/sd/$LOGINS' /usr/local/sdsys
-else
-  echo 'Saved $LOGINS Directory Does Not Exist' 
-fi
-
-cd /usr/local/sdsys
-
-#	Start ScarletDME server
-echo "Starting SD server."
-sudo bin/sd -start
+#------------------------------------------------------------------
+# START SD TO COMPILE ALL THE BASIC PROGRAMS IN GPL.BP
+#------------------------------------------------------------------
+echo
+echo "Run SD server to compile programs in GPL.BP"
+sudo $SDSYS_PATH/bin/sd -start
 echo
 echo "Recompiling GPL.BP (only required for dev work)"
-sudo bin/sd -internal FIRST.COMPILE
-sudo bin/sd -internal SECOND.COMPILE
+sudo $SDSYS_PATH/bin/sd -internal FIRST.COMPILE
+sudo $SDSYS_PATH/bin/sd -internal SECOND.COMPILE
+echo
 
-#  create a user account for the current user
+#------------------------------------------------------------------
+# ADD CURRENT USER TO sdusers AND CREATE USER ACCOUNT
+#------------------------------------------------------------------
 echo
+echo "Add current user to sdusers and create database account"
+sudo usermod -aG sdusers $TUSER
+
+#  create a database user account for the current user
 echo
-if [ ! -d /home/sd/user_accounts/$tuser ]; then	
-	echo "Creating a user account for" $tuser
-	sudo bin/sd create-account USER $tuser no.query
+if [ ! -d /home/sd/user_accounts/$TUSER ]; then	
+	echo "Creating a user account for" $TUSER
+	sudo $SDSYS_PATH/bin/sd create-account USER $TUSER no.query
 fi
 
+#------------------------------------------------------------------
+# STOP SD AND INSTALL SD SERVICES
+#------------------------------------------------------------------
 echo
-echo Stopping sd
-sudo sd -stop
-
+echo "Stop sd server and install services for systemd"
+sudo $SDSYS_PATH/bin/sd -stop
 echo
-echo Enabling services
-sudo systemctl start sd.service
-sudo systemctl start sdclient.socket
-sudo systemctl enable sd.service
-sudo systemctl enable sdclient.socket
+if [ -d  "$SYSTEMD_PATH" ]; then
+    if [ -f "$SYSTEMD_PATH/sd.service" ]; then
+    	echo
+        echo "SD systemd service is already installed."
+    else
+    	echo
+		echo "Installing sd.service for systemd."
+		sudo cp $CWD/sd64/usr/lib/systemd/system/* $SYSTEMD_PATH
 
-sudo sd -stop
-sudo sd -start
-sudo sd -stop
+		sudo chown root:root $SYSTEMD_PATH/sd.service
+		sudo chown root:root $SYSTEMD_PATH/sdclient.socket
+		sudo chown root:root $SYSTEMD_PATH/sdclient@.service
 
-cd $cwd
-
-# display end of script message
-echo
+		sudo chmod 644 $SYSTEMD_PATH/sd.service
+		sudo chmod 644 $SYSTEMD_PATH/sdclient.socket
+		sudo chmod 644 $SYSTEMD_PATH/sdclient@.service
+		
+ 		echo Enabling services
+		sudo systemctl start sd.service
+		sudo systemctl start sdclient.socket
+		sudo systemctl enable sd.service
+		sudo systemctl enable sdclient.socket
+    fi
+fi
+#------------------------------------------------------------------
+# DISPLAY END OF SCRIPT MESSAGE AND REBOOT QUESTION
+#------------------------------------------------------------------
 echo
 echo -----------------------------------------------------
 echo "The SD server is installed."
@@ -182,7 +212,6 @@ echo "to connect to your sd home directory."
 echo
 echo "To completely delete SD, run the" 
 echo "deletesd.sh bash script provided."
-echo
 echo -----------------------------------------------------
 echo
 read -p "Restart computer now? (y/N) " yn
