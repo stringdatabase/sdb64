@@ -58,6 +58,7 @@ sudo cp -R sdsys /usr/local
 sudo cp -R bin /usr/local/sdsys
 sudo cp -R gplsrc /usr/local/sdsys
 sudo cp -R gplobj /usr/local/sdsys
+sudo mkdir /usr/local/sdsys/gplbld
 sudo cp -R gplbld/FILES_DICTS /usr/local/sdsys/gplbld/FILES_DICTS
 sudo cp -R terminfo /usr/local/sdsys
 
@@ -146,10 +147,26 @@ sudo bin/sd -start
 echo
 echo "Bootstap pass 1"
 sudo bin/sd -i
+# files added in pass1 need perm and owner setup
+sudo chmod -R 775 /usr/local/sdsys/\$HOLD.DIC
+sudo chmod -R 775 /usr/local/sdsys/\$IPC
+sudo chmod -R 775 /usr/local/sdsys/\$MAP
+sudo chmod -R 775 /usr/local/sdsys/\$MAP.DIC
+sudo chmod -R 775 /usr/local/sdsys/ACCOUNTS.DIC
+sudo chmod -R 775 /usr/local/sdsys/DICT.DIC
+sudo chmod -R 775 /usr/local/sdsys/DIR_DICT
+#
+sudo chown -R sdsys:sdusers /usr/local/sdsys/\$HOLD.DIC
+sudo chown -R sdsys:sdusers  /usr/local/sdsys/\$IPC
+sudo chown -R sdsys:sdusers  /usr/local/sdsys/\$MAP
+sudo chown -R sdsys:sdusers  /usr/local/sdsys/\$MAP.DIC
+sudo chown -R sdsys:sdusers  /usr/local/sdsys/ACCOUNTS.DIC
+sudo chown -R sdsys:sdusers  /usr/local/sdsys/DICT.DIC
+sudo chown -R sdsys:sdusers  /usr/local/sdsys/DIR_DICT
 echo "Bootstap pass 2"
 sudo bin/sd -internal SECOND.COMPILE
 echo "Bootstap pass 3"
-sudo bin/sd RUN GPL.BP WRITE_INSTALL_DICTS
+sudo bin/sd RUN GPL.BP WRITE_INSTALL_DICTS NO.PAGE
 
 #  create a user account for the current user
 echo

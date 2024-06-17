@@ -13,8 +13,6 @@ CRT
 CRT '+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++'
 CRT ' PROGRAM TRANSFERS DICTIONARY ENTRIES CREATED VIA CREATE_INSTALL_DICT_FILE'
 CRT ' TO APPROPRIATE DICT FILE '
-CRT ''
-CRT '  - ENTER OK TO CONTINUE                                            '
 CRT '+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++'
 CRT
 *
@@ -69,8 +67,9 @@ FOR I = 1 TO ID_CNT
     OPEN_FILE_NAME = NEW_FILE_NAME 
     OPENPATH  DESTINATION_PATH:@DS:OPEN_FILE_NAME TO DICT.FILE.VAR ELSE
        CRT 'ERROR CANNOT OPEN: ' :DESTINATION_PATH:@DS:OPEN_FILE_NAME:', THIS SHOULD NOT HAPPEN!'
-       CRT "BUILD ABORT"
-       STOP
+       CRT 'Garbage in ':DESTINATION_PATH:'??'
+       OPEN_FILE_NAME = ''
+       CONTINUE
     END  
   END   
     
