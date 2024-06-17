@@ -152,13 +152,14 @@ echo
 #------------------------------------------------------------------
 echo
 echo "Add current user to sdusers and create database account"
+
 sudo usermod -aG sdusers $TUSER
 
 #  create a database user account for the current user
 echo
 if [ ! -d /home/sd/user_accounts/$TUSER ]; then	
 	echo "Creating a user account for" $TUSER
-	sudo $SDSYS_PATH/bin/sd create-account USER $TUSER no.query
+	sudo $SDSYS_PATH/bin/sd CREATE-ACCOUNT USER $TUSER no.query
 fi
 
 #------------------------------------------------------------------
