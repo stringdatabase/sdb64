@@ -130,6 +130,9 @@ end
 
 * Main processing loop
 
+if system(27) # 0 then
+      stop 'Command requires administrator privileges'
+end
 
    unload.object               ;* Unload inactive object code
 
@@ -222,7 +225,54 @@ for pi = 1 to src.cnt
            goto abort.bbproc
         end
         
-next pi         
+next pi    
+*
+* list of files we need to create
+*
+FILES_LIST = ''
+*
+*  list of files dicts to "create" (add ~0 and ~1)
+*
+* file info on old systems via BP INSTALL_FILE_INFO FILEINFO()
+*
+*filename  type mod  mnmod   grpsz   lrgrec
+*ACCOUNTS  4    0    0       0       0
+*$HOLD     4    0    0       0       0
+*$MAP      3    1    1       1       819
+*$IPC      3    1    1       1       819
+*DICT.DIC  3    4    1       1       819
+*DIR_DICT  3    1    1       1       819
+*VOC.DIC   3    4    1       1       819
+*         (3) - Dynamic file, including data collections
+*         (4) - Directory file
+*
+*                  file      create file  create dict
+FILES_LIST<-1> = "ACCOUNTS"  :@VM:'N'      :@VM:'Y'
+FILES_LIST<-1> = "$HOLD"     :@VM:'N'      :@VM:'Y' 
+FILES_LIST<-1> = "$MAP"      :@VM:'Y'      :@VM:'Y' 
+FILES_LIST<-1> = "$IPC"      :@VM:'Y'      :@VM:'N' 
+FILES_LIST<-1> = "DICT.DIC"  :@VM:'Y'      :@VM:'N'  
+FILES_LIST<-1> = "DIR_DICT"  :@VM:'Y'      :@VM:'N' 
+FILES_LIST<-1> = "VOC.DIC"   :@VM:'Y'      :@VM:'N'
+*
+files.cnt = dcount(FILES_LIST,@FM)
+
+for i = 1 to files.cnt
+  * create file? 
+  if FILES_LIST<i,2> = "Y" then
+     filename = @sdsys:@ds:FILES_LIST<i,1> 
+     crt 'creating: ':filename
+     create.file filename  DYNAMIC
+  end
+  * create dictionary? 
+  if FILES_LIST<i,3> = "Y" then
+     filename = @sdsys:@ds:FILES_LIST<i,1>:'.DIC' 
+     crt 'creating: ':filename
+     create.file filename  DYNAMIC
+  end
+
+next i
+     
 
 abort.bbproc: 
 return to abort.bbproc

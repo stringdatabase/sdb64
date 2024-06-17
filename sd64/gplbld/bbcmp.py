@@ -4912,7 +4912,7 @@ def st_sleep():
     return
 
 def st_sselect():
-    error(token_string + ' statement not coded')
+    select_common(OP_SSELECT)
     return
 
 def st_status():

@@ -147,6 +147,8 @@ echo "Bootstap pass 1"
 sudo bin/sd -i
 echo "Bootstap pass 2"
 sudo bin/sd -internal SECOND.COMPILE
+echo "Bootstap pass 3"
+sudo bin/sd RUN GPL.BP WRITE_INSTALL_DICTS
 
 #  create a user account for the current user
 echo
