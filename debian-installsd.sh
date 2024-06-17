@@ -58,7 +58,7 @@ sudo cp -R sdsys /usr/local
 sudo cp -R bin /usr/local/sdsys
 sudo cp -R gplsrc /usr/local/sdsys
 sudo cp -R gplobj /usr/local/sdsys
-sudo cp -R gplbld/FILES_DICTS /usr/local/sdsys
+sudo cp -R gplbld/FILES_DICTS /usr/local/sdsys/gplbld/FILES_DICTS
 sudo cp -R terminfo /usr/local/sdsys
 
 # build program objects for bootstrap install
