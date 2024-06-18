@@ -193,17 +193,11 @@ cd $cwd
 echo "Removing binary bits from repository"
 sudo rm sd64/gplobj/*.o
 sudo rm sd64/bin/sd*
-sudo rm sd64/bin/pcode*
 sudo rm sd64/bin/*.so
 sudo rm sd64/pass1
 sudo rm sd64/pass2
 sudo rm sd64/pcode_bld.log
-sudo rm sd64/sdsys/pass1
-sudo rm sd64/sdsys/pass2
-sudo rm sd64/sdsys/pcode_pld.log
-sudo rm sd64/sdsys/GPL.BP.OUT/BBPROC
-sudo rm sd64/sdsys/GPL.BP.OUT/BCOMP
-sudo rm sd64/sdsys/GPL.BP.OUT/PATHTKN
+
 
 # display end of script message
 echo
