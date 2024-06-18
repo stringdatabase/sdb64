@@ -28,12 +28,15 @@
  */
 
 /* 20240126 mab add revstamp mods, VM rev and SD rev */
+/* N O T E:  Must manually edit REVSTAMP.H in GPL.BP */
+/* OR run REVSTAMP in sd to sync this version with   */
+/* REVSTAMP.H found in GPL.BP                        */
 #define MAJOR_REV      2
 #define MINOR_REV      6
 #define BUILD          6
 #define VM_REV_STAMP   "2.6-6"
 
-#define SD_REV_STAMP   "0.6.4B"
+#define SD_REV_STAMP   "0.7.0"
 
 
 #define SD_COPYRIGHT_YEAR "2007"
