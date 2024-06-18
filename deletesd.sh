@@ -27,30 +27,38 @@ echo
 echo If requested, enter your account password:
 sudo date
 echo
-read -p "Delete /home/sd? (y/n) " yn
+read -p "Delete /home/sd? (y/N) " yn
 case $yn in
 	[yY] )  echo /home/sd Directory Deleted;
 			sudo rm -fr /home/sd;;
-	[nN] )  
+	* )  
 		echo Saving Accounts Directory;
 		sudo mv /usr/local/sdsys/ACCOUNTS /home/sd;
-		echo 'Saving $LOGINS Directory';
-		sudo mv '/usr/local/sdsys/$LOGINS' /home/sd;;
 esac
 echo
+
 # remove the /usr/sdsys directory
 sudo rm -fr /usr/local/sdsys
 echo
 echo "Removed /usr/local/sdsys directory."
-# remove the symbolic link to sd in /usr/local/bin
-sudo rm /usr/local/bin/sd
-sudo rm /usr/bin/sd
-echo "Removed symbolic link /usr/local/bin/sd."
+
+# remove the symbolic link to sd in /usr/local/bin or /usr/bin
+if [ -f "/usr/local/bin/sd" ]; then
+	sudo rm /usr/local/bin/sd
+	echo "Removed symbolic link /usr/local/bin/sd."
+fi
+
+if [ -f "/usr/bin/sd" ]; then
+	sudo rm /usr/bin/sd
+	echo "Removed symbolic link /usr/bin/sd."
+fi
+
 #remove config file
 sudo rm /etc/sd.conf
 echo "Config file removed"
 #
 cd /usr/lib/systemd/system
+
 #stop services
 sudo systemctl stop sd.service
 sudo systemctl stop sdclient.socket
@@ -83,4 +91,3 @@ case $yn in
 	* ) echo ;;
 esac
 echo
-
