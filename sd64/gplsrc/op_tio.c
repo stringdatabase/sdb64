@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * 15 Jun 24 mab remove or disable op_ttyset and op_ttyget 
  * 31 Dec 23 SD launch - prior history suppressed
  * END-HISTORY
  *
@@ -2489,7 +2490,8 @@ void op_ttyget() {
 
  */
 
-  k_recurse(pcode_ttyget, 0);
+  //k_recurse(pcode_ttyget, 0);
+  ;
 }
 
 /* ======================================================================
@@ -2506,7 +2508,8 @@ void op_ttyset() {
 
  */
 
-  k_recurse(pcode_ttyset, 1);
+  //k_recurse(pcode_ttyset, 1);
+  ;
 }
 
 /* ======================================================================

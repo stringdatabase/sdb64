@@ -18,6 +18,8 @@
  *
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 11 Jun 24 mab overwrite op_errmsg (pick error message) and op_pabort (pick abort) as illegal op code
+ * 15 Jun 24 mab overwrite op_ttyset op_ttyget as illegal op code
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -69,6 +71,13 @@ jmp_buf k_exit;
 #define op_crypt op_illegal2
 #define op_decrypt op_illegal2
 #define op_encrypt op_illegal2
+/* SD changes, removed pick support */
+#define op_errmsg op_illegal2
+#define op_pabort op_illegal2
+/* SD changes, removed ttyget and ttyset */
+#define op_ttyget op_illegal2
+#define op_ttyset op_illegal2
+
 
 #define _opc_(code, key, name, func, format, stack_use) func,
 void (*dispatch[])(void) = {

@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* 20240615 mab  mods for bootstrap builder
 * 20240330 mab restrict logto account to allowed users
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * END-HISTORY
@@ -112,9 +113,12 @@ $catalog $CPROC
 
 $flags cproc
 $flags trusted
-
-$execute 'BASIC GPL.BP REVSTAMP'
-$execute 'RUN GPL.BP REVSTAMP'
+* 20240615 mab *
+* mab *  bootstrap build cannot perform $execute (there is not cproc to do the work)
+* mab *  this means as the build process we should compile and run REVSTAMP to create REVSTAMP.H that syncs with the one
+* mab *  in gplsrc
+*$execute 'BASIC GPL.BP REVSTAMP'
+*$execute 'RUN GPL.BP REVSTAMP'
 $include revstamp.h
 
 $include syscom.h
@@ -233,7 +237,7 @@ restart.cproc:
       gosub reset.environment
 
       prompt ''
-
+      
       i = '$LOGIN'
       call @i(j,0)
       if not(j) then goto abort.cproc

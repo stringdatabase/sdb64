@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 15 Jun 24 mab - remove banner, login, pickmsg, ttyset, ttyget from pcode
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -28,7 +29,6 @@
  */
 
 Pcode(ak)        /* AK(MODE, MAT AK.DATA, ID, OLD.REC, NEW.REC) */
-Pcode(banner)    /* BANNER(UNIT, TEXT) */
 Pcode(bindkey)   /* BINDKEY(STRING, ACTION) */
 Pcode(break)     /* BREAK() */
 Pcode(cconv)     /* CCONV(SRC, CONV) */
@@ -50,7 +50,6 @@ Pcode(inputat)   /* INPUTAT(X, Y, STRING, MAX.LENGTH, MASK, FLAGS) */
 Pcode(itype)     /* ITYPE(DICT.REC) */
 Pcode(keycode)   /* KEYCODE(TIMEOUT) */
 Pcode(keyedit)   /* KEYEDIT(KEY.CODE, KEY.STRING) */
-Pcode(login)     /* LOGIN(USERNAME, PASSWORD) */
 Pcode(maximum)   /* MAXIMUM(DYN.ARRAY) */
 Pcode(message)   /* MESSAGE() */
 Pcode(minimum)   /* MINIMUM(DYN.ARRAY) */
@@ -60,7 +59,6 @@ Pcode(oconv)     /* OCONV(SRC, CONV) */
 Pcode(ojoin)     /* OJOIN(FILE.NAME, INDEX.NAME, INDEXED.VALUE) */
 Pcode(overlay)   /* OVERLAY(PU) */
 Pcode(pclstart)  /* PCL.START(PU) */
-Pcode(pickmsg)   /* PICKMSG(ID, ARGS, IS.ABORT) */
 Pcode(prefix)    /* PREFIX(UNIT, PATHNAME) */
 Pcode(prfile)    /* PRFILE(FILE, RECORD, PATHNAME, STATUS.CODE) */
 Pcode(readlst)   /* READLIST(TGT, LIST.NO, STATUS.CODE) */
@@ -80,8 +78,6 @@ Pcode(sumall)    /* SUMMATION(STR) */
 Pcode(system)    /* SYSTEM(ARG) */
 Pcode(tconv)     /* TCONV(SRC, CONV, OCONV) */
 Pcode(trans)     /* TRANS(FILE.NAME, ID.LIST, FIELD.NO, CODE) */
-Pcode(ttyget)    /* TTYGET() */
-Pcode(ttyset)    /* TTYSET(MODES) */
 Pcode(voc_cat)   /* VOC.CAT(VOC.ID, PATHNAME) */
 Pcode(voc_ref)   /* VOC.REF(VOC.ID, FIELD.NO, RESULT) */
 Pcode(writev)    /* WRITEV(STRING, FILE, ID, FIELD.NO, LOCK) */

@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 00 Jun 24 bootstrap flag
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -36,6 +37,7 @@ Public u_int16_t object_key;
 Public int exit_status init(0);    /* Final exit status */
 Public char* entry_dir init(NULL); /* Current directory on entry */
 
+Public bool is_bootstrap init(FALSE);  /* Bootstrap build (install process) */
 Public bool is_phantom init(FALSE);  /* Process is a phantom */
 Public bool is_sdApiSrvr init(FALSE); /* Process is a sdApiSrvr */
 Public bool is_nt init(FALSE);       /* Windows NT/2000/XP? */
