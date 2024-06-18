@@ -122,9 +122,6 @@ if [ -d  "$SYSTEMDPATH" ]; then
     fi
 fi
 
-#cd /usr/local/sdsys
-#sudo make -B
-
 # Copy saved directories if they exist
 if [ -d /home/sd/ACCOUNTS ]; then
   echo Moved existing ACCOUNTS directory
