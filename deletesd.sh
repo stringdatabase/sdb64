@@ -25,7 +25,7 @@ echo "Do you want to delete /home/sd and all subdirectories."
 echo "WARNING: this will delete all SD User and Group accounts."
 echo 
 echo If requested, enter your account password:
-sudo date
+sudo pwd
 echo
 read -p "Delete /home/sd? (y/N) " yn
 case $yn in
@@ -43,12 +43,12 @@ echo
 echo "Removed /usr/local/sdsys directory."
 
 # remove the symbolic link to sd in /usr/local/bin or /usr/bin
-if [ -f "/usr/local/bin/sd" ]; then
+if [ -L "/usr/local/bin/sd" ]; then
 	sudo rm /usr/local/bin/sd
 	echo "Removed symbolic link /usr/local/bin/sd."
 fi
 
-if [ -f "/usr/bin/sd" ]; then
+if [ -L "/usr/bin/sd" ]; then
 	sudo rm /usr/bin/sd
 	echo "Removed symbolic link /usr/bin/sd."
 fi
