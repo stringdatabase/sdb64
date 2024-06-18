@@ -55,6 +55,8 @@ echo "Creating user: sdsys."
 sudo useradd --system sdsys -G sdusers
 
 sudo cp -R sdsys /usr/local
+# Fool sd's vm into thinking gcat is populated
+sudo touch /usr/local/sdsys/gcat/\$CPROC
 sudo cp -R bin /usr/local/sdsys
 sudo cp -R gplsrc /usr/local/sdsys
 sudo cp -R gplobj /usr/local/sdsys
@@ -148,6 +150,7 @@ sudo chmod -R 775 /usr/local/sdsys/\$MAP.DIC
 sudo chmod -R 775 /usr/local/sdsys/ACCOUNTS.DIC
 sudo chmod -R 775 /usr/local/sdsys/DICT.DIC
 sudo chmod -R 775 /usr/local/sdsys/DIR_DICT
+sudo chmod -R 775 /usr/local/sdsys/VOC.DIC
 #
 sudo chown -R sdsys:sdusers /usr/local/sdsys/\$HOLD.DIC
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/\$IPC
@@ -156,6 +159,7 @@ sudo chown -R sdsys:sdusers  /usr/local/sdsys/\$MAP.DIC
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/ACCOUNTS.DIC
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/DICT.DIC
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/DIR_DICT
+sudo chown -R sdsys:sdusers  /usr/local/sdsys/VOC.DIC
 echo "Bootstap pass 2"
 sudo bin/sd -internal SECOND.COMPILE
 echo "Bootstap pass 3"
@@ -197,7 +201,7 @@ sudo rm sd64/pcode_bld.log
 sudo rm sd64/sdsys/pass1
 sudo rm sd64/sdsys/pass2
 sudo rm sd64/sdsys/pcode_pld.log
-sudo rm sd64/sdsys/GPL.BP.OUT/BPROC
+sudo rm sd64/sdsys/GPL.BP.OUT/BBPROC
 sudo rm sd64/sdsys/GPL.BP.OUT/BCOMP
 sudo rm sd64/sdsys/GPL.BP.OUT/PATHTKN
 
