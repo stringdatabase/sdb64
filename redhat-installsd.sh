@@ -42,9 +42,11 @@ echo
 echo Installing required packages
 echo
 sudo dnf -y install epel-release
-sudo dnf -y install make automake gcc gcc-c++ kernel-devel lynx libbsd*
+sudo dnf -y install make automake gcc gcc-c++ kernel-devel lynx libbsd* python3
  
 cd $cwd/sd64
+
+sudo make
 
 # Create sd system user and group
 echo "Creating group: sdusers"
@@ -55,13 +57,25 @@ echo "Creating user: sdsys."
 sudo useradd --system sdsys -G sdusers
 
 sudo cp -R sdsys /usr/local
+# Fool sd's vm into thinking gcat is populated
+sudo touch /usr/local/sdsys/gcat/\$CPROC
 sudo cp -R bin /usr/local/sdsys
 sudo cp -R gplsrc /usr/local/sdsys
 sudo cp -R gplobj /usr/local/sdsys
+sudo mkdir /usr/local/sdsys/gplbld
+sudo cp -R gplbld/FILES_DICTS /usr/local/sdsys/gplbld/FILES_DICTS
 sudo cp -R terminfo /usr/local/sdsys
+
+# build program objects for bootstrap install
+sudo python3 gplbld/bbcmp.py /usr/local/sdsys GPL.BP/BBPROC GPL.BP.OUT/BBPROC
+sudo python3 gplbld/bbcmp.py /usr/local/sdsys GPL.BP/BCOMP GPL.BP.OUT/BCOMP
+sudo python3 gplbld/bbcmp.py /usr/local/sdsys GPL.BP/PATHTKN GPL.BP.OUT/PATHTKN
+sudo python3 gplbld/pcode_bld.py
+
 sudo cp Makefile /usr/local/sdsys
 sudo cp gpl.src /usr/local/sdsys
 sudo cp terminfo.src /usr/local/sdsys
+
 sudo chown -R sdsys:sdusers /usr/local/sdsys
 sudo chown root:root /usr/local/sdsys/ACCOUNTS/SDSYS
 sudo chmod 664 /usr/local/sdsys/ACCOUNTS/SDSYS
@@ -110,9 +124,6 @@ if [ -d  "$SYSTEMDPATH" ]; then
     fi
 fi
 
-cd /usr/local/sdsys
-sudo make -B
-
 # Copy saved directories if they exist
 if [ -d /home/sd/ACCOUNTS ]; then
   echo Moved existing ACCOUNTS directory
@@ -122,25 +133,38 @@ else
   echo Saved Accounts Directory Does Not Exist
 fi
 
-if [ -d '/home/sd/$LOGINS' ]; then
-  echo 'Moved existing $LOGINS directory'
-  sudo rm -fr '/usr/local/sdsys/$LOGINS'
-  sudo mv '/home/sd/$LOGINS' /usr/local/sdsys
-else
-  echo 'Saved $LOGINS Directory Does Not Exist' 
-fi
-
 cd /usr/local/sdsys
 
 #	Start SD server
 echo "Starting SD server."
 sudo bin/sd -start
 echo
-echo "Recompiling GPL.BP (only required for dev work)"
-sudo bin/sd -internal FIRST.COMPILE
+echo "Bootstap pass 1"
+sudo bin/sd -i
+# files added in pass1 need perm and owner setup
+sudo chmod -R 775 /usr/local/sdsys/\$HOLD.DIC
+sudo chmod -R 775 /usr/local/sdsys/\$IPC
+sudo chmod -R 775 /usr/local/sdsys/\$MAP
+sudo chmod -R 775 /usr/local/sdsys/\$MAP.DIC
+sudo chmod -R 775 /usr/local/sdsys/ACCOUNTS.DIC
+sudo chmod -R 775 /usr/local/sdsys/DICT.DIC
+sudo chmod -R 775 /usr/local/sdsys/DIR_DICT
+sudo chmod -R 775 /usr/local/sdsys/VOC.DIC
+#
+sudo chown -R sdsys:sdusers /usr/local/sdsys/\$HOLD.DIC
+sudo chown -R sdsys:sdusers  /usr/local/sdsys/\$IPC
+sudo chown -R sdsys:sdusers  /usr/local/sdsys/\$MAP
+sudo chown -R sdsys:sdusers  /usr/local/sdsys/\$MAP.DIC
+sudo chown -R sdsys:sdusers  /usr/local/sdsys/ACCOUNTS.DIC
+sudo chown -R sdsys:sdusers  /usr/local/sdsys/DICT.DIC
+sudo chown -R sdsys:sdusers  /usr/local/sdsys/DIR_DICT
+sudo chown -R sdsys:sdusers  /usr/local/sdsys/VOC.DIC
+echo "Bootstap pass 2"
 sudo bin/sd -internal SECOND.COMPILE
+echo "Bootstap pass 3"
+sudo bin/sd RUN GPL.BP WRITE_INSTALL_DICTS NO.PAGE
 
-# create a user account for the current user
+#  create a user account for the current user
 echo
 echo
 if [ ! -d /home/sd/user_accounts/$tuser ]; then	
@@ -166,7 +190,16 @@ sudo sd -stop
 # installing micro editor
 curl https://getmic.ro | sudo bash
 sudo mv micro /usr/bin
+
 cd $cwd
+
+echo "Removing binary bits from repository"
+sudo rm sd64/gplobj/*.o
+sudo rm sd64/bin/sd*
+sudo rm sd64/bin/*.so
+sudo rm sd64/pass1
+sudo rm sd64/pass2
+sudo rm sd64/pcode_bld.log
 
 # display end of script message
 echo

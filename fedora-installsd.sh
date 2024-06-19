@@ -134,7 +134,7 @@ fi
 
 cd /usr/local/sdsys
 
-#	Start ScarletDME server
+#	Start SD server
 echo "Starting SD server."
 sudo bin/sd -start
 echo
