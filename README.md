@@ -1,14 +1,21 @@
 SD, the Multivalue String Database
 
 SD is a multivalue database in the Pr1me Information tradition.  It contains open source code
-from the Open Source databases OpenQM and ScarletDME.  While it shares many of the same features,
+from the Open Source databases openQM and ScarletDME and open source code developed by the
+SD developers after the fork from ScarletDME.  While it shares many of the same features,
 it was forked to explore some new ideas as to what a modern multivalue database should contain.
 
 SD is 64 bit only and runs only on Linux.  Releases are tested on the most current release
-of Linux Mint LMDE (Debian based).  It should run on any Ubuntu flavor 22.04 or later, and 
-probably on other distros derived from Debian 12 or from Ubuntu 22.04 or later. Other distros, YMMV.
+of Debian & Fedora Workstation and Server.  SD should run on any distribution based on Debian 12 
+or Fedora 40
 
-As far as I can tell, SD will cohabit peacefully with existing QM and ScarletDME installations as
+SD should cohabit peacefully with existing openQM and ScarletDME installations as
 it is installed to a different location and uses memory offsets not used by OpenQM or ScarletDME.
+
+The current version of the SD repository contains no binary bits.  Al features are available
+for auditing.  Binary files are only created during the install.
+
+To install on your Debian or Fedora based system, just clone the repository to the target computer
+and then run either the Debian or Fedora install script found in the sdb64 directory.
 
 See the sd64/sdsys/changelog file for changes in each version release.
