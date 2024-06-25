@@ -177,7 +177,7 @@ $include dictdict.h
    * Keyboard input 
 
    prompt ""
-   gosub get.set.term.state
+   * (dsm 2024/06/24) gosub get.set.term.state
    gosub set.bindings
    pending.char = ''
    overlay = @false
@@ -2454,12 +2454,12 @@ bind:
 
 * ****************************************************************************
 * Get current terminal settings and set those we need
-
-get.set.term.state:
-   tty.modes = ttyget()
-   execute "PTERM BREAK OFF"
-
-   return
+*
+* (dsm 2024/06/24)get.set.term.state:
+* (dsm 2024/06/24)  tty.modes = ttyget()
+* (dsm 2024/06/24)  execute "PTERM BREAK OFF"
+*
+* (dsm 2024/06/24)  return
 
 * *****************************************************************************
 
