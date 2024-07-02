@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 02 Jul 24 mab add 9010 and 9011   
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -80,6 +81,8 @@
  *  1030   Login time as date * 86400 + time
  *  1031   Operating system process id
  *  1032   Test and clear break pending flag
+ *  9010   Return "SD"
+ *  9011   Return MAX_STRING_SIZE - max string / record lenght
  *
  * END-DESCRIPTION
  *
@@ -350,7 +353,7 @@ void op_system() {
     case 1012: /* SD version number */
 //      k_put_c_string(Q_M_REV_STAMP, descr);
 /* 20240126 mab add revstamp mods, VM rev and SD rev */  
-		k_put_c_string(VM_REV_STAMP, descr);
+		  k_put_c_string(VM_REV_STAMP, descr);
       break;
 
     case 1013: /* User limit, excluding phantom pool */
@@ -450,7 +453,15 @@ void op_system() {
     /* njs 13Feb23 */  
     case 1050: /* admin flag user */
       descr->data.value = (my_uptr->flags & USR_ADMIN) != 0;
-      break;   
+      break;  
+
+    case 9010: /* SD */
+      k_put_c_string("SD", descr);
+      break;
+
+    case 9011: /*MAX_STRING_SIZE */     
+      descr->data.value = MAX_STRING_SIZE;
+      break;
 
     default:
       k_recurse(pcode_system, 1); /* Execute recursive code */
