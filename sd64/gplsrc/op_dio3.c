@@ -949,6 +949,7 @@ Private void read_record(bool matread) {
   u_int16_t op_flags;
   OSFILE t1_fu;
   int32_t remaining_bytes;
+  int64_t remaining_bytes64;
   int16_t n;
   int16_t status;
   DESCRIPTOR temp_descr; /* Temporary string used by MATREAD */
@@ -1145,14 +1146,16 @@ Private void read_record(bool matread) {
       }
 
       /* Find file size and initialise target string */
-
-      remaining_bytes = (int32_t)filelength64(t1_fu);
 /* 020240701 mab Max String Size test */
-      if (remaining_bytes > MAX_STRING_SIZE) {
+      remaining_bytes64 = filelength64(t1_fu);
+
+      if (remaining_bytes64 > MAX_STRING_SIZE) {
         status = process.status = ER_MAX_STRING;      
         goto exit_op_read;
       }
-      
+/* now safe to cast to 32 bits */      
+      remaining_bytes = (int32_t)remaining_bytes64;
+
       if ((op_flags & P_PICKREAD)) {
         k_release(str_descr);
         InitDescr(str_descr, STRING);

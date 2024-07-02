@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 02 Jul 24 mab define max string size.
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -93,6 +94,15 @@
 #ifndef DS
 #error No environment set
 #endif
+
+/* 020240702 mab Max String Size */
+/* Max String (record) size is capped at A little under 2Gb or available memory space     */
+/* Remember SD is a 32 bit VM, so this limit is a product of the data structres           */
+/* created and used by SD.                                                                */
+/* The limit introduced here is an arbitrary size less than the  2Gb limit imposed by the */
+/* by the VM, modify as you see fit                                                       */
+#define MAX_STRING_SIZE   536870911   /* 1/2 GB, 1FFF FFFF */ 
+
 
 #define MAX_PATHNAME_LEN 255    /* Changes affect file headers */
 #define MAX_ID_LEN 255          /* Increasing requires major file changes */
