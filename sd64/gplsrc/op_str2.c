@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 05 Jul 24 mab max string size test in op_ins(ert) - insert, op_rep  
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -1225,8 +1226,27 @@ Private void rdi(DESCRIPTOR *src_descr, /* Source string */
   bool end_on_subvalue_mark;
   bool item_found = FALSE; /* initialized to a default value to clear a valgrind warning - 06feb22 -gwb */
   char last_char = '\0';
+  int32_t src_len;         /* lenght of source string */
+  int32_t rpi_len;         /* lenght of replace / insert string */
+  int32_t old_sz;          /* lenght of replaced string         */
+  int64_t new_len;         /* calculated new lenght of string   */
 
-  str_hdr = src_descr->data.str.saddr;
+  str_hdr = src_descr->data.str.saddr;  /* Source string */
+  if (str_hdr == NULL){                 /* find length   */
+    src_len = 0;
+  }else{
+    src_len = str_hdr->string_len; 
+  }  
+
+  rpi_len = 0;
+  if (mode == DYN_INSERT || mode == DYN_REPLACE){ /* replace / insert string */
+    new_str = new_descr->data.str.saddr;  
+    if (new_str != NULL){                 /* find length             */
+      rpi_len = new_str->string_len;  
+    }
+  }
+
+  old_sz = 0;
 
   /* Set up a string descriptor to receive the result */
 
@@ -1341,11 +1361,13 @@ found:
       len--;
     }
 
+
     if (len > 0)
       ts_copy(str_hdr->data, len);
 
     /* Skip old data if we are doing REPLACE or DELETE */
-
+    /* 20240709 mab and keep track of old data size    */
+    
     if (item_found) {
       switch (mode) {
         case DYN_REPLACE:
@@ -1367,6 +1389,7 @@ found:
                   break;
                 }
                 p++;
+                old_sz++;
               } while (--bytes_remaining);
             }
 
@@ -1397,6 +1420,12 @@ found:
   switch (mode) {
     case DYN_REPLACE:
     case DYN_INSERT:
+
+      /* 20240709 mab does replacement string cause string to exceed MAX_STRING? */
+      new_len = src_len - old_sz + rpi_len;
+      if (new_len > MAX_STRING_SIZE){
+        k_error(sysmsg(10004));   /* Operation exceeds MAX_STRING_SIZE */
+      }
       /* We may not be at the desired position. For example, if we try to
          insert <3,2,2> we might not have the necessary number of fields,
          values or subvalues to get to this position. We must insert marks

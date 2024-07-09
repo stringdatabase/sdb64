@@ -38,7 +38,6 @@
 
 #include "sddefs.h"
 
-
 /* Select list limits */
 
 #define HIGH_SELECT          12

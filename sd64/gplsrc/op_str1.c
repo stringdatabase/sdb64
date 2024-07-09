@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 02 Jul 24 mab max string size test in op_str, op_cat, op_append 
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -76,7 +77,8 @@ void op_cat() {
   STRING_CHUNK* str2;
 
   DESCRIPTOR result;
-  int32_t s_len; /* Length of concatenated string */
+  int32_t s_len;   /* Length of concatenated string */
+  int64_t s_len64; /* Length of concatenated string MAX_STRING test */
 
   STRING_CHUNK* tgt; /* Ptr to target string */
   int16_t actual_size;
@@ -111,7 +113,15 @@ void op_cat() {
 
     len1 = str1->string_len;
     len2 = str2->string_len;
-    s_len = len1 + len2;
+
+    /* 020240702 mab Max String Size test */
+    s_len64 = len1 + len2;
+    if (s_len64 > MAX_STRING_SIZE){
+      k_error(sysmsg(10004));   /* Operation exceeds MAX_STRING_SIZE */
+    }
+
+    /* ok to cast to 32 bit */
+    s_len = (int32_t)s_len64;
 
     /* Create a target descriptor in our C stack space */
 
@@ -164,8 +174,8 @@ void op_append() {
   STRING_CHUNK* new_str;
   int16_t chunk_size;
 
-  int32_t s_len; /* Length of concatenated string */
-
+  int32_t s_len;   /* Length of concatenated string */
+  int64_t s_len64; /* Length of concatenated string MAX_STRING test */
   /* Find the source string */
 
   src_descr = e_stack - 1;
@@ -201,7 +211,16 @@ void op_append() {
 
     src_len = src->string_len;
     tgt_len = tgt->string_len;
-    s_len = src_len + tgt_len;
+    
+    /* 020240702 mab Max String Size test */
+    s_len64 = src_len + tgt_len;
+    if (s_len64 > MAX_STRING_SIZE){
+      k_error(sysmsg(10004));   /* Operation exceeds MAX_STRING_SIZE */
+    }
+
+    /* ok to cast to 32 bit */
+    s_len = (int32_t)s_len64;
+
 
     /* If the target string has a reference count of one we can optimise
       by appending string1 to it without copying any earlier chunks.     */
@@ -789,6 +808,7 @@ void op_str() {
 
   DESCRIPTOR result;
   int32_t total_len;
+  int64_t total_len64;
 
   /* Get repeat count */
 
@@ -813,7 +833,15 @@ void op_str() {
     goto done;
 
   src_len = src->string_len;
-  total_len = repeats * src_len;
+
+  /* 020240702 mab Max String Size test */
+  total_len64 = repeats * src_len;
+  if (total_len64 > MAX_STRING_SIZE){
+    k_error(sysmsg(10004));   /* Operation exceeds MAX_STRING_SIZE */
+  }
+
+  /* ok to cast to 32 bit */
+  total_len = (int32_t)total_len64;
 
   if (src_len == 1) /* Optimise single character case */
   {
