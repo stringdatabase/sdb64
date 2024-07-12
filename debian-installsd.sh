@@ -161,7 +161,8 @@ echo "Bootstap pass 2"
 sudo bin/sd -internal SECOND.COMPILE
 echo "Bootstap pass 3"
 sudo bin/sd RUN GPL.BP WRITE_INSTALL_DICTS NO.PAGE
-
+echo "Compile C and I type dictionaries"
+sudo bin/sd THIRD.COMPILE
 #  create a user account for the current user
 echo
 echo
