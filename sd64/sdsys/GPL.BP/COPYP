@@ -1,10 +1,11 @@
 * COPYP
+*
 * Pick style COPY verb.
 * Copyright (c) 2007 Ladybridge Systems, All Rights Reserved
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
-* the Free Software Foundation; either version 3, or (at your option)
+* the Free Software Foundation; either version 2, or (at your option)
 * any later version.
 * 
 * This program is distributed in the hope that it will be useful,
@@ -17,26 +18,16 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 * 
 * START-HISTORY:
-* 19 Jan 2024. SD Launch - Earlier history details suppressed.
+* 20240710 Prior history suppressed
 * END-HISTORY
 *
 * START-DESCRIPTION:
 *
 * This module is adapted from source supplied to Ladybridge Systems under the
-* terms of the modified BSD licence for software submittal to the OpemSD
+* terms of the modified BSD licence for software submittal to the OpemQM
 * project.
 *
 * The original source was copyright (c) 2004 by Tom Hoogenboom.
-*
-* The changes made were:
-*   1. Converted source code to lowercase to fit SD coding style.
-*   2. Renamed a few items.
-*   3. Use locking in the copy routine.
-*   4. Use the SD message handler.
-*   5. Use the SD command parser.
-*   6. Added D, I,S and T options.
-*   7. Modified behaviour of P option to match Pick Systems Reference Manual.
-*   8. Suppress mark mapping if both files are directory files.
 *
 * COPYP {DICT} filename id... {(options}
 *

@@ -101,8 +101,7 @@
 /* created and used by SD.                                                                */
 /* The limit introduced here is an arbitrary size less than the  2Gb limit imposed by the */
 /* by the VM, modify as you see fit                                                       */
-#define MAX_STRING_SIZE   536870911   /* 1/2 GB, 1FFF FFFF */ 
-
+#define MAX_STRING_SIZE   1073741822   /* 1/ GB, 1FFF FFFF */ 
 
 #define MAX_PATHNAME_LEN 255    /* Changes affect file headers */
 #define MAX_ID_LEN 255          /* Increasing requires major file changes */

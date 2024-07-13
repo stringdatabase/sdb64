@@ -1,4 +1,0 @@
-Sentence to list phrases
-LIST VOC @ID COL.HDG "Phrase name" FMT "16L" DESC FMT "28T"_
-F2 COL.HDG "Expansion" FMT "30T" WITH TYPE = "PH" BY @ID ID.SUP_
-HEADING "Phrases defined in the VOC'G'Page 'S'"

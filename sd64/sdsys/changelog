@@ -3,7 +3,31 @@ SD, the Multivalue String Database
 Change Log:
 -----------------------
 
+Version 0.7.1
+-------------
+(dsm) Removed compiled code in fld 16 of I type dictionary items that are copied from
+FILES_DICTS. Created a Record in VOC, THIRD.COMPILE that recompiles them afterthey are 
+copied.  Updated install scripts to call THIRD.COMPILE.
+(dsm) Added SED and UPDATE.RECORD back after modifying them to not call tty routines as
+the tty functionality has been removed.       
+(dsm) Documentation: added a LibreOffice spreadsheet showing the VOC items that have 
+been retained and removed compared to ScarletDME
+(dsm) Documentation: added a LibreOffice document regarding installation.
+(dsm) Have started modifying @ dictionary records and related dictionary items so that
+default LIST reports are formatted for 120x36 terminal size.
+(dsm) Change max string size to 1 GB
+ 
+
+Version 0.7.0
+-------------
+(mab) Created a BASIC compiler (written in Python) for SD, we now have a version of SD 
+that has no binary elements required for installation.  Everything is source and auditable.  
+During installation the Python basic compiler compiles the necessary source code in GPL.BP
+hat in the past prevented the system from being binary element free.
+Also, any required dynamic dictionaries are created during installation.
+
 Version 0.6.4
+-------------
 (mab) sd command as privileged user (sudo sd) will start out in account SDSYS  
 (mab) Only allow non privileged user to LOGIN or LOGTO:
       Their own account.

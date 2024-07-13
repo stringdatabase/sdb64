@@ -4310,7 +4310,7 @@ refresh.status:
 * Get current terminal settings and set those we need
 
 get.set.term.state:
-   tty.modes = ttyget()
+   * tty.modes = ""
    execute "PTERM BREAK OFF"
 
    if pterm(PT$INVERT, -1) and not(no.invert) then
@@ -4325,7 +4325,7 @@ get.set.term.state:
 * *****************************************************************************
 
 reset.term.state:
-   ttyset tty.modes
+   * ttyset tty.modes
 
    return
 
