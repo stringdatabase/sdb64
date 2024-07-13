@@ -5,6 +5,7 @@ program bigstr_test
 * concatinate
 * insert
 * replace
+* change
 
 $EXPLIST
 * 2147483647 7fff ffff
@@ -20,6 +21,7 @@ mystrl = len(mystr)
 
 crt '1 create a string of MAX_STRING_SIZE (':bgsz:')'
 crt '2 create a string of MAX_STRING_SIZE less len("':mystr:'") ':bgsz - len(mystr)
+crt '3 create a string of MAX_STRING_SIZE less 2 X len("':mystr:'") ':bgsz -(2* len(mystr))
 input ts
 
 begin case
@@ -30,6 +32,10 @@ case ts = 2
   bgsz = bgsz - mystrl
   bstr = str('x',bgsz)
   crt 'len of big string ': len(bstr)
+case ts = 3
+  bgsz = bgsz - (mystrl *2) 
+  bstr = str('x',bgsz)
+  crt 'len of big string ': len(bstr)  
 case 1
  crt 'invalid selection, abort'
  stop
@@ -42,6 +48,7 @@ crt '2 for concatinate'
 crt '3 for insert'
 crt '4 for replace with same size'
 crt '5 for replace with larger size'
+crt '6 for change'
 input tt
 
 begin case
@@ -55,6 +62,8 @@ case tt = 4
  goto trep
 case tt = 5
  goto trep 
+case tt = 6
+ goto tchange  
 case 1
  crt 'test complete'
  stop
@@ -96,6 +105,29 @@ crt 'replacing...big string <1> with ':mystr[1,mystrl-slice]
 bstr<1> = mystr[1,mystrl-slice]
 crt 'bstr<1>: ':bstr<1>
 crt 'bstr<2>[1,20]: ': bstr<2>[1,20]
+crt 'len of big string ': len(bstr)
+goto again
+
+tchange:
+newstr = '0987654321'
+crt 'change test, first append: ':mystr:' to beginning and ending of big string'
+bstr = mystr:bstr:mystr
+crt 'len of big string ': len(bstr)
+crt 'now change: ':mystr:' to ':newstr:' in big string'
+bstr = change(bstr,mystr,newstr)
+crt 'len of big string ': len(bstr)
+*
+c1= '1'
+c2= 'A'
+crt 'now change: ':c1:' to ':c2:' in big string'
+bstr = change(bstr,c1,c2)
+crt 'len of big string ': len(bstr)
+crt 'bstr[1,20] = ':bstr[1,20]
+*
+newstr = '098765432A'
+mystrA = '1234567890A'
+crt 'now change: ':newstr:' to ':mystrA:' in big string'
+bstr = change(bstr,newstr,mystrA)
 crt 'len of big string ': len(bstr)
 goto again
 
