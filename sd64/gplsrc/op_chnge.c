@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 14 Jul 24 mab max string size test in op_change  
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -82,6 +83,10 @@ void op_change() {
 
   bool nocase;
 
+  /* 020240714 mab Max String Size test */
+  int32_t delta_len32;  /* net lenght change for each replacement              */
+  int64_t chgd_len64;   /* what resulting string  length will be after change  */
+
   nocase = (process.program.flags & HDR_NOCASE) != 0;
 
   /* Fetch start occurrence number */
@@ -104,9 +109,17 @@ void op_change() {
   descr = e_stack - 3;
   k_get_string(descr);
   new_str = descr->data.str.saddr;
+  if (new_str == NULL){
+    delta_len32 = 0;   /* replacement string null ('') */
+  }else{
+    delta_len32 = new_str->string_len;  /* lenght of replacement string */
+  }
 
   /* Make old substring contiguous and find details */
-
+  /* 020240714 mab Max String Size test */
+  /* Note something odd here,  lenght of string to search for and replace, "old" string */
+  /* seems to be limited to a lenght of 32767 characters? see s_make_contiguous         */
+  /* and int16_t casting of lenght */
   descr = e_stack - 4;
   k_get_string(descr);
   descr->data.str.saddr = s_make_contiguous(descr->data.str.saddr, NULL);
@@ -119,8 +132,12 @@ void op_change() {
     k_dismiss();         /* Old substring */
     goto exit_op_change; /* Leave source as result */
   }
+
   old_str = str_hdr->data;
   old_len = (int16_t)(str_hdr->string_len);
+  /* 020240714 mab Max String Size test */
+  /* calc length change each replacement */
+  delta_len32 -= old_len;
 
   /* Find source string */
 
@@ -134,6 +151,7 @@ void op_change() {
     k_dismiss();         /* Old substring */
     goto exit_op_change; /* Leave null source as result */
   }
+  chgd_len64 = src_hdr->string_len;   /* length of source string (and starting len of changed string)*/
 
   InitDescr(&result_descr, STRING);
   result_descr.data.str.saddr = NULL;
@@ -201,6 +219,11 @@ void op_change() {
           goto no_match;
 
         /* Insert replacement substring */
+        /* 020240714 mab Max String Size test */
+        chgd_len64 += delta_len32;
+        if (chgd_len64 > MAX_STRING_SIZE){
+          k_error(sysmsg(10004));   /* Operation exceeds MAX_STRING_SIZE */
+        }
 
         for (str = new_str; str != NULL; str = str->next) {
           ts_copy(str->data, str->bytes);
@@ -218,6 +241,12 @@ void op_change() {
       {
         if (skip_count-- > 0)
           goto no_match;
+
+        /* 020240714 mab Max String Size test */
+        chgd_len64 += delta_len32;
+        if (chgd_len64 > MAX_STRING_SIZE){
+          k_error(sysmsg(10004));   /* Operation exceeds MAX_STRING_SIZE */
+        }  
 
         for (str = new_str; str != NULL; str = str->next) {
           ts_copy(str->data, str->bytes);

@@ -15,6 +15,16 @@ been retained and removed compared to ScarletDME
 (dsm) Documentation: added a LibreOffice document regarding installation.
 (dsm) Have started modifying @ dictionary records and related dictionary items so that
 default LIST reports are formatted for 120x36 terminal size.
+(mab) Introduce max string error checking in SD.
+      History: The original QM code that SD is based on was (is?) a 32 bit virtual machine. As such
+	  strings are limited in size to just under 2 GB.  The issue is there is no size checking and a
+	  user could attempt to create or load a string at or above this limit, causing SD to crash (segfault).
+	  Changes to date:
+	    sdclilib client will not allow user to write a record > MAX_STRING_SIZE
+		Directory read of a file (record) > MAX_STRING_SIZE not allowed.
+        Functions: append (':='), CHANGE(), concatenate (':'), INSERT(), REPLACE(), STR()
+         will not allow a string > MAX_STRING_SIZE to be created.		
+		
 (dsm) Change max string size to 1 GB
  
 
