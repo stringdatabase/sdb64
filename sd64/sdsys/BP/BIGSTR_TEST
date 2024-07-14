@@ -109,8 +109,12 @@ crt 'len of big string ': len(bstr)
 goto again
 
 tchange:
+crt 'change test, first a null test'
+rec = 'Here is the comment terminator */'
+rec = change(rec, '*/', '')
+*
 newstr = '0987654321'
-crt 'change test, first append: ':mystr:' to beginning and ending of big string'
+crt 'change test, second append: ':mystr:' to beginning and ending of big string'
 bstr = mystr:bstr:mystr
 crt 'len of big string ': len(bstr)
 crt 'now change: ':mystr:' to ':newstr:' in big string'

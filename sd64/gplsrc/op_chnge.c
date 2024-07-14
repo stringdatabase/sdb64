@@ -109,7 +109,11 @@ void op_change() {
   descr = e_stack - 3;
   k_get_string(descr);
   new_str = descr->data.str.saddr;
-  delta_len32 = new_str->string_len;  /* lenght of replacement string */
+  if (new_str == NULL){
+    delta_len32 = 0;   /* replacement string null ('') */
+  }else{
+    delta_len32 = new_str->string_len;  /* lenght of replacement string */
+  }
 
   /* Make old substring contiguous and find details */
   /* 020240714 mab Max String Size test */
