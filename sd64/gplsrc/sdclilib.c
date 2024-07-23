@@ -14,6 +14,7 @@
  * START-HISTORY
  * 31 Dec 23 SD launch - prior history suppressed
  * 20240219  mab Major update to use AF_UNIX socket to talk to sd
+ * 20240702  mab add MAX_STING_SIZE test to write
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -2641,7 +2642,8 @@ exit_read:
 
 Private void write_record(int16_t mode, int16_t fno, char* id, char* data) {
   int id_len;
-  int32_t data_len;
+/* 020240701 mab Max String Size, use could pass > 2GB */ 
+  size_t data_len;
   int bytes;
   INBUFF* q;
   struct PACKET {
@@ -2661,6 +2663,13 @@ Private void write_record(int16_t mode, int16_t fno, char* id, char* data) {
   }
 
   data_len = strlen(data);
+
+  /* 20240702 mab do not allow write > MAX_STRING_SIZE */
+  if (data_len > MAX_STRING_SIZE) {
+    Abort("Illegal record size", FALSE);
+    session[session_idx].sd_status = ER_MAX_STRING;
+    goto exit_write;
+  }
 
   /* Ensure buffer is big enough for this record */
 

@@ -2,9 +2,23 @@
 * Error numbers and STATUS() values
 * Copyright (c) 2006 Ladybridge Systems, All Rights Reserved
 *
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*
 * START-HISTORY:
-* 27 Mar 06  2.3-9 Added ER$TERMINATED.
-* 23 Aug 04  1.5-11 Header added to existing module.
+* 31 Dec 23 SD launch - prior history suppressed
+* 01 Jul 24 mab define max string size error ER_MAX_STRING
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -59,6 +73,7 @@ $define ER$RDONLY.VAR  1015    ;* Variable is read-only
 $define ER$NOT.PHANTOM 1016    ;* Not a phantom process
 $define ER$CONNECTED   1017    ;* Device already connected
 $define ER$INVA.ITYPE  1018    ;* Invalid I-type
+$define ER$MAX.STRING  1900    ;* Max String (record) Size
 
 * 20xx  Catalog management errors
 
@@ -155,6 +170,21 @@ $define ER$ACCOUNT     7010    ;* Cannot connect to account
 $define ER$HOST.TABLE  7011    ;* Host table is full
 $define ER$BIND        7012    ;* Error binding socket (os.error)
 $define ER$SKT.CLOSED  7013    ;* Socket has been closed
+$define ERAI$ADDRFAMILY 7014    ;* Address family for nodename not supported
+$define ERAI$AGAIN      7015    ;* Temporary failure in name resolution.
+$define ERAI$BADFLAGS   7016    ;* Invalid value for ai.flags
+$define ERAI$FAIL       7017    ;* Non-recoverable failure in name resolution.
+$define ERAI$FAMILY     7018    ;* Requested ai.family not supported
+$define ERAI$MEMORY     7019    ;* Memory allocation failure
+$define ERAI$NODATA     7020    ;* No address associated with nodename
+$define ERAI$NONAME     7021    ;* nodename nor servname provided, or not known.
+$define ERAI$SERVICE    7022    ;* servname not supported for ai.socktype
+$define ERAI$SOCKTYPE   7023    ;* Requested ai.socktype not supported
+$define ERAI$SYSTEM     7024    ;* System error returned in errno
+
+$define ER$INCOMP.PROTO 7025    ;* Incompatible protocol/transport combination
+$define ER$NONBLOCK.FAIL 7026   ;* Attempt to set O.NON.BLOCK via fctnl() has failed
+$define ER$BADADDR      7027    ;* Incorrectly formed hostname or IP Address
 
 * 8000 - 8999  DH errors
 $define DHE$FILE.NOT.OPEN        8001 ;* DH.FILE pointer is NULL

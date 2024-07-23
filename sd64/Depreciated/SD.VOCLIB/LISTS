@@ -1,4 +1,0 @@
-Sentence to list sentences
-LIST VOC @ID COL.HDG "Sentence name" FMT "16L" DESC FMT "28T"_
-F2 COL.HDG "Expansion" FMT "30T" WITH TYPE = "S" BY @ID_
-ID.SUP HEADING "Sentences defined in the VOC'G'Page 'S'"

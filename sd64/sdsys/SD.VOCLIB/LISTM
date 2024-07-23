@@ -1,4 +1,0 @@
-Sentence to list menus
-LIST VOC @ID COL.HDG "Menu name" FMT "30L"_
-MENU.TITLE FMT "50L"_
-WITH TYPE = "M" BY @ID ID.SUP HEADER "Menus referenced by the VOC'G'Page 'SL'"

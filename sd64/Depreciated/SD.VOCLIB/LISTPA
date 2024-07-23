@@ -1,4 +1,0 @@
-Sentence to list paragraphs
-LIST VOC @ID COL.HDG "Paragraph name" FMT "16L" DESC FMT "28T"_
-F2 COL.HDG "First command" FMT "30L" WITH TYPE = "PA" BY @ID ID.SUP_
-HEADING "Paragraphs defined in the VOC'G'Page 'S'"

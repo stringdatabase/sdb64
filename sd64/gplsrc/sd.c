@@ -19,6 +19,7 @@
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
  * 15 Jun 24 add bootstrap build option install option -I
+ * 02 Jul 24 -i  typeo will hit bootstrap option
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -288,14 +289,16 @@ Private bool comlin(int argc, char *argv[]) {
     } else if (!stricmp(argv[arg], "-TERM")) {
       if (++arg < argc)
         strcpy(tio.term_type, argv[arg]);
+    } else if (!stricmp(argv[arg], "-I")) {    
+/* 20240702 mab Bootstrap build arg must be exactly "-I" */		  
+        /* Bootstrap Install*/
+        check_admin();
+        is_bootstrap = TRUE;
+        internal_mode = TRUE;
+        strcpy(command_processor, "$BBPROC");
+
     } else {
       switch (UpperCase(argv[arg][1])) {
-/* 20240615 mab Bootstrap build */		  
-        case 'I': /* Bootstrap Install*/
-          check_admin();
-          is_bootstrap = TRUE;
-          internal_mode = TRUE;
-          strcpy(command_processor, "$BBPROC");
         
         case 'A': /* Query account */
           if (argv[arg][2] == '\0') {

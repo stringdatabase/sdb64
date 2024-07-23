@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed 
+ * 01 Jul 24 mab define max string size error ER_MAX_STRING 
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -77,6 +78,7 @@
 #define ER_NOT_PHANTOM 1016    /* Not a phantom process */
 #define ER_CONNECTED   1017    /* Device already connected */
 #define ER_INVA_ITYPE  1018    /* Invalid I-type */
+#define ER_MAX_STRING  1900    /* Max String (record) Size */
 
 /* 20xx  Catalog management errors */
 

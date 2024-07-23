@@ -26,6 +26,7 @@
 *
 * START-HISTORY:
 * mab 06/00/24 
+* 02 Jul 24 add check for install already complete
 * END-HISTORY
 *
 *
@@ -131,7 +132,13 @@ end
 * Main processing loop
 
 if system(27) # 0 then
-      stop 'Command requires administrator privileges'
+  crt 'Command requires administrator privileges'
+  goto abort.bbproc
+end
+
+if ospath(@sdsys:@ds:'GPL.BP.OUT/LOGIN',OS$EXISTS) then
+   crt 'System Already Installed?'
+   goto abort.bbproc
 end
 
    unload.object               ;* Unload inactive object code
