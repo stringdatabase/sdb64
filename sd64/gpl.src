@@ -69,6 +69,7 @@ op_sys
 op_tio
 pdump
 reccache
+sd_encrypt_sodium
 sdlib
 sdsem
 sdtermlb

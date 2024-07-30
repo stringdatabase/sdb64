@@ -25,6 +25,7 @@
 *                ENCRYPT, DECRYPT - replace with SDENCRYTP, SDDECRYPT
 *                ENTER.PACKAGE, EXIT.PACKAGE, PACKAGE, TRACE
 *                PICK.ERRMSG compiler mode
+* 28 Jul 24  mab add SDENCRYTP, SDDECRYPT
 * END-HISTORY
 *
 *
@@ -409,6 +410,7 @@ $define STACK.MARK 9999         ;* Marks start of sub-expression
 
    * Intrinsic function names and associated opcodes
 * 20240728 mab remove CONNECT.PORT, DECRYPT, ENCRYPT, ENTER.PACKAGE, EXIT.PACKAGE, TTYGET
+* 20240730 mab add SDDECRYPT and SDENCRYPT
    intrinsics = "ABS"                 ; intrinsic.opcodes = OP.ABS
    intrinsics<-1> = "ABSS"            ; intrinsic.opcodes<-1> = OP.ABSS
    intrinsics<-1> = "ACCEPT.SOCKET.CONNECTION" ; intrinsic.opcodes<-1> = OP.ACCPTSKT
@@ -536,6 +538,8 @@ $define STACK.MARK 9999         ;* Marks start of sub-expression
    intrinsics<-1> = "RND"             ; intrinsic.opcodes<-1> = OP.RND
    intrinsics<-1> = "RTRANS"          ; intrinsic.opcodes<-1> = OP.RTRANS
    intrinsics<-1> = "SAVE.SCREEN"     ; intrinsic.opcodes<-1> = OP.SAVESCRN
+   intrinsics<-1> = "SDDECRYPT"       ; intrinsic.opcodes<-1> = OP.DECRYPT
+   intrinsics<-1> = "SDENCRYPT"       ; intrinsic.opcodes<-1> = OP.ENCRYPT
    intrinsics<-1> = "SELECTINFO"      ; intrinsic.opcodes<-1> = OP.SLCTINFO
    intrinsics<-1> = "SENTENCE"        ; intrinsic.opcodes<-1> = OP.NULL
    intrinsics<-1> = "SEQ"             ; intrinsic.opcodes<-1> = OP.SEQ
@@ -3783,6 +3787,7 @@ end
             gosub get.token           ; * Skip left bracket
             intrinsic.stack = intrinsic.opcodes<i> : @fm : intrinsic.stack 
 * 20240728 mab remove connect.port, DECRYPT, ENCRYPT, ENTER.PACKAGE, EXIT.PACKAGE, TTYGET
+* 20240730 mab add SDDECRYPT and SDENCRYPT
             on i goto in.one,         ;* ABS
                       in.one,         ;* ABSS
                       in.two,         ;* ACCEPT.SOCKET.CONNECTION
@@ -3910,6 +3915,8 @@ end
                       in.one,         ;* RND
                       in.trans,       ;* RTRANS
                       in.four,        ;* SAVE.SCREEN
+                      in.three,       ;* SDDECRYPT
+                      in.three,       ;* SDENCRYPT
                       in.two,         ;* SELECTINFO
                       in.sentence,    ;* SENTENCE
                       in.one,         ;* SEQ
