@@ -360,7 +360,7 @@ return;
 
 
 
-/*  function encrypts data using key (which may be encoded, based on encode_type) 
+/*  function encrypts data using key (which is encoded, based on encode_type) 
 and encodes encrypted data based on encode_type */
 void sd_encrypt(int encode_type, char *key, char *data) {
   unsigned char dckey[crypto_secretbox_KEYBYTES];  /* decoded key buffer  */
@@ -450,6 +450,70 @@ void sd_encrypt(int encode_type, char *key, char *data) {
       encode_out = NULL;
       cipher_buf = NULL;
       break;
+
+
+    case SD_Encode64: /* Encrypt Data text with encoded Key Key returning encrypted text in B64 encoded string format */
+
+      plaintext_sz = strlen(data); /* size of text to encrypt */
+      if (plaintext_sz == 0){
+        sdme_err_rsp(SD_Encrypt_Err);   /* nothing to encrypt */
+        break;
+      }
+
+
+      key_len = strlen(key);  /* encoded key length */
+      /* valid key lenght (rem encoded in B64, need to calculate the encoded size expected)*/
+      if (key_len != sodium_base64_ENCODED_LEN(crypto_secretbox_KEYBYTES, sodium_base64_VARIANT_ORIGINAL) - 1){
+        sdme_err_rsp(SD_KeyLen_Err);    /* bad key */
+        break;
+      }
+
+      /* convert key from B64 encodeing to bytes */
+      if (sodium_base642bin(dckey, crypto_secretbox_KEYBYTES, key, key_len, NULL, &bin_len, NULL,sodium_base64_VARIANT_ORIGINAL) != 0) {
+        sdme_err_rsp(SD_Decode_Err);
+        break;
+      }
+
+      /* encrypt the text*/
+      cipher_buf_len = 0;    /* get rid of 'cipher_buf_len’ may be used uninitialized warning????*/
+      /* rem sdme_encrypt allocates mem for cipher_buf */
+      if (sdme_encrypt((unsigned char *)data, plaintext_sz, dckey, &cipher_buf, &cipher_buf_len) != 0) {
+        sdme_err_rsp(SD_Encrypt_Err);   /* encrypt failed */
+        break;
+      }
+
+      /* will the encode operation exceed max string?? */
+      /* rem sodium_base64_ENCODED_LEN includes a spot for the trailing /0 */
+      encode_sz = sodium_base64_ENCODED_LEN(cipher_buf_len, sodium_base64_VARIANT_ORIGINAL);
+      if ( encode_sz > MAX_STRING_SIZE) { 
+		    free(key);
+		    free(data); 
+        sodium_free(cipher_buf);		  
+        k_error(sysmsg(10004));   /* Operation exceeds MAX_STRING_SIZE */
+      }
+
+      /* allocate our encode buffer*/
+      encode_out = sodium_malloc(encode_sz);
+      if (encode_out == NULL){
+        sodium_free(cipher_buf);
+        cipher_buf = NULL;
+        sdme_err_rsp(SD_Mem_Err);
+        break;  
+      }
+
+      /* encode cipher text */
+      sodium_bin2base64(encode_out, encode_sz, cipher_buf, cipher_buf_len,sodium_base64_VARIANT_ORIGINAL);
+
+      /* we made it, pass encrypted and encoded text back to caller */
+      k_put_c_string(encode_out, e_stack); /* sets descr as type string and encrypted and encoded text it */
+      e_stack++;
+      /* and free up our buffers */
+      sodium_free(encode_out);
+      sodium_free(cipher_buf);
+      encode_out = NULL;
+      cipher_buf = NULL;
+      break;
+
       
     default:
       /* unknown encode type */
@@ -460,13 +524,14 @@ return;
 }
 
 /*  function performs decryption of data using key key 
-    data and key may be encoded, based on encode_type */
+    data and key are encoded, based on encode_type */
 void sd_decrypt(int encode_type, char *key, char *data) {
   unsigned char dckey[crypto_secretbox_KEYBYTES];
   unsigned char *cipher_buf;
   unsigned char *plaintext_buf;
 
   size_t key_len;
+  size_t bin_len_max;
   size_t bin_len;
   size_t encrypted_sz;
   
@@ -486,7 +551,7 @@ void sd_decrypt(int encode_type, char *key, char *data) {
 
   switch (encode_type) {
 
-    case SD_EncodeHX: /* Decrypt encoded data text with encoded Key key returning decrypted text  */
+    case SD_EncodeHX: /* Decrypt Hex encoded data text with encoded Key key returning decrypted text  */
 
       encrypted_sz = strlen(data);    /* size of the encoded encrypted string passed*/
       /* rem this encryption method has appended to the end of the string: 
@@ -559,6 +624,84 @@ void sd_decrypt(int encode_type, char *key, char *data) {
       sodium_free(plaintext_buf);
       plaintext_buf = NULL;
       break;
+
+    case SD_Encode64: /* Decrypt B64 encoded data text with encoded Key key returning decrypted text  */
+
+      encrypted_sz = strlen(data);    /* size of the encoded encrypted string passed*/
+      /* rem this encryption method has appended to the end of the string: 
+         1) the authentication tag of size  crypto_secretbox_MACBYTES
+         2) the nonce of size crypto_secretbox_NONCEBYTES 
+         All B64 encoded.
+         If the string to decode then decrypt is smaller than (crypto_secretbox_MACBYTES + crypto_secretbox_NONCEBYTES) *2)
+        Something is not right, error out*/
+      if (encrypted_sz < sodium_base64_ENCODED_LEN(crypto_secretbox_MACBYTES + crypto_secretbox_NONCEBYTES, sodium_base64_VARIANT_ORIGINAL) -1){
+        sdme_err_rsp(SD_Decrypt_Err);
+        break;
+      }
+
+      key_len = strlen(key);  /* encoded key length */
+      /* valid key lenght (rem encoded in B64, need to calculate the encoded size expected)*/
+      if (key_len != sodium_base64_ENCODED_LEN(crypto_secretbox_KEYBYTES, sodium_base64_VARIANT_ORIGINAL) - 1){
+        sdme_err_rsp(SD_KeyLen_Err);    /* bad key */
+        break;
+      }
+
+
+      /* convert key from B64 encodeing to bytes */
+      if (sodium_base642bin(dckey, crypto_secretbox_KEYBYTES, key, key_len, NULL, &bin_len, NULL,sodium_base64_VARIANT_ORIGINAL) != 0) {
+        sdme_err_rsp(SD_Decode_Err);
+        break;
+      }
+  
+      /* need a buffer to hold decoded, encrypted bytes, 
+         Base64 encodes 3 bytes as 4 characters, so the result of decoding a b64_len string will always be at most b64_len / 4 * 3 bytes long. */
+      bin_len_max = ((encrypted_sz / 4) * 3) + 1;
+      cipher_buf = sodium_malloc(bin_len_max);
+      if (cipher_buf == NULL){
+        sdme_err_rsp(SD_Mem_Err);
+        break;  
+      }
+      
+      /* decode the encoded encrypted text */
+      /* rem bin_len_max is the max size the decoded b64 string can be */
+      /*     bin_len is the actual size of the decoded string          */
+      if (sodium_base642bin(cipher_buf, bin_len_max, data, encrypted_sz, NULL, &bin_len, NULL,sodium_base64_VARIANT_ORIGINAL) != 0) {
+        sodium_free(cipher_buf);
+        cipher_buf = NULL;
+        sdme_err_rsp(SD_Decode_Err);
+        break;
+      }
+
+      /* need a buffer to hold the decrypted text */
+      plaintext_buf = sodium_malloc(bin_len);
+      if (plaintext_buf == NULL){
+        sodium_free(cipher_buf);
+        cipher_buf = NULL;
+        sdme_err_rsp(SD_Mem_Err);
+        break;  
+      }
+
+      /* decrypt the encrypted byte buffer */
+
+      if (sdme_decrypt(cipher_buf, bin_len, dckey, &plaintext_buf) != 0) {
+        sodium_free(cipher_buf);
+        cipher_buf = NULL;
+        sodium_free(plaintext_buf);
+        plaintext_buf = NULL;
+        sdme_err_rsp(SD_Decrypt_Err);
+        break; 
+      }
+ 
+     /* we made it, text back to caller */
+      k_put_c_string((char *)plaintext_buf, e_stack); /* sets descr as type string and encrypted and encoded text it */
+      e_stack++;
+      /* and free up our buffers */
+      sodium_free(cipher_buf);
+      cipher_buf = NULL;
+      sodium_free(plaintext_buf);
+      plaintext_buf = NULL;
+      break;
+
 
     default:
       /* unknown encode type */

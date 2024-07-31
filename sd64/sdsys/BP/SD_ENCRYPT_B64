@@ -1,0 +1,62 @@
+PROGRAM SD_ENCRYPT_b64
+
+$include KEYS.H
+$include ERR.H
+
+$define key_sz   32 ;* size in bytes of libsodium key
+$define tag_sz   16 ;* size in bytes of libsodium tag
+$define nonce_sz 24 ;* size in bytes of libsodium nonce
+ 
+PRINT "Testing Encrypt / Decrypt "
+
+pltext = 'Two things are infinite, the universe and human stupidity, and I am not yet completely sure about the universe. - Albert Einstein'
+
+PRINT 'Our Text: ':pltext
+
+*A 256-bit (32 byte) key can be expressed as a hexadecimal string with 64 characters.
+*    It will require 44 characters in base64.
+* sodium_base64_VARIANT_ORIGINAL for standard (A-Za-z0-9/\+) Base64 encoding. 
+* so mykey:
+mykey_txt  = '1234567890'
+mykey_txt := 'abcdefghij'
+mykey_txt := 'klnopqrstu'
+mykey_txt := 'AB'
+*
+* myB64key = 'MTIzNDU2Nzg5MGFiY2RlZmdoaWprbG5vcHFyc3R1QUI='
+*
+myB64key = oconv(mykey_txt,'B64')
+
+crt 'B64key = ':myB64key
+
+PRINT '==============================================='
+PRINT ' Encrypt Test / B64 Encoding'
+PRINT '==============================================='
+
+RtnVal = SDENCRYPT(pltext,myB64key,SD_ENCODE64)
+STAT = STATUS()
+*
+PRINT 'Status: ':STAT
+*
+print 'Size of Return Value: ' : len(RtnVal)
+
+PRINT RtnVal
+
+PRINT '==============================================='
+PRINT ' Decrypt Test / B64 Encoded'
+PRINT '==============================================='
+*
+
+DcryptVal = SDDECRYPT(RTNVAL,myB64key,SD_ENCODE64)
+STAT = STATUS()
+*
+PRINT 'Status: ':STAT
+PRINT 'Decrypted Text: ':DcryptVal
+*
+If DcryptVal = pltext then
+  Print 'Success!'
+END ELSE
+  PRINT 'Oops, Back to the drawing board!'
+END
+
+
+END
