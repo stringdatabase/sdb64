@@ -8,7 +8,7 @@ True			= @true
 False			= @false
 LF				= char(10)
 
-* flag variales
+* flag variables
 CompiledDict	= False
 DeleteError		= False
 DynamicFile		= False
@@ -99,7 +99,7 @@ End_Program:
 
 
 *****************************************************
-* SUBROUTINES: Alphabetical
+* SUBROUTINES: Alphabetical                         *
 *****************************************************
 
 choose_editor:
@@ -177,7 +177,7 @@ return
 
 process_record:
     if trim(InRecordName," ","B") <> "" then
-		crt @(-1) : "Editing " : InFileName : "," : InRecordName : " using the Micro editor" :
+		crt @(-1) : "Editing " : InFileName : "," : InRecordName :
     	read InputRecord from InputFile,InRecordName then
     		TempRecord = InputRecord
     		if DictText = "DICT" then
@@ -201,7 +201,7 @@ process_record:
 		Read TempRecord from TempFile,TempRecordName then
 			*null
 		end else
-			ErrorText =  "Record was not saved <Ctrl+s> in the micro editor."
+			ErrorText =  "Record was not saved: Micro =  <Ctrl+s>, Nano = <Ctrl+o>."
 			goto End_Program
 		end
 	end else
@@ -217,8 +217,8 @@ save_record_query:
 		Response = ""
 		loop
 			crt @(0,5) : @(-3) : DictText : " " : InfileName : " " : InRecordName : " has been updated"
-			CRT @(5,6) : "Save <Y/N> : " :
-		    input @(18,6) : Response,1 :
+			CRT @(5,6) : "Save <Y>es, <N>o : " :
+		    input @(24,6) : Response,1 :
 		    crt
 		    Response = upcase(Response)
 		until index("YN",Response,1) > 0 repeat
