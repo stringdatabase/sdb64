@@ -7,11 +7,11 @@ $define key_sz   32 ;* size in bytes of libsodium key
 $define tag_sz   16 ;* size in bytes of libsodium tag
 $define nonce_sz 24 ;* size in bytes of libsodium nonce
  
-PRINT "Testing Encrypt / Decrypt "
+crt "Testing Encrypt / Decrypt "
 
 pltext = 'Two things are infinite, the universe and human stupidity, and I am not yet completely sure about the universe. - Albert Einstein'
 
-PRINT 'Our Text: ':pltext
+crt 'Our Text: ':pltext
 
 *A 256-bit (32 byte) key can be expressed as a hexadecimal string with 64 characters.
 *    It will require 44 characters in base64.
@@ -28,35 +28,104 @@ myB64key = oconv(mykey_txt,'B64')
 
 crt 'B64key = ':myB64key
 
-PRINT '==============================================='
-PRINT ' Encrypt Test / B64 Encoding'
-PRINT '==============================================='
+crt '==============================================='
+crt ' Encrypt Test / B64 Encoding'
+crt '==============================================='
 
 RtnVal = SDENCRYPT(pltext,myB64key,SD_ENCODE64)
 STAT = STATUS()
 *
-PRINT 'Status: ':STAT
+crt 'Status: ':STAT
 *
-print 'Size of Return Value: ' : len(RtnVal)
+crt 'Size of Return Value: ' : len(RtnVal)
 
-PRINT RtnVal
+crt RtnVal
 
-PRINT '==============================================='
-PRINT ' Decrypt Test / B64 Encoded'
-PRINT '==============================================='
+crt '==============================================='
+crt ' Decrypt Test / B64 Encoded'
+crt '==============================================='
 *
 
 DcryptVal = SDDECRYPT(RTNVAL,myB64key,SD_ENCODE64)
 STAT = STATUS()
 *
-PRINT 'Status: ':STAT
-PRINT 'Decrypted Text: ':DcryptVal
+crt 'Status: ':STAT
+crt 'Decrypted Text: ':DcryptVal
 *
 If DcryptVal = pltext then
-  Print 'Success!'
+  crt 'Success!'
 END ELSE
-  PRINT 'Oops, Back to the drawing board!'
+  crt 'Oops, Back to the drawing board!'
 END
 
 
+*******************************************************************************************************************
+
+
+crt '==============================================='
+crt ' Decrypt Test /  wrong key        '
+crt '==============================================='
+
+mykey = myB64key
+mykey[1,1] = "X"
+crt myb64key
+crt mykey
+DcryptVal = SDDECRYPT(RTNVAL,mykey,SD_ENCODE64)
+STAT = STATUS()
+*
+crt 'Status: ':STAT
+
+crt '==============================================='
+crt ' Encrypt Test with no text'
+crt '==============================================='
+RtnVal = SDENCRYPT('',myB64key,SD_ENCODE64)
+STAT = STATUS()
+*
+crt 'Status: ':STAT
+
+crt '==============================================='
+crt ' Encrypt Test with no key'
+crt '==============================================='
+RtnVal = SDENCRYPT(pltext,'',SD_ENCODE64)
+STAT = STATUS()
+*
+crt 'Status: ':STAT
+
+crt '==============================================='
+crt ' Encrypt Test with invalid encoding'
+crt '==============================================='
+
+
+RtnVal = SDENCRYPT(pltext,mykey,0)
+STAT = STATUS()
+crt 'Status: ':STAT
+
+*
+crt '==============================================='
+crt ' Decrypt Test with no text'
+crt '==============================================='
+RtnVal = SDDECRYPT('',mykey,SD_ENCODE64)
+STAT = STATUS()
+*
+crt 'Status: ':STAT
+
+crt '==============================================='
+crt ' Decrypt Test with no key'
+crt '==============================================='
+RtnVal = SDDECRYPT(pltext,'',SD_ENCODE64)
+STAT = STATUS()
+*
+crt 'Status: ':STAT
+
+
+crt '==============================================='
+crt ' Decrypt Test with invalid decoding'
+crt '==============================================='
+
+RtnVal = SDDECRYPT(pltext,mykey,0)
+STAT = STATUS()
+crt 'Status: ':STAT
+
+alldone:
 END
+
