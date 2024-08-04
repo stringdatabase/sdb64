@@ -19,6 +19,7 @@
 * START-HISTORY:
 * 31 Dec 23 SD launch - prior history suppressed
 * 01 Jul 24 mab define max string size error ER_MAX_STRING
+* 30 Jul 24 mab encrytption decryption error codes 
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -258,4 +259,16 @@ $define DHE$JNL.CTL.READ         8803 ;* Cannot read SDSYS $JNLCTRL (os.error)
 $define DHE$JNL.XCHK             8804 ;* $JNL cross-check error
 $define DHE$ECB.TYPE             8900 ;* ECB has incorrect type
 
+* SD_ENCRYPT_SODIUM error codes *
+* Generic error codes *
+$define SD_Mem_Err              10100 ;* memory allocation error 
+
+* encrytption decryption error codes 
+$define SD_SodInit_Err          10199 ;* libsodium initialization error 
+$define SD_Encrypt_Err          10200 ;* error in call to crypto_secretbox_easy 
+$define SD_Decrypt_Err          10201 ;* error in call to crypto_secretbox_easy_open
+$define SD_Encode_Err           10202 ;* error in call to bin2hex or bin2base64 
+$define SD_Decode_Err           10203 ;* error in call to hex2bin or base642bin 
+$define SD_KeyLen_Err           10204 ;* key length error 
+$define SD_EDType_Err           10205 ;* Encode Decode type error 
 * END-CODE

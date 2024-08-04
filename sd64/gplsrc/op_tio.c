@@ -19,6 +19,7 @@
  * START-HISTORY:
  * 15 Jun 24 mab remove or disable op_ttyset and op_ttyget 
  * 31 Dec 23 SD launch - prior history suppressed
+ * 28 Jul 24 mab remove  op_ttyset and op_ttyget TTYGET/TTYSET not supported
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -2474,42 +2475,6 @@ void freescrn(SCREEN_IMAGE *image) {
   if (image->buffer != NULL)
     k_free(image->buffer);
   k_free(image);
-}
-
-/* ======================================================================
-   op_ttyget()  -  Get terminal settings                                  */
-
-void op_ttyget() {
-  /* Stack:
-
-     |================================|=============================|
-     |            BEFORE              |           AFTER             |
-     |================================|=============================|
- top |                                | Returned dynamic array      |
-     |================================|=============================|
-
- */
-
-  //k_recurse(pcode_ttyget, 0);
-  ;
-}
-
-/* ======================================================================
-   op_ttyset()  -  Set terminal settings                                  */
-
-void op_ttyset() {
-  /* Stack:
-
-     |================================|=============================|
-     |            BEFORE              |           AFTER             |
-     |================================|=============================|
- top | Modes to set                   |                             |
-     |================================|=============================|
-
- */
-
-  //k_recurse(pcode_ttyset, 1);
-  ;
 }
 
 /* ======================================================================

@@ -20,6 +20,7 @@
  * 31 Dec 23 SD launch - prior history suppressed
  * 11 Jun 24 mab overwrite op_errmsg (pick error message) and op_pabort (pick abort) as illegal op code
  * 15 Jun 24 mab overwrite op_ttyset op_ttyget as illegal op code
+ * 28 Jul 24 mab remove op code overwrites (removed from opcodes.h)
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -60,24 +61,6 @@ jmp_buf k_exit;
 #undef _opc_
 
 /* Build dispatch table */
-
-/* Remap functions that are used in the non-GPL version only to become
-   illegal opcodes. Programs compiled on the non-GPL version and moved
-   to this version will now report an illegal opcode if they try to use
-   these functions.                                                     */
-
-#define op_trace op_illegal
-#define op_package op_illegal2
-#define op_crypt op_illegal2
-#define op_decrypt op_illegal2
-#define op_encrypt op_illegal2
-/* SD changes, removed pick support */
-#define op_errmsg op_illegal2
-#define op_pabort op_illegal2
-/* SD changes, removed ttyget and ttyset */
-#define op_ttyget op_illegal2
-#define op_ttyset op_illegal2
-
 
 #define _opc_(code, key, name, func, format, stack_use) func,
 void (*dispatch[])(void) = {

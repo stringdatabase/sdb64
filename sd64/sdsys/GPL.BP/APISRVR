@@ -19,9 +19,10 @@
 *
 *
 * START-HISTORY:
+* 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * 20240219x mab rebrand as APISRVR
 *               always run in secure mode
-* 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
+* 28 Jul 24 mab remove enter.package / exit.package (commands not supported)
 * END-HISTORY
 *
 *
@@ -237,8 +238,8 @@ loop
    vb.login,          ;*  24   Network login
    vb.local.login,    ;*  25   SDLocal login
    vb.selectindex,    ;*  26   Select index
-   vb.enter.package,  ;*  27   Enter licensed package
-   vb.exit.package,   ;*  28   Exit licensed package
+   vb.illegal.action, ;*  27   Enter licensed package - not supported
+   vb.illegal.action, ;*  28   Exit licensed package  - not supported
    vb.open.sdnet,     ;*  29   Open SDNet file
    vb.lock.record,    ;*  30   Lock a record
    vb.clearfile,      ;*  31   Clearfile
@@ -998,22 +999,6 @@ vb.selectindex:
                selectindex index.name, index.value from files(fno) to listno
 
                return
-
-               * ======================================================================
-               * Enter licensed package
-               * In:  name
-
-vb.enter.package:
-               if not(package(cmnd,1,0)) then server.error = SV$ELSE
-                  return
-
-                  * ======================================================================
-                  * Exit licensed package
-                  * In:  name
-
-vb.exit.package:
-                  if not(package(cmnd,0,0)) then server.error = SV$ELSE
-                     return
 
                      * ======================================================================
                      * Open file SDNet file

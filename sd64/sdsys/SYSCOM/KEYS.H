@@ -4,6 +4,7 @@
       
       $list off
       
+      * 30 Jul 24 mab define SD_ENCRYPT_SODIUM encode types 
       * 20240330 mab add ACC$USERS
       * 30Mar09 gwb Added missing defines, SKT$STREAM, SKT$DGRAM, SKT$TCP,
       *             SKT$UDP, SKT$ICMP
@@ -253,4 +254,9 @@
       * 20240330 mab add ACC$USERS
       $define ACC$USERS        3     ;* List of Users allowed to access this Account
       deffun parse.pathname.tokens(path) calling "!PATHTKN"
+      
+      * encrytption decryption  *
+
+      $define SD_ENCODEHX     201  ;* encode passed string as Hex String 
+      $define SD_ENCODE64     202  ;* encode as Base64 
       
