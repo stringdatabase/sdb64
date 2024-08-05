@@ -41,7 +41,7 @@ sudo date
 echo
 echo Installing required packages
 echo
-sudo dnf -y install make automake gcc gcc-c++ kernel-devel micro lynx libbsd-devel python3
+sudo dnf -y install make automake gcc gcc-c++ kernel-devel micro lynx libbsd-devel python3 libsodium-devel
  
 cd $cwd/sd64
 
