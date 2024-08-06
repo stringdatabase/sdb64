@@ -84,17 +84,18 @@
 #include <stdio.h>
 #include <sodium.h>
 
-#include "err.h"
 #include "keys.h"
 
 
 
 void sd_encrypt(int encode_type, char *key, char *data);
 void sd_decrypt(int encode_type, char *key, char *data);
-void sdme_err_rsp(int errnbr);
+
 
 int sdme_encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key, unsigned char **cipher_out, size_t *cipher_out_len);
 int sdme_decrypt(unsigned char *cipher_in, int cipher_in_len, unsigned char *key, unsigned char **plantext_out);
+
+Private void sdme_err_rsp(int errnbr);
 
 #ifdef dumphex
 void dump_hex_buff(unsigned char buf[], unsigned int len)
@@ -713,7 +714,7 @@ void sd_decrypt(int encode_type, char *key, char *data) {
 
 
 /* generic error return with null response, setting process.status */
-void sdme_err_rsp(int errNbr){
+Private void sdme_err_rsp(int errNbr){
   char EmptyResp[1] = {'\0'}; /*  empty return message  */
   k_put_c_string(EmptyResp, e_stack); /* sets descr as type string, empty */
   e_stack++;

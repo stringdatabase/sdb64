@@ -289,4 +289,7 @@
 #define SD_KeyLen_Err  -10204  /* key length error */
 #define SD_EDType_Err  -10205  /* Encode Decode type error */
 
+/* SDEXT error codes */
+#define SD_EXT_KEY_ERR -10300  /* unknown key */
+
 /* END-CODE */

@@ -23,7 +23,7 @@
  *                CONNECT.PORT, ERRMSG, TTYGET, TTYSET, STOPE, STOPM 
  *                ENCRYPT, DECRYPT - replace with SDENCRYTP, SDDECRYPT
  *                ENTER.PACKAGE, EXIT.PACKAGE, PACKAGE, TRACE
- * 06 Aug 24 mab remove PROCREAD op code
+ * 06 Aug 24 mab remove PROCREAD op code, add SDEXT
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -614,7 +614,7 @@ _opc_(0xCFFB, OP_CFFB,     "OPCFFB",     op_illegal2,  OPCODE_BYTE,         0)
 _opc_(0xCFFC, OP_CFFC,     "OPCFFC",     op_illegal2,  OPCODE_BYTE,         0)
 _opc_(0xCFFD, OP_CFFD,     "OPCFFD",     op_illegal2,  OPCODE_BYTE,         0)
 _opc_(0xCFFE, OP_CFFE,     "OPCFFE",     op_illegal2,  OPCODE_BYTE,         0)
-_opc_(0xCFFF, OP_CFFF,     "OPCFFF",     op_illegal2,  OPCODE_BYTE,         0)
+_opc_(0xCFFF, OP_SDEXT,    "SDEXT",      op_sdext,     OPCODE_BYTE,        -2)
 
 /* Secondary opcodes with private dispatch systems
         Prefix     Base opcode   Opcode             */

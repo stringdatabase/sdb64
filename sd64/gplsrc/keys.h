@@ -340,6 +340,8 @@
 #define SD_EncodeHX     201  /* encode passed string as Hex String */
 #define SD_Encode64     202  /* encode as Base64 */
 
+/* Key Codes for op_sdext     */
+#define SDEXT_TestIt 1  /* Function Test */
 
 
 /* END-CODE */

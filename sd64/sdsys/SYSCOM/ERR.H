@@ -20,6 +20,7 @@
 * 31 Dec 23 SD launch - prior history suppressed
 * 01 Jul 24 mab define max string size error ER_MAX_STRING
 * 30 Jul 24 mab encrytption decryption error codes 
+* 06 Aug 24 mab add SDEXT error codes
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -271,4 +272,7 @@ $define SD_Encode_Err           10202 ;* error in call to bin2hex or bin2base64
 $define SD_Decode_Err           10203 ;* error in call to hex2bin or base642bin 
 $define SD_KeyLen_Err           10204 ;* key length error 
 $define SD_EDType_Err           10205 ;* Encode Decode type error 
+
+* SDEXT error codes 
+$define SD_EXT_KEY_ERR          10300 ;* unknown key 
 * END-CODE
