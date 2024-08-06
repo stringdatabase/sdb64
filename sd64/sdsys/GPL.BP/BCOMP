@@ -19,6 +19,8 @@
 * 
 * START-HISTORY:
 * 19 Jan 24  0.6.1 SD launch. Earlier history details suppressed.
+* 06 Aug 24  mab remove PROCREAD/PROCWRITE
+*                correct len(function.args) test in ST.DEFFUN
 * 28 Jul 24  mab remove unsupported BASIC Functions / Statements:
 *                ABORTE, ABORTM
 *                CONNECT.PORT, ERRMSG, TTYGET, TTYSET, STOPE, STOPM 
@@ -294,6 +296,7 @@ $define STACK.MARK 9999         ;* Marks start of sub-expression
    at.syscom.lvars := @fm:"ANS":@fm:"PIB":@fm:"SIB":@fm:"POB":@fm:"SOB"
 
 * 20240728 mab remove ABORTE/M, ERRMSG, STOPE, STOPM, TTYSET
+* 20240806 mab remove PROCREAD, PROCWRITE
    * Statement names.  All these statements generate DEBUG calls if debugging
    statements = "ABORT"
    statements := @fm:"BEGIN":@fm:"BREAK"
@@ -329,7 +332,7 @@ $define STACK.MARK 9999         ;* Marks start of sub-expression
    statements := @fm:"PAGE":@fm:"PAUSE"
    statements := @fm:"PERFORM":@fm:"PRECISION":@fm:"PRINT"
    statements := @fm:"PRINTER":@fm:"PRINTCSV":@fm:"PRINTERR"
-   statements := @fm:"PROCREAD":@fm:"PROCWRITE":@fm:"PROMPT"
+   statements := @fm:"PROMPT"
    statements := @fm:"RANDOMIZE":@fm:"READ":@fm:"READBLK":@fm:"READCSV"
    statements := @fm:"READL":@fm:"READLIST":@fm:"READNEXT":@fm:"READSEQ"
    statements := @fm:"READU":@fm:"READV":@fm:"READVL":@fm:"READVU"
@@ -1980,6 +1983,7 @@ proc.statement:
 
       case 1 
 * 20240728 mab remove ABORTE/st.aborte, ABORTM/st.abortm, ERRMSG/st.errmsg, STOPE/st.stope, STOPM/st.stopm, TTYSET/St.ttyset
+* 20240806 mab remove PROCREAD/PROCWRITE
 is.statement:
          locate u.token.string in statements<1> setting i then
             if debug then gosub generate.debug
@@ -2084,8 +2088,6 @@ is.statement:
                  st.printer,
                  st.printcsv,
                  st.printerr,
-                 st.procread,
-                 st.procwrite,
                  st.prompt,
                  st.randomize,
                  st.read,
@@ -6676,8 +6678,8 @@ st.deffun:
       err.msg = sysmsg(2898) ;* Too many arguments is function definition
       goto error
    end
-
-   if function.args > greatest.call.arg.count then
+* 20240806 mab len() of function.args was missing 
+   if len(function.args) > greatest.call.arg.count then
       greatest.call.arg.count = len(function.args)
    end
 
@@ -10015,29 +10017,6 @@ st.private.common:
       gosub get.token  ;* Read comma token
    repeat
 
-   return
-
-*****************************************************************************
-* ST.PROCREAD  -  PROCREAD statement
-
-st.procread:
-   gosub simple.lvar.reference  ;* Emit target variable
-
-   * Perform common back-end processing
-
-   opcode = OP.PROCREAD
-   ins '0' before onerror.stack<1>        ;* No ON ERROR clause
-   ins '0' before testlock.stack<1>       ;* No LOCKED clause allowed
-   ins '1' before thenelse.stack<1>       ;* THEN / ELSE clause required
-   goto back.end
-
-*****************************************************************************
-* ST.PROCWRITE  -  PROCWRITE statement
-
-st.procwrite:
-   n = SYSCOM.PROC.IBUF:'.0' ; gosub emit.ldsys
-   gosub exprf
-   opcode.byte = OP.STOR ; gosub emit.simple
    return
 
 *****************************************************************************

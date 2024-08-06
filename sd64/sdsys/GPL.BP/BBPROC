@@ -27,6 +27,7 @@
 * START-HISTORY:
 * mab 06/00/24 
 * 02 Jul 24 add check for install already complete
+* 06 Aug 24 comment out "<cr> to install" prompt 
 * END-HISTORY
 *
 *
@@ -144,12 +145,13 @@ end
    unload.object               ;* Unload inactive object code
 
    * Fetch new command
-   crt '"<cr>" to INSTALL  "Q" to exit'
-   gosub inp_sub     ;* returns command line in inp_ln
-   cmnd = inp_ln
-
-
-   if upcase(cmnd[1,1]) = 'Q' then goto abort.bbproc
+* 20240806 mab comment out prompt   
+*   crt '"<cr>" to INSTALL  "Q" to exit'
+*   gosub inp_sub     ;* returns command line in inp_ln
+*   cmnd = inp_ln
+*
+*
+*   if upcase(cmnd[1,1]) = 'Q' then goto abort.bbproc
    
 *  note all files must be opend via openpath, open depends on pcode!
    openpath @sdsys:@ds:'gcat' to gcat.f else
