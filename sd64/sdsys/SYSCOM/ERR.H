@@ -275,4 +275,5 @@ $define SD_EDType_Err           10205 ;* Encode Decode type error
 
 * SDEXT error codes 
 $define SD_EXT_KEY_ERR          10300 ;* unknown key 
+$define SD_EXT_ARG_CNT          10301 ;* incorrect argument count for called function 
 * END-CODE

@@ -5,11 +5,15 @@ Change Log:
 
 Version 0.7.1
 -------------
+(mab) Add BASIC Functions / Statements:
+      SDENCRYPT / SDDECRYPT
+	  SDEXT – Generic function for extending SD / BASIC to interface with C Functions.
 (mab) Remove unsupported BASIC Functions / Statements:
       ABORTE, ABORTM
       CONNECT.PORT, ERRMSG, TTYGET, TTYSET, STOPE, STOPM 
       ENCRYPT, DECRYPT - replace with SDENCRYTP, SDDECRYPT
-      ENTER.PACKAGE, EXIT.PACKAGE, PACKAGE, TRACE
+      ENTER.PACKAGE, EXIT.PACKAGE, PACKAGE, PROCREAD, PROCWRITE,
+	  TRACE
       PICK.ERRMSG compiler mode
       Remove associated references from gplsrc/opcodes.h
       Remove code from gplsrc as necessary

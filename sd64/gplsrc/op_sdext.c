@@ -36,12 +36,17 @@
  * START-CODE
  */
 
-#include "sd.h"
-#include <linux/limits.h>
 
+#include <linux/limits.h>
+#include <sodium.h>
+
+#include "sd.h"
 #include "keys.h"
 
-char *    SDMEArgArray[SD_MAX_ARGS];          /* create an array of pointers, for string arguments (for SDME.EXT call ) not sure if this is correct */
+extern char* sd_salt();
+extern char* sd_KeyFromPW(char* mypassword, char* mysalt);
+
+char* SDMEArgArray[SD_MAX_ARGS];          /* create an array of pointers, for string arguments (for SDEXT call ) not sure if this is correct */
 char* NullString(void); 
 
 Private void sdme_err_rsp(int errnbr);
@@ -184,6 +189,38 @@ void op_sdext() {
       e_stack++;	
       break; 
 
+    case SD_SALT:
+      char* mysalt = NULL;
+      mysalt = sd_salt();   /* Create unique salt and return base64 encoded  (caller mustr free!!!)   */                 
+      if (mysalt != NULL){
+        k_put_c_string(mysalt, e_stack);   /* sets as descr as type string and place the value in it */
+                                           /* this will then get transferred to RTNVAL */
+        e_stack++;
+        free(mysalt);
+      }	else {
+        sdme_err_rsp(SD_Mem_Err);          /* only possible error in sd_salt ? */
+      }
+      break; 
+
+
+    case SD_KEYFROMPW:  
+      char* mykey = NULL;
+      if (argCnt != 2){
+        sdme_err_rsp(SD_EXT_ARG_CNT);     /* we need 2 args for this to work */
+        break;
+      }
+      
+      mykey =  sd_KeyFromPW(SDMEArgArray[0], SDMEArgArray[1]);  /* create key from password in [0] and salt in [1] */
+                                                                /* sd_KeyFromPW(char* mypassword, char* mysalt)    */
+      if (mykey != NULL){
+        k_put_c_string(mykey, e_stack);   /* sets as descr as type string and place the value in it */
+                                           /* this will then get transferred to RTNVAL */
+        e_stack++;
+        sodium_free(mykey);                /* key buffer was allocated via sodium_malloc, free via sodium_free*/
+      }	else {
+        sdme_err_rsp(process.status);      /* eror set in process.status */
+      }
+      break;
 
     default:
       /* unknown key */
@@ -203,8 +240,8 @@ void op_sdext() {
     if (IsArgMV != 0) {      /* rem if IsArgMV not set, we pointed DMEArgArray[0] to myval_buffer*/
 	    free(myval_buffer);    /* do not want to attempt to free the memory again!!*/
     } 
-  }
-  
+  } 
+
   return;
 }
 

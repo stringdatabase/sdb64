@@ -263,5 +263,6 @@
       
       * Key Codes for op_sdext     *
       $define SDEXT_TestIt      1  ;* Function Test 
-      
+      $define SD_SALT         100  ; sd_encrypt_sodium sd_salt function 
+      $define SD_KEYFROMPW    101  ;* sd_encrypt_sodium sd_KeyFromPW function      
       
