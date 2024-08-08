@@ -55,6 +55,7 @@ op_logic
 op_misc
 op_mvfun
 op_oconv
+op_sdext
 op_seqio
 op_sh
 op_skt
@@ -69,6 +70,7 @@ op_sys
 op_tio
 pdump
 reccache
+sd_encrypt_sodium
 sdlib
 sdsem
 sdtermlb

@@ -18,6 +18,12 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed 
+ * 28 Jul 24  mab remove unsupported BASIC Functions / Statements:
+ *                ABORTE, ABORTM
+ *                CONNECT.PORT, ERRMSG, TTYGET, TTYSET, STOPE, STOPM 
+ *                ENCRYPT, DECRYPT - replace with SDENCRYTP, SDDECRYPT
+ *                ENTER.PACKAGE, EXIT.PACKAGE, PACKAGE, TRACE
+ * 06 Aug 24 mab remove PROCREAD op code, add SDEXT
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -299,7 +305,7 @@ _opc_(0xDF, OP_FOLD,     "FOLD",       op_fold,      OPCODE_BYTE,        -1)
 
 _opc_(0xE0, OP_SAVESRCN, "SAVESCRN",   op_savescrn,  OPCODE_BYTE,        -3)
 _opc_(0xE1, OP_RSTSCRN,  "RSTSCRN",    op_rstscrn,   OPCODE_BYTE,        -2)
-_opc_(0xE2, OP_TRACE,    "TRACE",      op_trace,     OPCODE_BYTE,         0)
+_opc_(0xE2, OP_E2,       "OPE2",       op_illegal,   OPCODE_BYTE,         0)
 _opc_(0xE3, OP_PRECISION,"PRECISION",  op_precision, OPCODE_BYTE,        -1)
 _opc_(0xE4, OP_CHKCAT,   "CHKCAT",     op_chkcat,    OPCODE_BYTE,         0)
 _opc_(0xE5, OP_CLEAR,    "CLEAR",      op_clear,     OPCODE_BYTE,         0)
@@ -333,7 +339,7 @@ _opc_(0xFF, OP_KERNEL,   "KERNEL",     op_kernel,    OPCODE_BYTE,        -1)
 
 /* Secondary dispatch opcodes, prefix CF */
 /*    Code    Keyword       Opcode       Function      Format         Stack */
-_opc_(0xCF00, OP_PABORT,   "PABORT",     op_pabort,    OPCODE_BYTE,        -2)
+_opc_(0xCF00, OP_CF00,     "OPCF00",     op_illegal,   OPCODE_BYTE,         0)
 _opc_(0xCF01, OP_NAP,      "NAP",        op_nap,       OPCODE_BYTE,        -1)
 _opc_(0xCF02, OP_TOTAL,    "TOTAL",      op_total,     ONE_BYTE_VALUE,      0)
 _opc_(0xCF03, OP_IFS,      "IFS",        op_ifs,       OPCODE_BYTE,        -2)
@@ -347,7 +353,7 @@ _opc_(0xCF0A, OP_LOGIN,    "LOGIN",      op_login,     OPCODE_BYTE,        -1)
 _opc_(0xCF0B, OP_UMASK,    "UMASK",      op_umask,     OPCODE_BYTE,        -1)
 _opc_(0xCF0C, OP_TERMINFO, "TERMINFO",   op_terminfo,  OPCODE_BYTE,         1)
 _opc_(0xCF0D, OP_KEYCODE,  "KEYCODE",    op_keycode,   OPCODE_BYTE,         1)
-_opc_(0xCF0E, OP_ERRMSG,   "ERRMSG",     op_errmsg,    OPCODE_BYTE,        -2)
+_opc_(0xCF0E, OP_CF0E,     "OPCF0E",     op_illegal,   OPCODE_BYTE,         0)
 _opc_(0xCF0F, OP_VARTYPE,  "VARTYPE",    op_vartype,   OPCODE_BYTE,         0)
 
 _opc_(0xCF10, OP_CROP,     "CROP",       op_crop,      OPCODE_BYTE,         0)
@@ -384,8 +390,8 @@ _opc_(0xCF2D, OP_EVENTS,   "EVENTS",     op_events,    OPCODE_BYTE,        -1)
 _opc_(0xCF2E, OP_DBGSET,   "DBGSET",     op_dbgset,    OPCODE_BYTE,        -3)
 _opc_(0xCF2F, OP_PCONFIG,  "PCONFIG",    op_pconfig,  OPCODE_BYTE,         -1)
 
-_opc_(0xCF30, OP_TTYGET,   "TTYGET",     op_ttyget,    OPCODE_BYTE,         0)
-_opc_(0xCF31, OP_TTYSET,   "TTYSET",     op_ttyset,    OPCODE_BYTE,         0)
+_opc_(0xCF30, OP_CF30,     "OPCF30",     op_illegal,   OPCODE_BYTE,         0)
+_opc_(0xCF31, OP_CF31,     "OPCF31",     op_illegal,   OPCODE_BYTE,         0)
 _opc_(0xCF32, OP_INPUTAT,  "INPUTAT",    op_inputat,   OPCODE_BYTE,        -5)
 _opc_(0xCF33, OP_INPUT,    "INPUT",      op_input,     OPCODE_BYTE,        -3)
 _opc_(0xCF34, OP_PRNAME,   "PRNAME",     op_prname,    OPCODE_BYTE,        -1)
@@ -480,7 +486,7 @@ _opc_(0xCF87, OP_BTSCANA,  "BTSCANA",    op_btscana,   OPCODE_BYTE,        -1)
 _opc_(0xCF88, OP_LOADOBJ,  "LOADOBJ",    op_loadobj,   OPCODE_BYTE,         0)
 _opc_(0xCF89, OP_LOADED,   "LOADED",     op_loaded,    OPCODE_BYTE,         0)
 _opc_(0xCF8A, OP_SPLICE,   "SPLICE",     op_splice,    OPCODE_BYTE,        -2)
-_opc_(0xCF8B, OP_PACKAGE,  "PACKAGE",    op_package,   OPCODE_BYTE,        -1)
+_opc_(0xCF8B, OP_CF8B,     "OPCF8B",     op_illegal,   OPCODE_BYTE,         0)
 _opc_(0xCF8C, OP_LOCATEF,  "LOCATEF",    op_locatef,   OPCODE_BYTE,        -5)
 _opc_(0xCF8D, OP_LISTINDX, "LISTINDX",   op_listindx,  OPCODE_BYTE,        -2)
 _opc_(0xCF8E, OP_MIN,      "MIN",        op_min,       OPCODE_BYTE,        -1)
@@ -496,7 +502,7 @@ _opc_(0xCF96, OP_PMATRIX,  "PMATRIX",    op_pmatrix,   PMATDATA,            0)
 _opc_(0xCF97, OP_DIMLCLP,  "DIMLCLP",    op_dimlclp,   OPCODE_BYTE,        -3)
 _opc_(0xCF98, OP_LOGMSG,   "LOGMSG",     op_logmsg,    OPCODE_BYTE,        -1)
 _opc_(0xCF99, OP_SHCAP,    "SHCAP",      op_shcap,     OPCODE_BYTE,        -1)
-_opc_(0xCF9A, OP_PROCREAD, "PROCREAD",   op_procread,  OPCODE_BYTE,         0)
+_opc_(0xCF9A, OP_CF9A,     "OPCF9A",     op_illegal,   OPCODE_BYTE,         0)
 _opc_(0xCF9B, OP_DEREF,    "DEREF",      op_deref,     OPCODE_BYTE,        -1)
 _opc_(0xCF9C, OP_IADD,     "IADD",       op_iadd,      OPCODE_BYTE,        -1)
 _opc_(0xCF9D, OP_ISUB,     "ISUB",       op_isub,      OPCODE_BYTE,        -1)
@@ -561,7 +567,7 @@ _opc_(0xCFD3, OP_PAUSE,    "PAUSE",      op_pause,     OPCODE_BYTE,        -1)
 _opc_(0xCFD4, OP_WAKE,     "WAKE",       op_wake,      OPCODE_BYTE,        -1)
 _opc_(0xCFD5, OP_PSUBSTRB, "PSUBSTRB",   op_psubstrb,  OPCODE_BYTE,        -4)
 _opc_(0xCFD6, OP_DELSEQ,   "DELSEQ",     op_delseq,    OPCODE_BYTE,        -1)
-_opc_(0xCFD7, OP_CNCTPORT, "CNCTPORT",   op_cnctport,  OPCODE_BYTE,        -4)
+_opc_(0xCFD7, OP_CFD7,     "OPCFD7",     op_illegal,   OPCODE_BYTE,         0)
 _opc_(0xCFD8, OP_LGNPORT,  "LGNPORT",    op_lgnport,   OPCODE_BYTE,        -1)
 _opc_(0xCFD9, OP_OBJINFO,  "OBJINFO",    op_objinfo,   OPCODE_BYTE,        -1)
 _opc_(0xCFDA, OP_INHERIT,  "INHERIT",    op_inherit,   OPCODE_BYTE,        -1)
@@ -569,10 +575,10 @@ _opc_(0xCFDB, OP_DISINH,   "DISINH",     op_disinh,    OPCODE_BYTE,        -1)
 _opc_(0xCFDC, OP_CREATESH, "CREATESH",   op_create_sh, OPCODE_BYTE,        -5)
 _opc_(0xCFDD, OP_LDLSTR,   "LDLSTR",     op_ldlstr,    LONG_STRING_VALUE,   1)
 _opc_(0xCFDE, OP_RDNXINT,  "RDNXINT",    op_rdnxint,   OPCODE_BYTE,        -4)
-_opc_(0xCFDF, OP_ENCRYPT,  "ENCRYPT",    op_encrypt,   OPCODE_BYTE,        -1)
+_opc_(0xCFDF, OP_ENCRYPT,  "ENCRYPT",    op_encrypt,   OPCODE_BYTE,        -2)
 
-_opc_(0xCFE0, OP_DECRYPT,  "DECRYPT",    op_decrypt,   OPCODE_BYTE,        -1)
-_opc_(0xCFE1, OP_CRYPT,    "CRYPT",      op_crypt,     OPCODE_BYTE,        -3)
+_opc_(0xCFE0, OP_DECRYPT,  "DECRYPT",    op_decrypt,   OPCODE_BYTE,        -2)
+_opc_(0xCFE1, OP_CFE1,     "OPCFE1",     op_illegal,   OPCODE_BYTE,         0)
 _opc_(0xCFE2, OP_INPUTBLK, "INPUTBLK",   op_inputblk,  OPCODE_BYTE,         0)
 _opc_(0xCFE3, OP_CFE3,     "OPCFE3",     op_illegal2,  OPCODE_BYTE,         0)
 _opc_(0xCFE4, OP_CFE4,     "OPCFE4",     op_illegal2,  OPCODE_BYTE,         0)
@@ -608,7 +614,7 @@ _opc_(0xCFFB, OP_CFFB,     "OPCFFB",     op_illegal2,  OPCODE_BYTE,         0)
 _opc_(0xCFFC, OP_CFFC,     "OPCFFC",     op_illegal2,  OPCODE_BYTE,         0)
 _opc_(0xCFFD, OP_CFFD,     "OPCFFD",     op_illegal2,  OPCODE_BYTE,         0)
 _opc_(0xCFFE, OP_CFFE,     "OPCFFE",     op_illegal2,  OPCODE_BYTE,         0)
-_opc_(0xCFFF, OP_CFFF,     "OPCFFF",     op_illegal2,  OPCODE_BYTE,         0)
+_opc_(0xCFFF, OP_SDEXT,    "SDEXT",      op_sdext,     OPCODE_BYTE,        -2)
 
 /* Secondary opcodes with private dispatch systems
         Prefix     Base opcode   Opcode             */

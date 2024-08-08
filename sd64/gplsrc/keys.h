@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed 
+ * 38 Jul 24 mab SD_ENCRYPT_SODIUM encode types
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -335,5 +336,13 @@
 #define FC_SPLIT_MERGE           5    /* Force split/merge */
 #define FC_NO_RESIZE             6    /* Set DHF_NO_RESIZE flag */
 
+/* SD_ENCRYPT_SODIUM encryption decryption  */
+#define SD_EncodeHX     201  /* encode passed string as Hex String */
+#define SD_Encode64     202  /* encode as Base64 */
+
+/* Key Codes for op_sdext     */
+#define SDEXT_TestIt   1  /* Function Test */
+#define SD_SALT      100  /* sd_encrypt_sodium sd_salt function */
+#define SD_KEYFROMPW 101  /* sd_encrypt_sodium sd_KeyFromPW function */
 
 /* END-CODE */

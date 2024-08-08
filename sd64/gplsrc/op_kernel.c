@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 28 Jul 24 mab remove op_cnctport() / CONNECT.PORT not supported
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -643,85 +644,6 @@ void op_chgphant() {
   (e_stack++)->data.value = status;
 }
 
-/* ======================================================================
-   op_cnctport()  -  CONNECT.PORT()                                        */
-
-void op_cnctport() {
-  /* Stack:
-
-     |================================|=============================|
-     |            BEFORE              |           AFTER             |
-     |================================|=============================|
- top | Stop bits                      |  1 = ok, 0 = error          |
-     |--------------------------------|-----------------------------|
-     | Bits per byte                  |                             |
-     |--------------------------------|-----------------------------|
-     | Parity mode                    |                             |
-     |--------------------------------|-----------------------------|
-     | Baud rate                      |                             |
-     |--------------------------------|-----------------------------|
-     | Port name                      |                             |
-     |================================|=============================|
- */
-
-  DESCRIPTOR *descr;
-  int stop_bits;
-  int bits_per_byte;
-  /* int parity; variable set but not used */
-  /* int baud_rate; variable set but not used */
-  char portname[20 + 1];
-
-  process.status = ER_PARAMS;
-
-  descr = e_stack - 1;
-  GetInt(descr);
-  stop_bits = descr->data.value;
-  if ((stop_bits < 1) || (stop_bits > 20))
-    goto exit_op_cnctport;
-
-  descr = e_stack - 2;
-  GetInt(descr);
-  bits_per_byte = descr->data.value;
-  if ((bits_per_byte < 7) || (bits_per_byte > 8))
-    goto exit_op_cnctport;
-
-  descr = e_stack - 3;
-  GetInt(descr);
-  /* parity = descr->data.value; set but never used */
-
-  descr = e_stack - 4;
-  GetInt(descr);
-  /* baud_rate = descr->data.value; set but never used */
-
-  descr = e_stack - 5;
-  if (k_get_c_string(descr, portname, 20) < 1) {
-    process.status = ER_LENGTH;
-    goto exit_op_cnctport;
-  }
-
-  process.status = 0;
-
-  /* This operation is only valid if we are a phantom process with a
-    connection type of CN_NONE.                                      */
-
-  if (!is_phantom) {
-    process.status = ER_NOT_PHANTOM;
-    goto exit_op_cnctport;
-  }
-
-  if (connection_type != CN_NONE) {
-    process.status = ER_CONNECTED;
-    goto exit_op_cnctport;
-  }
-
-  process.status = ER_UNSUPPORTED;
-
-exit_op_cnctport:
-  k_pop(4);
-  k_dismiss();
-  InitDescr(e_stack, INTEGER);
-  (e_stack++)->data.value = (process.status == 0);
-}
 
 /* ======================================================================
    op_login()  -  LOGIN()  -  Perform login for socket based process      */

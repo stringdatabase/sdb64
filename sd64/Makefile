@@ -1,4 +1,4 @@
-# ScarletDME Makefile
+# SD Makefile
 #
 #   You are allowed to modify this file, so long as the derived file can
 #   be distributed under the same license as this file.  You are allowed to copy
@@ -31,9 +31,13 @@ GPLBIN   := $(MAIN)bin/
 TERMINFO := $(MAIN)terminfo/
 VPATH    := $(GPLOBJ):$(GPLBIN):$(GPLSRC)
 
+# mab libsodium 
+SODIUM   := /usr/include/sodium
+LIBSODIUM := /usr/lib/x86_64-linux-gnu/
+
 COMP     := gcc
 
-L_FLAGS    := -Wl,--no-as-needed -lm -lcrypt -ldl -lbsd
+L_FLAGS    := -Wl,--no-as-needed -lm -lcrypt -ldl -lbsd -L$(LIBSODIUM) -lsodium
 SONAME_OPT := -soname
 
 RM       := rm

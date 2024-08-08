@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed 
+ * 06 Aug 24 mab remove op_procread
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -44,7 +45,6 @@
  *    op_onerror        ONERROR
  *    op_oserror        OS.ERROR()
  *    op_precision      PRECISION
- *    op_procread       PROCREAD
  *    op_rtrans()       RTRANS()
  *    op_saveaddr                       Save address descriptor
  *    op_sendmail       SENDMAIL()
@@ -1194,56 +1194,6 @@ void op_precision() {
   process.program.precision = (int16_t)precision;
 
   k_pop(1);
-}
-
-/* ======================================================================
-   op_procread()  -  Read data from PROC primary input buffer             */
-
-void op_procread() {
-  /* Stack:
-
-     |=============================|=============================|
-     |            BEFORE           |           AFTER             |
-     |=============================|=============================|
- top |  ADDR to target variable    | 0 = success, 1 = error      |
-     |=============================|=============================|
- */
-
-  DESCRIPTOR* descr;
-  DESCRIPTOR* ibuf_descr;
-  struct PROGRAM* pgm;
-  bool is_proc = FALSE;
-
-  /* The semantics of this statement require that we check that we are
-    in a PROC. The simplest thing to do is to wander down the call stack
-    looking for $PROC.                                                   */
-
-  for (pgm = process.program.prev; pgm != NULL; pgm = pgm->prev) {
-    if (!strcmp(
-            ((OBJECT_HEADER*)(pgm->saved_c_base))->ext_hdr.prog.program_name,
-            "$PROC")) {
-      is_proc = TRUE;
-      break;
-    }
-  }
-
-  descr = e_stack - 1;
-  while (descr->type == ADDR)
-    descr = descr->data.d_addr;
-  Release(descr);
-
-  if (is_proc) {
-    ibuf_descr = Element(process.syscom, SYSCOM_PROC_IBUF);
-    *descr = *(Element(ibuf_descr->data.ahdr_addr, 0));
-    k_incr_refct(descr);
-  } else {
-    InitDescr(descr, STRING);
-    descr->data.str.saddr = NULL;
-  }
-
-  k_dismiss();
-  InitDescr(e_stack, INTEGER);
-  (e_stack++)->data.value = !is_proc;
 }
 
 /* ======================================================================
