@@ -19,6 +19,7 @@
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
  * 02 Jul 24 mab define max string size.
+ * 06 Aug 24 mab define sdext max arg 
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -122,6 +123,9 @@
 
 #define MAX_ERROR_LINES 3        /* because I HATE magic numbers! */
 #define MAX_EMSG_LEN 80          /* These are used in k_error() in k_error.c */
+/* 20240806 mab define sdext max arg */
+#define SD_MAX_ARGS 10           /* max number of args passed by SDEXT function */ 
+#define SD_ERR_MSG_LEN 512       /* max characters for error message */
 
 #define Private static
 

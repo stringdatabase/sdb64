@@ -1,0 +1,104 @@
+PROGRAM SD_ENCRYPT_EXT
+*
+* sample program to test and show:
+* using SDEXT to create a salt
+* using SDEXT to create a key
+* using SDENCRYPT to encrypt text (returned encrypted and base64 encoded)
+* using SDDECRYPT to decode  text
+$internal   ;* we need this, SDEXT is an internal function
+
+$include KEYS.H
+$include ERR.H
+ 
+crt "Testing Encrypt / Decrypt using sdext functions to create salt and key "
+
+pltext = 'Two things are infinite, the universe and human stupidity, and I am not yet completely sure about the universe. - Albert Einstein'
+
+crt 'Our Text: ':pltext
+
+* my secret password (should be atleast > 16 characters per libsodium doc)
+mypw = "This That and The Other Things$$"
+
+* first lets get the salt (returned encoded base64)
+
+crt "call SDEXT('',@false,SD_SALT)"
+
+mysalt = SDEXT('',@false,SD_SALT)
+
+crt 'status = ':status()
+crt 'My Salt = ':mysalt
+
+* now get the key (returned encoded base64)
+
+myB64key = SDEXT(mypw:@FM:mysalt,@TRUE,SD_KEYFROMPW)
+
+crt 'My Key = ':myB64key
+
+crt '==============================================='
+crt ' Encrypt Test / B64 Encoding'
+crt '==============================================='
+
+RtnVal = SDENCRYPT(pltext,myB64key,SD_ENCODE64)
+STAT = STATUS()
+*
+crt 'Status: ':STAT
+*
+crt 'Size of Return Value: ' : len(RtnVal)
+
+crt RtnVal
+
+crt '==============================================='
+crt ' Decrypt Test / B64 Encoded'
+crt '==============================================='
+*
+* recalc the key 
+crt 'recalc the key'
+myrecalKey = SDEXT(mypw:@FM:mysalt,@TRUE,SD_KEYFROMPW)
+crt 'Status: ':STATUS()
+*
+IF myrecalkey # myB64key THEN
+  crt 'Keys do not match?'
+END ELSE
+  crt 'decrypt'
+  DcryptVal = SDDECRYPT(RTNVAL,myrecalKey,SD_ENCODE64)
+  STAT = STATUS()
+*
+  crt 'Status: ':STAT
+  crt 'Decrypted Text: ':DcryptVal
+*
+  If DcryptVal = pltext then
+    crt 'Success!'
+  END ELSE
+    crt 'Oops, Back to the drawing board!'
+  END
+END
+
+crt '==============================================='
+crt ' SD_KEYFROMPW with out proper params'
+crt '==============================================='
+myrecalKey = SDEXT(mysalt,@TRUE,SD_KEYFROMPW)
+crt 'Status: ':STATUS()
+
+crt '==============================================='
+crt ' SD_KEYFROMPW with wrong password'
+crt '==============================================='
+wrongpw = mypw:'Not Right!'
+crt 'wrong pw = ':wrongpw
+myrecalKey = SDEXT(wrongpw:@FM:mysalt,@TRUE,SD_KEYFROMPW)
+crt 'Status: ':STATUS()
+crt 'old key: ':myB64key
+crt 'new key: ':myrecalKey
+*
+
+crt '==============================================='
+crt ' SD_KEYFROMPW with wrong salt'
+crt '==============================================='
+newsalt = SDEXT('',@false,SD_SALT)
+myrecalKey = SDEXT(mypw:@FM:newsalt,@TRUE,SD_KEYFROMPW)
+crt 'Status: ':STATUS()
+crt 'old key: ':myB64key
+crt 'new key: ':myrecalKey
+
+alldone:
+END
+

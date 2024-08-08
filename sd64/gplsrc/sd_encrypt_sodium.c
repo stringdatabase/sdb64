@@ -84,17 +84,18 @@
 #include <stdio.h>
 #include <sodium.h>
 
-#include "err.h"
 #include "keys.h"
 
-
+char* sd_KeyFromPW(char* mypassword, char* mysalt);
 
 void sd_encrypt(int encode_type, char *key, char *data);
 void sd_decrypt(int encode_type, char *key, char *data);
-void sdme_err_rsp(int errnbr);
+
 
 int sdme_encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key, unsigned char **cipher_out, size_t *cipher_out_len);
 int sdme_decrypt(unsigned char *cipher_in, int cipher_in_len, unsigned char *key, unsigned char **plantext_out);
+
+Private void sdme_err_rsp(int errnbr);
 
 #ifdef dumphex
 void dump_hex_buff(unsigned char buf[], unsigned int len)
@@ -104,6 +105,84 @@ void dump_hex_buff(unsigned char buf[], unsigned int len)
     printf("\r\n");
 }
 #endif
+
+/* ====================================================================== */
+
+/* Create unique salt and return base64 encoded  (caller mustr free!!!)   */
+char* sd_salt(){
+
+  unsigned char salt[crypto_pwhash_SALTBYTES];
+  char* saltb64;    /* returned salt buffer */
+  
+  /* random bytes provides us a random salt */
+  randombytes_buf(salt, sizeof salt);
+
+  /* create buffer for returned salt */
+  saltb64 = malloc(sodium_base64_ENCODED_LEN(sizeof salt, sodium_base64_VARIANT_ORIGINAL)); /* encoded salt buffer */
+
+  if (saltb64 == NULL){
+    process.status = SD_Mem_Err;
+    return NULL;
+  }
+
+  sodium_bin2base64(saltb64, sodium_base64_ENCODED_LEN(sizeof salt, sodium_base64_VARIANT_ORIGINAL), salt, sizeof salt,sodium_base64_VARIANT_ORIGINAL);
+  return saltb64;
+}
+
+/* ====================================================================== */
+
+
+
+/* Create key from password and base64 encoded salt */
+/* returns b64 encoded (must be freed by caller!!!) */
+char* sd_KeyFromPW(char* mypassword, char* mysalt) {
+
+  #define KEY_LEN crypto_secretbox_KEYBYTES
+
+  unsigned char salt[crypto_pwhash_SALTBYTES];
+  unsigned char key[KEY_LEN];
+  char* keyb64;    /* returned key buffer */
+  size_t bin_len;
+
+  process.status = 0;  
+
+  /* all important libsodium initialization */
+  if (sodium_init() == -1) {
+    process.status = SD_SodInit_Err;
+    return NULL;
+  }
+
+  /* create buffer for returned key */
+  keyb64 = sodium_malloc(sodium_base64_ENCODED_LEN(KEY_LEN, sodium_base64_VARIANT_ORIGINAL));     /* encoded key buffer */
+  if (keyb64 == NULL){
+    process.status = SD_Mem_Err;
+    return NULL;
+  }
+
+  /* convert passed encoded salt to bin */
+  if (sodium_base642bin(salt, crypto_pwhash_SALTBYTES, mysalt, strlen(mysalt), NULL, &bin_len, NULL,sodium_base64_VARIANT_ORIGINAL) != 0) {
+  /* decode failed */
+    process.status = SD_Decode_Err;
+    keyb64[0] = '\0';
+    return keyb64;  
+  }
+
+  /* create the key from passed password and salt */
+  if (crypto_pwhash
+      (key, sizeof key, mypassword, strlen(mypassword), salt,
+      crypto_pwhash_OPSLIMIT_INTERACTIVE, crypto_pwhash_MEMLIMIT_INTERACTIVE,
+      crypto_pwhash_ALG_DEFAULT) != 0) {
+      /* pwhash failed,                                    */  
+      /* usual cause is out of memory, return empty string */
+      keyb64[0] = '\0';
+  } else {
+      sodium_bin2base64(keyb64, sodium_base64_ENCODED_LEN(KEY_LEN, sodium_base64_VARIANT_ORIGINAL), key, KEY_LEN,sodium_base64_VARIANT_ORIGINAL);
+    
+  }
+  return keyb64;
+}
+
+/* ====================================================================== */
 
 void op_encrypt() {
 /*    encrypted_text = SDENCRYPT(Data,KeyToUse,Encoding) 
@@ -234,6 +313,8 @@ return;
 
 }
 
+/* ====================================================================== */
+
 void op_decrypt() {
 /*    decrypted_text = SDDECRYPT(Data,KeyToUse,Encoding) 
       Stack:
@@ -358,7 +439,7 @@ return;
 
 }
 
-
+/* ====================================================================== */
 
 /*  function encrypts data using key (which is encoded, based on encode_type) 
 and encodes encrypted data based on encode_type */
@@ -522,6 +603,8 @@ void sd_encrypt(int encode_type, char *key, char *data) {
   }
 return;      
 }
+
+/* ====================================================================== */
 
 /*  function performs decryption of data using key key 
     data and key are encoded, based on encode_type */
@@ -711,9 +794,10 @@ void sd_decrypt(int encode_type, char *key, char *data) {
   return;
 }
 
+/* ====================================================================== */
 
 /* generic error return with null response, setting process.status */
-void sdme_err_rsp(int errNbr){
+Private void sdme_err_rsp(int errNbr){
   char EmptyResp[1] = {'\0'}; /*  empty return message  */
   k_put_c_string(EmptyResp, e_stack); /* sets descr as type string, empty */
   e_stack++;
@@ -721,6 +805,7 @@ void sdme_err_rsp(int errNbr){
 
 }
 
+/* ====================================================================== */
 
 /* Encrypt plaintest using key returning cipher_out
    Caller is responsible for freeing cipher_out buffer! */
@@ -768,6 +853,8 @@ int sdme_encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key
 
   return 0;
 }
+
+/* ====================================================================== */
 
 /* Decrypt cipher_in using key returning plantext_out
    Caller is responsible for freeing plantext_out buffer! */

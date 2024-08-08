@@ -19,8 +19,6 @@
 * 
 * START-HISTORY:
 * 19 Jan 24  0.6.1 SD launch. Earlier history details suppressed.
-* 06 Aug 24  mab remove PROCREAD/PROCWRITE
-*                correct len(function.args) test in ST.DEFFUN
 * 28 Jul 24  mab remove unsupported BASIC Functions / Statements:
 *                ABORTE, ABORTM
 *                CONNECT.PORT, ERRMSG, TTYGET, TTYSET, STOPE, STOPM 
@@ -28,6 +26,9 @@
 *                ENTER.PACKAGE, EXIT.PACKAGE, PACKAGE, TRACE
 *                PICK.ERRMSG compiler mode
 * 28 Jul 24  mab add SDENCRYTP, SDDECRYPT
+* 06 Aug 24  mab remove PROCREAD/PROCWRITE
+*                correct len(function.args) test in ST.DEFFUN
+*                add SDEXT as internal function
 * END-HISTORY
 *
 *
@@ -628,6 +629,8 @@ $define STACK.MARK 9999         ;* Marks start of sub-expression
    int.intrinsics<-1> = "READPKT"         ; int.intrinsic.opcodes<-1> = OP.READPKT
    int.intrinsics<-1> = "REMOVEF"         ; int.intrinsic.opcodes<-1> = OP.RMVF
    int.intrinsics<-1> = "SCAN"            ; int.intrinsic.opcodes<-1> = OP.BTSCAN
+   * 20240806 mab add SDEXT function
+   int.intrinsics<-1> = "SDEXT"           ; int.intrinsic.opcodes<-1> = OP.SDEXT
    int.intrinsics<-1> = "SORTDATA"        ; int.intrinsic.opcodes<-1> = OP.SORTDATA
    int.intrinsics<-1> = "SORTNEXT"        ; int.intrinsic.opcodes<-1> = OP.SORTNEXT
    int.intrinsics<-1> = "TESTLOCK"        ; int.intrinsic.opcodes<-1> = OP.TESTLOCK
@@ -3743,7 +3746,8 @@ end
                   locate x.symbol.name in int.intrinsics<1> by 'AL' setting i then
                      gosub get.token           ; * Skip left bracket
                      intrinsic.stack = int.intrinsic.opcodes<i> : @fm : intrinsic.stack 
-* 20240728 mab remove PACKAGE                      
+* 20240728 mab remove PACKAGE 
+* 20240806 mab add SDEXT                     
                      on i goto in.none,       ;* ABORT.CAUSE
                                in.two,        ;* AKMAP
                                in.one,        ;* ANALYSE
@@ -3778,6 +3782,7 @@ end
                                in.none,       ;* READPKT
                                in.removef,    ;* REMOVEF
                                in.scan,       ;* SCAN
+                               in.three,      ;* SDEXT
                                in.none,       ;* SORTDATA
                                in.sortnext,   ;* SORTNEXT
                                in.one         ;* TESTLOCK

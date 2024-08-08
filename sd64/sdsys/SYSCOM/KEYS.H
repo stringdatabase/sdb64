@@ -4,6 +4,7 @@
       
       $list off
       
+      * 06 Aug 24 mab add SDEXT key codes
       * 30 Jul 24 mab define SD_ENCRYPT_SODIUM encode types 
       * 20240330 mab add ACC$USERS
       * 30Mar09 gwb Added missing defines, SKT$STREAM, SKT$DGRAM, SKT$TCP,
@@ -259,4 +260,9 @@
 
       $define SD_ENCODEHX     201  ;* encode passed string as Hex String 
       $define SD_ENCODE64     202  ;* encode as Base64 
+      
+      * Key Codes for op_sdext     *
+      $define SDEXT_TestIt      1  ;* Function Test 
+      $define SD_SALT         100  ; sd_encrypt_sodium sd_salt function 
+      $define SD_KEYFROMPW    101  ;* sd_encrypt_sodium sd_KeyFromPW function      
       
