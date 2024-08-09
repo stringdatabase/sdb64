@@ -40,7 +40,7 @@ sudo date
 echo
 echo Installing required packages
 echo
-sudo apt-get install build-essential micro lynx libbsd-dev libsodium-dev
+sudo apt-get install build-essential micro lynx libbsd-dev libsodium-dev openssh-server
  
 cd $cwd/sd64
 
