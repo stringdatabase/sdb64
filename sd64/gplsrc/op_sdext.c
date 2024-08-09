@@ -1,23 +1,23 @@
 /* OP_SDEXT.C
- * SDEXT – Generic function for extending SD / BASIC to interface with C Functions
- * Copyright (c)2024 The SD Developers, All Rights Reserved
- *
+*
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 3, or (at your option)
+ * the Free Software Foundation; either version 2, or (at your option)
  * any later version.
- *
+ * 
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
+ * 
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+ * opcodes for ScarletDME extension function
  * 
  * START-HISTORY:
  * 06 Aug 2024 MAB add SDEXT
+ * 08 Aug 2024 mab add embedded python
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -46,6 +46,11 @@
 
 extern char* sd_salt();
 extern char* sd_KeyFromPW(char* mypassword, char* mysalt);
+
+/* 20240808 mab embedding python? */
+#ifdef EMBED_PYTHON
+extern void sdext_py(int key, char* Arg);
+#endif
 
 char* SDMEArgArray[SD_MAX_ARGS];          /* create an array of pointers, for string arguments (for SDEXT call ) not sure if this is correct */
 char* NullString(void); 
@@ -222,6 +227,20 @@ void op_sdext() {
         sdme_err_rsp(process.status);      /* eror set in process.status */
       }
       break;
+
+    /* 20240808 mab embedding python? */
+    #ifdef EMBED_PYTHON
+    case SD_PyInit:  
+    case SD_PyFinal:  
+    case SD_IsPyInit: 
+    case SD_PyRunStr:  
+    case SD_PyRunFile: 
+    case SD_PyGetAtt :
+  /* embedding Python functions*/
+      sdext_py(key, SDMEArgArray[0]);
+      break;
+    #endif  
+
 
     default:
       /* unknown key */
