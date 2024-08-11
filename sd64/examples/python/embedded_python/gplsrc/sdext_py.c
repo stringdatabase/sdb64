@@ -19,6 +19,7 @@
  * to do- add STATUS() = 0 successful call, or  STATUS() = 1 unsuccessful call
  * 
  * START-HISTORY:
+ * 11 Aug 2024 mab add PyErr_Print() to file and string script execution failure
  * 15 Jul 2024 MAB add SDME_PY.C 
  * 19 Jul 2024 mab remove Py_DECREF(pdict) at finalize, not necessary (at least samples I have seen dont do it)
  *   Also note, original idea was initialize - run script - finalize for each use (call from BASIC prog).
@@ -143,6 +144,7 @@ void sdext_py(int key, char* Arg){
         if (prun == NULL){
         /* exception */
           myResult = SD_PyEr_Excpt;
+          PyErr_Print();
         } else {
           Py_DECREF(prun);
         }
@@ -169,6 +171,7 @@ void sdext_py(int key, char* Arg){
           if (prun == NULL){
           /* exception */
             myResult = SD_PyEr_Excpt;
+            PyErr_Print();
           } else {
              Py_DECREF(prun);
           }
