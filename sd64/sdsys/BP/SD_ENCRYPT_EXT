@@ -17,11 +17,10 @@
 PROGRAM SD_ENCRYPT_EXT
 *
 * sample program to test and show:
-* using SDEXT to create a salt
-* using SDEXT to create a key
+* using !SD_GET_SALT to create a salt
+* using !SD_KEY_FROM_PW to create a key
 * using SDENCRYPT to encrypt text (returned encrypted and base64 encoded)
 * using SDDECRYPT to decode  text
-$internal   ;* we need this, SDEXT is an internal function
 
 $include KEYS.H
 $include ERR.H
@@ -37,17 +36,18 @@ mypw = "This That and The Other Things$$"
 
 * first lets get the salt (returned encoded base64)
 
-crt "call SDEXT('',@false,SD_SALT)"
+crt "!SD_GET_SALT(mysalt)"
 
-mysalt = SDEXT('',@false,SD_SALT)
+call !SD_GET_SALT(mysalt)
 
 crt 'status = ':status()
 crt 'My Salt = ':mysalt
 
 * now get the key (returned encoded base64)
+crt "!SD_KEY_FROM_PW(mypw,mysalt,myB64key)"
 
-myB64key = SDEXT(mypw:@FM:mysalt,@TRUE,SD_KEYFROMPW)
-
+call !SD_KEY_FROM_PW(mypw,mysalt,myB64key)
+crt 'status = ':status()
 crt 'My Key = ':myB64key
 
 crt '==============================================='
@@ -69,7 +69,7 @@ crt '==============================================='
 *
 * recalc the key 
 crt 'recalc the key'
-myrecalKey = SDEXT(mypw:@FM:mysalt,@TRUE,SD_KEYFROMPW)
+call !SD_KEY_FROM_PW(mypw,mysalt,myrecalKey)
 crt 'Status: ':STATUS()
 *
 IF myrecalkey # myB64key THEN
@@ -89,31 +89,30 @@ END ELSE
   END
 END
 
-crt '==============================================='
-crt ' SD_KEYFROMPW with out proper params'
-crt '==============================================='
-myrecalKey = SDEXT(mysalt,@TRUE,SD_KEYFROMPW)
-crt 'Status: ':STATUS()
 
 crt '==============================================='
-crt ' SD_KEYFROMPW with wrong password'
+crt ' SD_KEY_FROM_PW with wrong password'
 crt '==============================================='
 wrongpw = mypw:'Not Right!'
 crt 'wrong pw = ':wrongpw
-myrecalKey = SDEXT(wrongpw:@FM:mysalt,@TRUE,SD_KEYFROMPW)
+call !SD_KEY_FROM_PW(wrongpw,mysalt,myrecalKey)
 crt 'Status: ':STATUS()
 crt 'old key: ':myB64key
 crt 'new key: ':myrecalKey
 *
 
 crt '==============================================='
-crt ' SD_KEYFROMPW with wrong salt'
+crt ' SD_KEY_FROM_PW with wrong salt'
 crt '==============================================='
-newsalt = SDEXT('',@false,SD_SALT)
-myrecalKey = SDEXT(mypw:@FM:newsalt,@TRUE,SD_KEYFROMPW)
+call !SD_GET_SALT(newsalt)
+call!SD_KEY_FROM_PW(mypw,newsalt,myrecalKey)
 crt 'Status: ':STATUS()
 crt 'old key: ':myB64key
 crt 'new key: ':myrecalKey
+
+crt 'attempt decrypt with new key (same pw wrong salt)'
+DcryptVal = SDDECRYPT(RTNVAL,myrecalKey,SD_ENCODE64)
+crt 'Status: ':STATUS()
 
 alldone:
 END
