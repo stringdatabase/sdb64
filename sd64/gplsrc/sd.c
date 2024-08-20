@@ -20,6 +20,7 @@
  * 31 Dec 23 SD launch - prior history suppressed
  * 15 Jun 24 add bootstrap build option install option -I
  * 02 Jul 24 -i  typeo will hit bootstrap option
+ * 08 Aug 24 mab add code to embedded python if EMBED_PYTHON defined 
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -86,10 +87,16 @@
 #include "config.h"
 #include "options.h"
 #include "locks.h"
+#include "keys.h"
 
 #define BUILD_TARGET "64 Bit"
 
 extern char *x_option; /* -x option */
+
+/* 20240808 mab embedding python? */
+#ifdef EMBED_PYTHON
+extern void sdext_py(int key, char* Arg);
+#endif
 
 bool bind_sysseg(bool create, char *errmsg);
 void unbind_sysseg(void);
@@ -237,6 +244,13 @@ int main(int argc, char *argv[]) {
   //   dh_shutdown();
   //   unbind_sysseg();
   //   shut_console();
+
+  /* 20240808 mab embedding python? */
+  #ifdef EMBED_PYTHON
+  char py_shutdown[] = "shutdown";
+  sdext_py(SD_PyFinal, py_shutdown);   /* if python was used, shut it down */
+  #endif
+
   clean_stop();
   return status;
 }

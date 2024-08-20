@@ -293,4 +293,15 @@
 #define SD_EXT_KEY_ERR -10300  /* unknown key */
 #define SD_EXT_ARG_CNT -10301  /* incorrect argument count for called function */
 
+/* Embedded Python Error codes   */
+#define SD_PyEr_NotInit    -12001    /* interperter not initiialized */
+#define SD_PyEr_Dict       -12002    /* PyDict_New() failed */
+#define SD_PyEr_Builtin    -12003    /* failed to set __builtins__ link to the built-in scope */
+#define SD_PyEr_Excpt      -12004    /* exception on PyRun_String */
+#define SD_PyEr_FinalEr    -12005    /*  error reported by GPL.BP Program PY_FINALIZE */
+#define SD_PyEr_NOF        -12006    /* could not open script file */
+#define SD_PyEr_Key        -12007    /* failed to find key in dictionary */
+#define SD_PyEr_ObToStr    -12008    /* failed to convert python object to string */
+#define SD_PyErr_UniToStr  -12009    /* error encoding unicode python string to to Latin */
+
 /* END-CODE */

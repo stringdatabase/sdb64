@@ -3,7 +3,7 @@
       * Copyright (c) 2004, Ladybridge Systems, All Rights Reserved
       
       $list off
-      
+      * 09 Aug 24 mab add SDEXT embedded python key codes
       * 06 Aug 24 mab add SDEXT key codes
       * 30 Jul 24 mab define SD_ENCRYPT_SODIUM encode types 
       * 20240330 mab add ACC$USERS
@@ -266,3 +266,10 @@
       $define SD_SALT         100  ; sd_encrypt_sodium sd_salt function 
       $define SD_KEYFROMPW    101  ;* sd_encrypt_sodium sd_KeyFromPW function      
       
+      * embedded python 
+      $define  SD_PyInit        2000  ;* initialize the python interpreter   
+      $define  SD_PyFinal       2001  ;* Finalize the python interpreter  
+      $define  SD_IsPyInit      2002  ;* Is python interpreter initialized 
+      $define  SD_PyRunStr      2010  ;* Take the string in qmBasic variable VAL and run in python interpreter   
+      $define  SD_PyRunFile     2011  ;* Take the file and path defined in qmBasic variable VAL and run in python interpreter   
+      $define  SD_PyGetAtt      2100  ;* Return the (string) value of python attribute defined in qmBasic variable VAL        

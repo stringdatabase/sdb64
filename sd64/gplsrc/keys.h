@@ -18,7 +18,9 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed 
- * 38 Jul 24 mab SD_ENCRYPT_SODIUM encode types
+ * 28 Jul 24 mab SD_ENCRYPT_SODIUM encode types
+ * 08 Aug 24 mab SDEXT keys for salt and key from password
+ * 09 Aug 24 mab embedded python SDEXT keys
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -344,5 +346,13 @@
 #define SDEXT_TestIt   1  /* Function Test */
 #define SD_SALT      100  /* sd_encrypt_sodium sd_salt function */
 #define SD_KEYFROMPW 101  /* sd_encrypt_sodium sd_KeyFromPW function */
+
+/* embedded python */
+#define  SD_PyInit        2000  /* initialize the python interpreter   */
+#define  SD_PyFinal       2001  /* Finalize the python interpreter   */
+#define  SD_IsPyInit      2002  /* Is python interpreter initialized   */
+#define  SD_PyRunStr      2010  /* Take the string in qmBasic variable VAL and run in python interpreter   */
+#define  SD_PyRunFile     2011  /* Take the file and path defined in qmBasic variable VAL and run in python interpreter   */
+#define  SD_PyGetAtt      2100  /* Return the (string) value of python attribute defined in qmBasic variable VAL   */
 
 /* END-CODE */
