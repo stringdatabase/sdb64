@@ -19,6 +19,7 @@
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed 
  * 06 Aug 24 mab remove op_procread
+ * 02 Aug 24 mab correct format code in op_dtx
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -259,7 +260,7 @@ void op_dtx() {
 
   descr = e_stack - 1;
   GetInt(descr);
-  n = sprintf(value, "%d", descr->data.value);
+  n = sprintf(value, "%x", descr->data.value);
 
   p = s;
   if (n < min_width) {
