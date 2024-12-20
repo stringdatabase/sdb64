@@ -19,8 +19,8 @@ tuser=$USER
 cwd=$(pwd)
 #
 clear 
-echo SD installer
-echo --------------------
+echo SD installer for Fedora
+echo -----------------------
 echo
 echo "For this install script to work you must:"
 echo
