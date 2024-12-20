@@ -19,14 +19,13 @@ tuser=$USER
 cwd=$(pwd)
 #
 clear 
-echo SD installer
-echo --------------------
+echo SD installer for Ubuntu
+echo -----------------------
 echo
-echo "For this install script to work you must:"
+echo "For this install script to work you must have sudo installed"
+echo "and be a member of the sudo group."
 echo
-echo "  1 be running a distro based on Debian 12 or Ubuntu 22.04 or later"
-echo
-echo "  2 have sudo installed and be a member of the sudo group"
+echo "This installer has been tested on Ubuntu 24.04 and Mint 22."
 echo
 read -p "Continue? (y/N) " yn
 case $yn in
