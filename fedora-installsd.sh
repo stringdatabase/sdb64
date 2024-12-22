@@ -17,7 +17,7 @@
 tgroup=sdusers
 tuser=$USER
 
-cwd=$(pwd) >> null
+cwd=$(pwd)
 #
 clear 
 echo SD installer
@@ -39,6 +39,7 @@ esac
 echo
 echo If requested, enter your account password:
 sudo date
+clear
 echo
 echo Installing required packages
 echo
@@ -191,8 +192,11 @@ sudo sd -stop
 cd $cwd/sd64
 echo
 echo Compiling terminfo database
-bin/sdtic -v terminfo.src
+bin/sdtic -v ./terminfo.src
 echo Terminfo compilation completed
+sudo cp -R terminfo /usr/local/sdsys
+sudo cp terminfo.src /usr/local/sdsys
+sudo chown -R sdsys:sdusers /usr/local/sdsys/terminfo
 echo
 
 cd $cwd
