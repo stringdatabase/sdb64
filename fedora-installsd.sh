@@ -47,12 +47,6 @@ cd $cwd/sd64
 
 sudo make
 
-echo
-echo Compiling terminfo database
-bin/sdtic -v terminfo.src
-echo Terminfo compilation completed
-echo
-
 # Create sd system user and group
 echo "Creating group: sdusers"
 sudo groupadd --system sdusers
@@ -193,8 +187,14 @@ sudo sd -stop
 sudo sd -start
 sudo sd -stop
 
-cd $cwd
+cd $cwd/sd64
+echo
+echo Compiling terminfo database
+bin/sdtic -v terminfo.src
+echo Terminfo compilation completed
+echo
 
+cd $cwd
 echo "Removing binary bits from repository"
 sudo rm sd64/gplobj/*.o
 sudo rm sd64/bin/sd*
