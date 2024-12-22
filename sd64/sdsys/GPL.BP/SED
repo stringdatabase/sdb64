@@ -298,7 +298,7 @@ $include revstamp.h
 * Get screen characteristics
 
    screen.lines = @crthigh
-   if screen.lines < 24 then screen.lines = 24
+   if screen.lines < 36 then screen.lines = 36
    displayed.lines = screen.lines - 2
    last.data.line = displayed.lines - 1
    split.line = int((displayed.lines + 1) / 2)  ;* Top line of lower window
@@ -311,7 +311,7 @@ $include revstamp.h
    scroll.increment = int(live.height / 2)
 
    screen.width = @crtwide
-   if screen.width < 80 then screen.width = 80
+   if screen.width < 120 then screen.width = 120
    sw.fmt = screen.width : 'L'
    swm1 = screen.width - 1
    swm1.fmt = swm1 : 'L'
