@@ -45,6 +45,12 @@ cd $cwd/sd64
 
 sudo make 
 
+echo
+echo Compiling terminfo database
+bin/sdtic -v terminfo.src
+echo Terminfo compilation completed
+echo
+
 # Create sd system user and group
 echo "Creating group: sdusers"
 sudo groupadd --system sdusers
