@@ -3234,7 +3234,7 @@ bool tio_init() {
   tio.lptr_0.next = NULL;
   tio.lptr_0.unit = 0;
 
-  tio_set_printer(DISPLAY, PRINT_TO_DISPLAY, 25, 80, 0, 0, 0);
+  tio_set_printer(DISPLAY, PRINT_TO_DISPLAY, 37, 120, 0, 0, 0);
 
   tio_set_printer(0, PRINT_TO_PRINTER, pcfg.lptrhigh, pcfg.lptrwide, 0, 0, 0);
 
