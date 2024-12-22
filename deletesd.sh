@@ -18,22 +18,27 @@
 	fi
 #
 clear
-echo REMOVE SD Completely
-echo ------------------------------------
-echo
-echo "Do you want to delete /home/sd and all subdirectories."
-echo "WARNING: this will delete all SD User and Group accounts."
-echo 
 echo If requested, enter your account password:
 sudo pwd
 echo
-read -p "Delete /home/sd? (y/N) " yn
-case $yn in
-	[yY] )  echo /home/sd Directory Deleted;
+echo
+echo REMOVE SD Completely
+echo ------------------------------------
+echo
+echo "Do you want to save /home/sd and all subdirectories."
+echo
+echo "WARNING: Choose 'R' to retain accounts for SD reinstallation."
+echo "         Choose 'D' will delete all SD User and Group accounts."
+echo 
+echo
+
+read -p "Delete /home/sd? (R/D) " rd
+case $rd in
+	[dD] )  echo /home/sd Directory Deleted;
 			sudo rm -fr /home/sd;;
 	* )  
-		echo Saving Accounts Directory;
-		sudo mv /usr/local/sdsys/ACCOUNTS /home/sd;
+		    echo Saving Accounts Directory;
+		    sudo mv /usr/local/sdsys/ACCOUNTS /home/sd;
 esac
 echo
 
