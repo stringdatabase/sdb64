@@ -40,10 +40,10 @@
 
 /* The following are also defined in BP TERM */
 #define MIN_WIDTH        20
-#define DEFAULT_WIDTH    80
+#define DEFAULT_WIDTH   120
 #define MAX_WIDTH     32767
 #define MIN_DEPTH        10
-#define DEFAULT_DEPTH    24
+#define DEFAULT_DEPTH    36
 #define MAX_DEPTH     32767
 
 #define BACKSPACE_KEY 8
