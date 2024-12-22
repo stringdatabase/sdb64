@@ -16,7 +16,8 @@
 #
 tgroup=sdusers
 tuser=$USER
-cwd=$(pwd)
+
+cwd=$(pwd) >> null
 #
 clear 
 echo SD installer

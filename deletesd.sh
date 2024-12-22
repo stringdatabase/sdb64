@@ -32,7 +32,7 @@ echo "         Choose 'D' will delete all SD User and Group accounts."
 echo 
 echo
 
-read -p "Delete /home/sd? (R/D) " rd
+read -p "Delete /home/sd? (R/d) " rd
 case $rd in
 	[dD] )  echo /home/sd Directory Deleted;
 			sudo rm -fr /home/sd;;
