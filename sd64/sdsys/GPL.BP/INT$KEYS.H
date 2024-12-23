@@ -35,10 +35,10 @@
 
       * Screen parameters, also defined in csrc tio.h
       $define MIN.WIDTH           20
-      $define DEFAULT.WIDTH       80
+      $define DEFAULT.WIDTH      120
       $define MAX.WIDTH        32767
       $define MIN.DEPTH           10
-      $define DEFAULT.DEPTH       24
+      $define DEFAULT.DEPTH       36
       $define MAX.DEPTH        32767
 
 

@@ -220,8 +220,8 @@ bool init_console() {
 
   /* ----------------------- Display ------------------------ */
 
-  tio.dsp.width = 80;
-  tio.dsp.lines_per_page = 24;
+  tio.dsp.width = 120;
+  tio.dsp.lines_per_page = 36;
 
   if (connection_type == CN_CONSOLE) {
     /* ----------------------- Keyboard ----------------------- */

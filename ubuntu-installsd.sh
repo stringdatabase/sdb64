@@ -36,6 +36,7 @@ esac
 echo
 echo If requested, enter your account password:
 sudo date
+clear
 echo
 echo Installing required packages
 echo
@@ -184,6 +185,14 @@ sudo systemctl enable sdclient.socket
 sudo sd -stop
 sudo sd -start
 sudo sd -stop
+
+cd $cwd/sd64
+echo
+echo Compiling terminfo database
+sudo bin/sdtic -v ./terminfo.src
+echo Terminfo compilation completed
+sudo cp terminfo.src /usr/local/sdsys
+echo
 
 cd $cwd
 
