@@ -18,6 +18,7 @@
  *
  * START-HISTORY):
  * 31 Dec 23 SD launch - prior history suppressed
+ * rev 0.9.0 Jan 25 mab change dyn file prefix to %
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -1694,8 +1695,8 @@ Private int16_t create_ak(char *data_path,          /* Data file path name */
 
   /* Open primary subfile.  We do this outside of the file sharing mechanism
      to guarantee that we are the only user of the file.                     */
-
-  sprintf(path, "%s%c~0", data_path, DS);
+/* rev 0.9.0 */
+  sprintf(path, "%s%c%%0", data_path, DS);
   fu = dio_open(path, DIO_UPDATE);
   if (!ValidFileHandle(fu)) {
     dh_err = DHE_FILE_NOT_FOUND;
@@ -1752,8 +1753,8 @@ Private int16_t create_ak(char *data_path,          /* Data file path name */
   {
     strcpy(header.akpath, ak_path); /* Only relevant on first index */
   }
-
-  sprintf(path, "%s%c~%d", ak_path, DS, subfile);
+/* rev 0.9.0 */
+  sprintf(path, "%s%c%%%d", ak_path, DS, subfile);
   akfu = dio_open(path, DIO_NEW);
   if (!ValidFileHandle(akfu)) {
     dh_err = DHE_AK_CREATE_ERR;
@@ -1893,8 +1894,8 @@ Private bool delete_ak(char *pathname, /* File path name */
 
   /* Open primary subfile.  We do this outside of the file sharing mechanism
      to guarantee that we are the only user of the file.                     */
-
-  sprintf(path, "%s%c~0", pathname, DS);
+/* rev 0.9.0 */
+  sprintf(path, "%s%c%%0", pathname, DS);
   fu = dio_open(path, DIO_UPDATE);
   if (!ValidFileHandle(fu)) {
     dh_err = DHE_FILE_NOT_FOUND;
@@ -1934,7 +1935,8 @@ Private bool delete_ak(char *pathname, /* File path name */
   /* Delete the AK subfile */
 
  /*  20240122  mab change sprintf to snprintf and test for buffer overflow */
-  if (snprintf(path,MAX_PATHNAME_LEN + 1,"%s%c~%d", (relocated) ? header.akpath : pathname, DS, (akno + AK_BASE_SUBFILE)) >= (MAX_PATHNAME_LEN + 1)) {
+ /* rev 0.9.0 */
+  if (snprintf(path,MAX_PATHNAME_LEN + 1,"%s%c%%%d", (relocated) ? header.akpath : pathname, DS, (akno + AK_BASE_SUBFILE)) >= (MAX_PATHNAME_LEN + 1)) {
     dh_err = DHE_AK_DELETE_ERROR;
     process.os_error = OSError;
     goto exit_delete_ak;

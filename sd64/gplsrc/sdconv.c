@@ -19,6 +19,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * rev 0.9.0 Jan 25 mab change dyn file prefix to %
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -212,8 +213,8 @@ bool is_dh_file(char* filename) {
   int dhfu = -1;
   char pathname[MAX_PATHNAME_LEN + 1];
   struct stat statbuf;
-
-  sprintf(pathname, "%s%c~0", filename, DS);
+/* rev 0.9.0 */
+  sprintf(pathname, "%s%c%%0", filename, DS);
 
   if (stat(pathname, &statbuf) != 0)
     goto exit_is_dh_file;
@@ -731,8 +732,8 @@ exit_process_file:
 
 bool open_subfile(char* filename, int16_t sf) {
   char path[160 + 1];
-
-  sprintf(path, "%s%c~%d", filename, DS, (int)sf);
+/* rev 0.9.0 */
+  sprintf(path, "%s%c%%%d", filename, DS, (int)sf);
   fu[sf] = open(path, (int)(O_RDWR | O_BINARY), default_access);
   return (fu[sf] >= 0);
 }

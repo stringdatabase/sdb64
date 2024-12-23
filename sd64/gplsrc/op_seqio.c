@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * rev 0.9.0 Jan 25 mab change dyn file prefix to % 
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -457,9 +458,10 @@ Private void openseq(bool map_name) {
     }
 
     /* Check if it is a directory file. The best we can do here is to check that
-      it is a directory and that there is no ~0 subfile.                     */
+      it is a directory and that there is no %0 subfile.                     */
     /* converted to snprintf() -gwb 22Feb20 */
-    if (snprintf(pathname, MAX_PATHNAME_LEN + 1, "%s%c~0", file_name, DS) >=
+/* rev 0.9.0 */    
+    if (snprintf(pathname, MAX_PATHNAME_LEN + 1, "%s%c%%0", file_name, DS) >=
         (MAX_PATHNAME_LEN + 1)) {
       /* TODO: this should be logged to disk with more information */
       k_error("Overflowed path/filename size in openseq()");

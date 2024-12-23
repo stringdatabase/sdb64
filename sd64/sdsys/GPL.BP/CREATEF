@@ -19,6 +19,7 @@
 * 
 * START-HISTORY:
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
+* rev 0.9.0 Jan 25 mab change dyn file prefix to %
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -308,12 +309,12 @@ $define default.split.load 80
                if not(ospath(new.path, OS$MKDIR)) then
                   stop sysmsg(6196, new.path) ;* Unable to create %1
                end
-
-               * Move the ~n components down into the new sub directory
+* rev 0.9.0 *
+               * Move the %n components down into the new sub directory
 
                for i = dcount(subfiles, @fm) to 1 step -1
                   s = subfiles<i,1>
-                  if s[1,1] = '~' then
+                  if s[1,1] = '%' then
                      if not(osrename(old.path:@ds:s, new.path:@ds:s)) then
                         stop sysmsg(6197, status(), os.error(), old.path:@ds:s)
                               * Error %1.%2 moving %3

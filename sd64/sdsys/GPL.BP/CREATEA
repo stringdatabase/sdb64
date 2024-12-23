@@ -21,6 +21,7 @@
 * 20240330 mab rev 064 list of valid users required in ACCOUNTS<2>
 * 20240309 mab create file BP for new accounts
 * 20240219 mab dflt user and group parent directory for accounts
+* rev 0.9.0 Jan 25 mab change dyn file prefix to %
 * mods to command line:
 *  Rem was
 *    CREATE.ACCOUNT acc.name pathname {NO.QUERY}
@@ -426,10 +427,11 @@ create.dir.file:
          @system.return.code = -ER$NOT.CREATED
          stop sysmsg(6023, fn) ;* Unable to create dictionary part of xx
       end
-* 20240302 mab set file ownership accordingly  
-      set.owner.path = pathname:@ds:os.name:'.DIC':@ds:'~0'
+* 20240302 mab set file ownership accordingly 
+* rev 0.9.0 * 
+      set.owner.path = pathname:@ds:os.name:'.DIC':@ds:'%0'
       gosub set.owner
-      set.owner.path = pathname:@ds:os.name:'.DIC':@ds:'~1'
+      set.owner.path = pathname:@ds:os.name:'.DIC':@ds:'%1'
       gosub set.owner            
 
       openpath pathname:@ds:os.name:'.DIC' to dict.f else
