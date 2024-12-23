@@ -19,6 +19,7 @@
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
  * rev 0.9.0 Jan 25 mab change dyn file prefix to %
+ *           process_file was commented out??, sdfix didn't do anything.          
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -143,8 +144,8 @@ void L_command(char *id, int16_t id_len);
 void S_command(int32_t n);
 void W_command(char *cmnd);
 void Z_command(void);
-
-void fix_file(char *fn);
+/* rev 0.9.0 */
+int fix_file(char *fn);
 bool is_dh_file(void);
 int process_file(void);
 void show_window(int64 addr);
@@ -293,7 +294,12 @@ char *argv[];
     goto usage; /* No filenames */
 
   while (arg < argc) {
-    fix_file(argv[arg]);
+/* rev 0.9.0 */
+    status = fix_file(argv[arg]);
+    emit(
+      " SDFIX processed:  %s   Status: %d"
+      "\n",
+      argv[arg], status);
     arg++;
   }
 
@@ -318,18 +324,19 @@ usage:
 /* ======================================================================
    fix_file()                                                             */
 
-void fix_file(char *fn) {
-  // int status; delcared but never used.
-
+int fix_file(char *fn) {
+/* rev 0.9.0 */	
+  int status = 1;
   strcpy(filename, fn);
 
   if (is_dh_file()) {
     if (file_found)
       emit("\n\n");
     file_found = TRUE;
-    // status = process_file();
-    // status is never used.
+/* rev 0.9.0 */    
+    status = process_file();
   }
+  return status;
 }
 
 /* ======================================================================
