@@ -19,13 +19,15 @@ tuser=$USER
 cwd=$(pwd)
 #
 clear 
-echo SD installer for Ubuntu
+echo SD installer for Fedora
 echo -----------------------
 echo
-echo "For this install script to work you must have sudo installed"
-echo "and be a member of the sudo group."
+echo "For this install script to work you must:"
 echo
-echo "Installer tested on Debian 12.8, Ubuntu 24.04 and Mint 22."
+echo "  1 be running OpenSuse Leap 15.6 or Tumbleweed"
+echo
+echo "  2 have sudo installed and be a member of the sudo group"
+echo
 echo
 read -p "Continue? (y/N) " yn
 case $yn in
@@ -36,15 +38,16 @@ esac
 echo
 echo If requested, enter your account password:
 sudo date
-clear
 echo
 echo Installing required packages
 echo
-sudo apt-get install build-essential micro lynx libbsd-dev libsodium-dev openssh-server
+sudo zypper install -t pattern devel_basis
+sudo zypper install micro lynx 
+sudo zypper install micro lynx libbsd-devel libsodium-devel openssh-server
  
 cd $cwd/sd64
 
-sudo make 
+sudo make
 
 # Create sd system user and group
 echo "Creating group: sdusers"
@@ -162,7 +165,7 @@ sudo bin/sd -internal SECOND.COMPILE
 echo "Bootstap pass 3"
 sudo bin/sd RUN GPL.BP WRITE_INSTALL_DICTS NO.PAGE
 echo "Compile C and I type dictionaries"
-sudo bin/sd THIRD.COMPILE
+sudo bin/sd -internal THIRD.COMPILE
 #  create a user account for the current user
 echo
 echo
@@ -186,14 +189,6 @@ sudo sd -stop
 sudo sd -start
 sudo sd -stop
 
-cd $cwd/sd64
-echo
-echo Compiling terminfo database
-sudo bin/sdtic -v ./terminfo.src
-echo Terminfo compilation completed
-sudo cp terminfo.src /usr/local/sdsys
-echo
-
 cd $cwd
 
 echo "Removing binary bits from repository"
@@ -203,7 +198,6 @@ sudo rm sd64/bin/*.so
 sudo rm sd64/pass1
 sudo rm sd64/pass2
 sudo rm sd64/pcode_bld.log
-
 
 # display end of script message
 echo
@@ -233,4 +227,5 @@ case $yn in
 	[nN] ) echo;;
 	* ) echo ;;
 esac
+
 exit
