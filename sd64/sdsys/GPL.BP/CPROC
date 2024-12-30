@@ -18,6 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* rev 0.9.0 Jan 25 mab change permission required for account logto, must now either be;
+*                      1) users ACCOUNT
+*                      2) member of the ACCOUNT's linux group
 * 20240615 mab  mods for bootstrap builder
 * 20240330 mab restrict logto account to allowed users
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
@@ -134,6 +137,8 @@ $include menu.h
 $include keycode.h
 
 deffun errtext(err) calling '!errtext'
+* rev 0.9.0 *
+deffun is_grp_member(user,group) calling '!is_grp_member'
 
 $define max.elements 500
 
@@ -2432,9 +2437,8 @@ int.logto:
    * acc.rec contains the pathname of the account (other fields removed)
    * acc.record contains the full ACCOUNT record 
 
-* 20240330 mab user must be allowed in new account   
-
-   IF not(locate(@logname,acc.record,ACC$USERS,1)) then            
+* rev 0.9.0 * is user member of account?   
+   if  not(is_grp_member(@logname,acc.record<ACC$GROUP>)) then
       display sysmsg(10003) ;* User not allowed in requested account
       if ospath(account.path, OS$CD) then return
       display sysmsg(5162) ;* Fatal error : Cannot return to previous account
