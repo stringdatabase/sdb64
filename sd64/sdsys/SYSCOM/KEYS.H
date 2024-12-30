@@ -3,6 +3,7 @@
       * Copyright (c) 2004, Ladybridge Systems, All Rights Reserved
       
       $list off
+      * rev 0.9.0 Jan 25 mab with the change in ownership of group ACCOUNTS
       * 09 Aug 24 mab add SDEXT embedded python key codes
       * 06 Aug 24 mab add SDEXT key codes
       * 30 Jul 24 mab define SD_ENCRYPT_SODIUM encode types 
@@ -252,8 +253,8 @@
       * Id = account name (forced to uppercase)
       $define ACC$PATH         1     ;* Account pathname
       $define ACC$DESCR        2     ;* Account description
-      * 20240330 mab add ACC$USERS
-      $define ACC$USERS        3     ;* List of Users allowed to access this Account
+      * REV 0.9.0
+      $define ACC$GROUP        3     ;* lINUX group for this Account
       deffun parse.pathname.tokens(path) calling "!PATHTKN"
       
       * encrytption decryption  *
