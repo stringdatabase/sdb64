@@ -18,7 +18,7 @@ From the top level directory containing the SD install (~/sdb64)
 
   execute the py_debian-installsd.sh script.  eg)  
   
-~/sdb64$   sd64/examples/python/embedded_python/py_debian-installsd.sh
+~/sdb64$   sd64/examples/python/embedded_python/py_ubuntu-installsd.sh
 
 Note: py_debian-installsd.sh modifies gpl.src with the following line.
 
