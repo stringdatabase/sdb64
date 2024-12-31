@@ -4,6 +4,7 @@
 #	This software is released under the Blue Oak Model License
 #	a copy can be found on the web here: https://blueoakcouncil.org/license/1.0.0
 #
+#   rev 0.9.0 Jan 25 mab - tighten up permissions
     if [[ $EUID -eq 0 ]]; then
         echo "This script must NOT be run as root" 1>&2
         exit
@@ -57,6 +58,10 @@ sudo useradd --system sdsys -G sdusers
 sudo cp -R sdsys /usr/local
 # Fool sd's vm into thinking gcat is populated
 sudo touch /usr/local/sdsys/gcat/\$CPROC
+# create errlog
+sudo touch /usr/local/sdsys/errlog
+
+# copy install template
 sudo cp -R bin /usr/local/sdsys
 sudo cp -R gplsrc /usr/local/sdsys
 sudo cp -R gplobj /usr/local/sdsys
@@ -76,14 +81,14 @@ sudo cp terminfo.src /usr/local/sdsys
 
 sudo chown -R sdsys:sdusers /usr/local/sdsys
 sudo chown root:root /usr/local/sdsys/ACCOUNTS/SDSYS
-sudo chmod 664 /usr/local/sdsys/ACCOUNTS/SDSYS
+sudo chmod 654 /usr/local/sdsys/ACCOUNTS/SDSYS
 sudo chown -R sdsys:sdusers /usr/local/sdsys/terminfo
 sudo chown root:root /usr/local/sdsys
 sudo cp sd.conf /etc/sd.conf
 sudo chmod 644 /etc/sd.conf
-sudo chmod -R 775 /usr/local/sdsys
-sudo chmod 775 /usr/local/sdsys/bin
-sudo chmod 775 /usr/local/sdsys/bin/*
+sudo chmod -R 755 /usr/local/sdsys
+sudo chmod 775 /usr/local/sdsys/errlog
+
 
 #	Add $tuser to sdusers group
 sudo usermod -aG sdusers $tuser
@@ -140,14 +145,14 @@ echo
 echo "Bootstap pass 1"
 sudo bin/sd -i
 # files added in pass1 need perm and owner setup
-sudo chmod -R 775 /usr/local/sdsys/\$HOLD.DIC
+sudo chmod -R 755 /usr/local/sdsys/\$HOLD.DIC
 sudo chmod -R 775 /usr/local/sdsys/\$IPC
-sudo chmod -R 775 /usr/local/sdsys/\$MAP
-sudo chmod -R 775 /usr/local/sdsys/\$MAP.DIC
-sudo chmod -R 775 /usr/local/sdsys/ACCOUNTS.DIC
-sudo chmod -R 775 /usr/local/sdsys/DICT.DIC
-sudo chmod -R 775 /usr/local/sdsys/DIR_DICT
-sudo chmod -R 775 /usr/local/sdsys/VOC.DIC
+sudo chmod -R 755 /usr/local/sdsys/\$MAP
+sudo chmod -R 755 /usr/local/sdsys/\$MAP.DIC
+sudo chmod -R 755 /usr/local/sdsys/ACCOUNTS.DIC
+sudo chmod -R 755 /usr/local/sdsys/DICT.DIC
+sudo chmod -R 755 /usr/local/sdsys/DIR_DICT
+sudo chmod -R 755 /usr/local/sdsys/VOC.DIC
 #
 sudo chown -R sdsys:sdusers /usr/local/sdsys/\$HOLD.DIC
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/\$IPC
