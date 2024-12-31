@@ -1,9 +1,11 @@
 #!/bin/bash
 # 	SD bash install script
-# 	(c) 2023 Donald Montaine
+# 	(c) 2023-2025 Donald Montaine and Mark Buller
 #	This software is released under the Blue Oak Model License
 #	a copy can be found on the web here: https://blueoakcouncil.org/license/1.0.0
 #
+#   rev 0.9.0 Jan 25 mab - tighten up permissions
+
     if [[ $EUID -eq 0 ]]; then
         echo "This script must NOT be run as root" 1>&2
         exit
@@ -16,7 +18,6 @@
 #
 tgroup=sdusers
 tuser=$USER
-
 cwd=$(pwd)
 #
 clear 
@@ -60,6 +61,10 @@ sudo useradd --system sdsys -G sdusers
 sudo cp -R sdsys /usr/local
 # Fool sd's vm into thinking gcat is populated
 sudo touch /usr/local/sdsys/gcat/\$CPROC
+# create errlog
+sudo touch /usr/local/sdsys/errlog
+
+# copy install template
 sudo cp -R bin /usr/local/sdsys
 sudo cp -R gplsrc /usr/local/sdsys
 sudo cp -R gplobj /usr/local/sdsys
@@ -79,14 +84,14 @@ sudo cp terminfo.src /usr/local/sdsys
 
 sudo chown -R sdsys:sdusers /usr/local/sdsys
 sudo chown root:root /usr/local/sdsys/ACCOUNTS/SDSYS
-sudo chmod 664 /usr/local/sdsys/ACCOUNTS/SDSYS
+sudo chmod 654 /usr/local/sdsys/ACCOUNTS/SDSYS
 sudo chown -R sdsys:sdusers /usr/local/sdsys/terminfo
 sudo chown root:root /usr/local/sdsys
 sudo cp sd.conf /etc/sd.conf
 sudo chmod 644 /etc/sd.conf
 sudo chmod -R 775 /usr/local/sdsys
-sudo chmod 775 /usr/local/sdsys/bin
-sudo chmod 775 /usr/local/sdsys/bin/*
+sudo chmod 775 /usr/local/sdsys/errlog
+
 
 #	Add $tuser to sdusers group
 sudo usermod -aG sdusers $tuser
@@ -142,6 +147,7 @@ sudo bin/sd -start
 echo
 echo "Bootstap pass 1"
 sudo bin/sd -i
+
 # files added in pass1 need perm and owner setup
 sudo chmod -R 775 /usr/local/sdsys/\$HOLD.DIC
 sudo chmod -R 775 /usr/local/sdsys/\$IPC
@@ -160,12 +166,14 @@ sudo chown -R sdsys:sdusers  /usr/local/sdsys/ACCOUNTS.DIC
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/DICT.DIC
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/DIR_DICT
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/VOC.DIC
+
 echo "Bootstap pass 2"
 sudo bin/sd -internal SECOND.COMPILE
 echo "Bootstap pass 3"
 sudo bin/sd RUN GPL.BP WRITE_INSTALL_DICTS NO.PAGE
 echo "Compile C and I type dictionaries"
 sudo bin/sd -internal THIRD.COMPILE
+
 #  create a user account for the current user
 echo
 echo
@@ -198,6 +206,7 @@ sudo cp terminfo.src /usr/local/sdsys
 echo
 
 cd $cwd
+
 echo "Removing binary bits from repository"
 sudo rm sd64/gplobj/*.o
 sudo rm sd64/bin/sd*
@@ -205,6 +214,7 @@ sudo rm sd64/bin/*.so
 sudo rm sd64/pass1
 sudo rm sd64/pass2
 sudo rm sd64/pcode_bld.log
+
 
 # display end of script message
 echo
@@ -234,5 +244,4 @@ case $yn in
 	[nN] ) echo;;
 	* ) echo ;;
 esac
-
 exit

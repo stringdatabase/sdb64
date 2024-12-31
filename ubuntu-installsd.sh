@@ -1,10 +1,11 @@
 #!/bin/bash
 # 	SD bash install script
-# 	(c) 2023 Donald Montaine
+# 	(c) 2023-2025 Donald Montaine and Mark Buller
 #	This software is released under the Blue Oak Model License
 #	a copy can be found on the web here: https://blueoakcouncil.org/license/1.0.0
 #
 #   rev 0.9.0 Jan 25 mab - tighten up permissions
+
     if [[ $EUID -eq 0 ]]; then
         echo "This script must NOT be run as root" 1>&2
         exit
@@ -144,6 +145,7 @@ sudo bin/sd -start
 echo
 echo "Bootstap pass 1"
 sudo bin/sd -i
+
 # files added in pass1 need perm and owner setup
 sudo chmod -R 755 /usr/local/sdsys/\$HOLD.DIC
 sudo chmod -R 775 /usr/local/sdsys/\$IPC
@@ -162,12 +164,14 @@ sudo chown -R sdsys:sdusers  /usr/local/sdsys/ACCOUNTS.DIC
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/DICT.DIC
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/DIR_DICT
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/VOC.DIC
+
 echo "Bootstap pass 2"
 sudo bin/sd -internal SECOND.COMPILE
 echo "Bootstap pass 3"
 sudo bin/sd RUN GPL.BP WRITE_INSTALL_DICTS NO.PAGE
 echo "Compile C and I type dictionaries"
 sudo bin/sd THIRD.COMPILE
+
 #  create a user account for the current user
 echo
 echo
