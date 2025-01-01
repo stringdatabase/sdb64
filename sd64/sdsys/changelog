@@ -2,6 +2,32 @@ SD, the Multivalue String Database
 
 Change Log:
 -----------------------
+Version 0.9.0
+-------------
+(mab) Convert sd dynamic file blobs prefix from '~' to '%'
+(mab) Turn function "process_file" back on in sdfix. For some reason it was commented out (sdfix did nothing).
+(mab) Modify how group accounts are setup / handled.
+      Group accounts now have their parent directory ownership starting as sdsys : group
+      To access a group account, a user must belong to the linux group of the same name 
+      CREATE-ACCOUNT GROUP <group_name> will create the linux group (if it does not exist).
+      CREATE-ACCOUNT sets the setgid bit on the group_account's parent directory.   This allows the directories / files 
+        to be modified by all the users who are part of the group of the parent directory.
+(mab) Tighten up sdsys file permissions (only allow group to have write access on necessary directories / files).
+(mab) Remove the ability to set "PICK" compatibility options via the OPTION program:
+      PICK.BREAKPOINT    : Off   Pick syntax for BREAK.ON and BREAK.SUP
+      PICK.BREAKPOINT.U  : Off   Handle U breakpoint option in Pick manner
+      PICK.EXPLODE       : Off   Pick style processing of single value item in BY.EXP
+      PICK.GRAND.TOTAL   : Off   GRAND.TOTAL text on same line as values
+      PICK.IMPLIED.EQ    : Off   Implied EQ between field and literal in query
+      PICK.NULL          : Off   Return null for null data in ML, MR and FMT()
+      PICK.WILDCARD      : Off   Allow use of Pick style wildcards in queries
+      QUALIFIED.DISPLAY  : Off   Allow Pick style qualified display clauses
+
+      Note: at this time the source still contains the code to implement these options,
+        but the intent is to not continue supporting "PICK" compatibility.
+(mab) Modify the CATALOG program to:
+        require admin priviliges for global catalog   
+        set owner : group to sdsys : sdusers on write to gcat
 
 Version 0.8.1
 -------------

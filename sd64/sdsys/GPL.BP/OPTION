@@ -18,6 +18,10 @@
 * 
 * 
 * START-HISTORY:
+* rev 0.9.0 Jan 25 mab remove pick compatibility options
+*                  note - did not remove references from GPL.BP/INT$KEYS.H, gplsrc/options.h
+*                  as of 0.9.0 these options exist in source, but we have removed the option
+*                  to turn on from this program.
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * END-HISTORY
 *
@@ -47,22 +51,25 @@ $include int$keys.h
    opt = ''
    opt<-1> = 'UNASS.WARNING|W|3100'
    opt<-1> = '$QUERY.DEBUG||3101'
-   opt<-1> = 'PICK.WILDCARD|P|3102'
-   opt<-1> = 'QUALIFIED.DISPLAY|P|3103'
-   opt<-1> = 'PICK.BREAKPOINT|P|3104'
+   * rev 0.9.0
+   opt<-1> = ''      ;* 'PICK.WILDCARD|P|3102'
+   opt<-1> = ''      ;* 'QUALIFIED.DISPLAY|P|3103'
+   opt<-1> = ''      ;* 'PICK.BREAKPOINT|P|3104'
    opt<-1> = 'WITH.IMPLIES.OR|P|3105'
    opt<-1> = 'DUMP.ON.ERROR||3106'
    opt<-1> = 'DIV.ZERO.WARNING|W|3107'
    opt<-1> = 'NON.NUMERIC.WARNING|W|3108'
    opt<-1> = 'ASSOC.UNASSOC.MV|P|3109'
-   opt<-1> = 'PICK.BREAKPOINT.U|P|3110'
+   * rev 0.9.0
+   opt<-1> = ''      ;* 'PICK.BREAKPOINT.U|P|3110'
    opt<-1> = 'NO.USER.ABORTS||3111'
    opt<-1> = 'RUN.NO.PAGE||3112'
    opt<-1> = 'SHOW.STACK.ON.ERROR||3113'
    opt<-1> = 'CRDB.UPCASE||3114'
    opt<-1> = 'AMPM.UPCASE||3115'
-   opt<-1> = 'PICK.NULL|P|3116'
-   opt<-1> = 'PICK.GRAND.TOTAL|P|3117'
+   * rev 0.9.0
+   opt<-1> = ''      ;* 'PICK.NULL|P|3116'
+   opt<-1> = ''      ;* 'PICK.GRAND.TOTAL|P|3117'
    opt<-1> = 'SUPPRESS.ABORT.MSG||3118'
    opt<-1> = 'DEBUG.REBIND.KEYS||3119'
    opt<-1> = 'ED.NO.QUERY.FD||3120'
@@ -70,11 +77,12 @@ $include int$keys.h
    opt<-1> = 'CHAIN.KEEP.COMMON||3122'
    opt<-1> = 'SELECT.KEEP.CASE||3123'
    opt<-1> = 'CREATE.FILE.UPCASE||3124'
-   opt<-1> = 'PICK.EXPLODE|P|3125'
+   * rev 0.9.0
+   opt<-1> = ''       ;* 'PICK.EXPLODE|P|3125'
    opt<-1> = 'INHERIT||3126'
    opt<-1> = 'QUERY.NO.CASE||3127'
    opt<-1> = 'LOCK.BEEP||3128'
-   opt<-1> = 'PICK.IMPLIED.EQ||3129'
+   opt<-1> = ''       ;* 'PICK.IMPLIED.EQ||3129'
    opt<-1> = 'QUERY.PRIORITY.AND||3130'
    opt<-1> = 'NO.DATE.WRAPPING||3131'
    opt<-1> = 'PROC.A||3132'
@@ -82,9 +90,8 @@ $include int$keys.h
    *         'xxxxxxxxxxxxxxxxxxx'    Option name limit = 19 characters
 
    * Shortcuts
-
    shortcuts = ''
-   shortcuts<1,-1> = 'PICK'             ; shortcuts<2,-1> = 'P'
+*  rev 0.9.0         shortcuts<1,-1> = 'PICK'             ; shortcuts<2,-1> = 'P'
    shortcuts<1,-1> = 'SDBASIC.WARNINGS' ; shortcuts<2,-1> = 'W'
 
 
@@ -193,7 +200,12 @@ display.all:
    descriptions = ''
    n = dcount(desc.msgs, @fm)
    for i = 1 to n
-      descriptions<i> = sysmsg(desc.msgs<i>)
+   * 0.9.0
+      if desc.msgs<i> = '' then
+        descriptions<i> = ''
+      end else
+        descriptions<i> = sysmsg(desc.msgs<i>)
+      end  
    next i
 
    format = maximum(lens(options)) : 'L'
@@ -207,6 +219,11 @@ display.all:
    n = dcount(options, @fm)
    for i = 1 to n
       s = options<i>
+      *rev 0.9.0
+      if s = '' then
+        continue
+      end
+      
       if s[1,1] = '$' and not(is.internal) then
          if not(option.flags[i,1]) then continue
       end
