@@ -50,6 +50,15 @@ cp -f examples/python/embedded_python/gplsrc/*  gplsrc
 cp -f examples/python/embedded_python/GPL.BP/* sdsys/GPL.BP
 cp -f examples/python/embedded_python/BP/* sdsys/BP
 
+# backup gpl.src?
+if [ -f  "examples/python/embedded_python/gpl.src.bck" ]; then
+	echo "Appears gpl.src was modified, restoring  "
+	cp -f examples/python/embedded_python/gpl.src.bck  gpl.src
+else
+    echo "Backup up gpl.src  "
+	cp -f gpl.src examples/python/embedded_python/gpl.src.bck  
+fi
+
 # make sure we compile sdext_py.c
 echo "sdext_py" >> gpl.src
 
