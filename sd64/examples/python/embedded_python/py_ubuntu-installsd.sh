@@ -50,6 +50,11 @@ cp -f examples/python/embedded_python/gplsrc/*  gplsrc
 cp -f examples/python/embedded_python/GPL.BP/* sdsys/GPL.BP
 cp -f examples/python/embedded_python/BP/* sdsys/BP
 
+# backup gpl.src?
+echo "Backup up gpl.src  "
+cp -f gpl.src examples/python/embedded_python/gpl.src.bck  
+
+
 # make sure we compile sdext_py.c
 echo "sdext_py" >> gpl.src
 
@@ -217,6 +222,10 @@ sudo rm sd64/bin/*.so
 sudo rm sd64/pass1
 sudo rm sd64/pass2
 sudo rm sd64/pcode_bld.log
+
+# restore gpl.src
+echo "Restore gpl.src "
+cp -f sd64/examples/python/embedded_python/gpl.src.bck  sd64/gpl.src
 
 
 # display end of script message

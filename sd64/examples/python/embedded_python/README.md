@@ -4,11 +4,15 @@ Embedding Python in SD
 
 Steps to build SD with embedded python using the SDEXT function.
 
-If necessary edit:
+If not building with python version 3.12, edit the following to match your python version:
 
   py_Makefile line for correct location of python header files.
 
     PYHDRS   := /usr/include/python3.12
+	
+  py_Makefile line for correct python library.	
+	
+	L_FLAGS    := -Wl,--no-as-needed -lm -lcrypt -ldl -lbsd -L$(LIBSODIUM) -lsodium -lpython3.12  
 
   sdext_py.c line for correct location of python header files.
 
