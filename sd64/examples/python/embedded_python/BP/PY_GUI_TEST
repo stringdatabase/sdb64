@@ -25,7 +25,11 @@ program PY_GUI_TEST
 *
 *
 * must create the following script file and edit the following to point to it's location
+* FreeSimpleGUI must be installed in python site packages or in the folder containing sdguitest.py
+*
+
 script_file = "/home/xyz/python_stuff/sdguitest.py"
+
 **************************************************************************
 *# sdguitest.py
 *import sys
