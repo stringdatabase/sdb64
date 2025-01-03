@@ -5,6 +5,7 @@
 #	a copy can be found on the web here: https://blueoakcouncil.org/license/1.0.0
 #
 #   rev 0.9.0 Jan 25 mab - tighten up permissions
+#                        - build with embedded python
 
     if [[ $EUID -eq 0 ]]; then
         echo "This script must NOT be run as root" 1>&2
@@ -42,11 +43,27 @@ clear
 echo
 echo Installing required packages
 echo
-sudo apt-get install build-essential micro lynx libbsd-dev libsodium-dev openssh-server
+sudo apt-get install build-essential micro lynx libbsd-dev libsodium-dev openssh-server python3-dev
+
+# rev 0.9.0 we expect a specific version of python to be installed, if not we need to make some source corrections
+if [ -d  "/usr/include/python3.12" ]; then
+	echo "Expected version of python found"
+else
+	echo "Expected version of python (python3.12) not found"
+	echo "Makefile and sdext_py.c require editing to reference installed version"
+	exit
+fi
  
 cd $cwd/sd64
 
 sudo make 
+# rev 0.9.0 if make fails, abort install
+if [ $? -eq 0 ]; then
+  echo "Successful Build"
+else
+  echo "Build Failed"
+  exit
+fi
 
 # Create sd system user and group
 echo "Creating group: sdusers"

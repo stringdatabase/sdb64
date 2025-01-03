@@ -22,6 +22,8 @@
 #        Makefile.  The GPL v3 License can be found here:
 #        https://www.gnu.org/licenses/gpl-3.0.txt
 #
+# rev 0.9.0 Jan 25 mab add embedded python 
+#
 # MAIN     := ./
 MAIN     := $(shell pwd)/
 GPLSRC   := $(MAIN)gplsrc/
@@ -31,13 +33,14 @@ GPLBIN   := $(MAIN)bin/
 TERMINFO := $(MAIN)terminfo/
 VPATH    := $(GPLOBJ):$(GPLBIN):$(GPLSRC)
 
-# mab libsodium 
+# rev 0.9.0 python header and libsodium headers 
+PYHDRS   := /usr/include/python3.12
 SODIUM   := /usr/include/sodium
 LIBSODIUM := /usr/lib/x86_64-linux-gnu/
 
 COMP     := gcc
-
-L_FLAGS    := -Wl,--no-as-needed -lm -lcrypt -ldl -lbsd -L$(LIBSODIUM) -lsodium
+# rev 0.9.0 python
+L_FLAGS    := -Wl,--no-as-needed -lm -lcrypt -ldl -lbsd -L$(LIBSODIUM) -lsodium -lpython3.12
 SONAME_OPT := -soname
 
 RM       := rm
@@ -54,7 +57,8 @@ DIROBJS  := $(addprefix $(GPLOBJ),$(OBJS))
 	
 sd: ARCH :=
 sd: BITSIZE := 64
-sd: C_FLAGS  := -Wall -Wformat=2 -Wno-format-nonliteral -DLINUX -D_FILE_OFFSET_BITS=64 -I$(GPLSRC) -DGPL -g $(ARCH) -fPIE
+# rev 0.9.0 python
+sd: C_FLAGS  := -Wall -Wformat=2 -Wno-format-nonliteral -DLINUX -D_FILE_OFFSET_BITS=64 -I$(GPLSRC) -I$(PYHDRS) -DEMBED_PYTHON -DGPL -g $(ARCH) -fPIE
 sd: $(SDOBJS) sdclilib.so sdtic sdfix sdconv sdidx sdlnxd terminfo
 	@echo Linking $@
 	@cd $(GPLOBJ)
