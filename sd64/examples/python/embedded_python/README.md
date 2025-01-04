@@ -8,7 +8,13 @@ Program creates a simple gui dialog via a script file executed from with in SD.
 User populates fields, hits ok, program prints entered data back out.
 
 Uses FreeSimpleGUI which must be installed prior to running the program.
-https://github.com/spyoungtech/FreeSimpleGUI
+
+Install FreeSimpleGUI:    https://pypi.org/project/FreeSimpleGUI/#files    download freesimplegui-5.1.1.tar.gz 
+	Extract and copy the FreeSimpleGUI folder into the folder containing the sdguitest.py script.
+	Installation of FreeSimpleGUI is done in this manner (not with pip) on Ubuntu systems
+	because python on Ubuntu is an  “externally-managed-environment”
+see:
+https://askubuntu.com/questions/1465218/pip-error-on-ubuntu-externally-managed-environment-%C3%97-this-environment-is-extern
 
 Script file can be found in example/python/embedded_python/BP/sdguitest.py. 
 
