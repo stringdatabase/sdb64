@@ -16,6 +16,8 @@
  * 20240219  mab Major update to use AF_UNIX socket to talk to sd
  * 20240702  mab add MAX_STING_SIZE test to write
  * rev 0.9.0 mab add Callx GetArg 
+ *               log local connections
+ *               on local connection, set user / group id to user who forked process
  *  Warning: sdclilib does not maintian a storage area for Getarg parameters for each session.
  *  Using Callx will "overwrite" the previous Callx parameters regardless of session number.
  *  A solution would be to add the return call buffers to the session structure....
@@ -127,6 +129,9 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/stat.h>
+/* rev 0.9.0 */
+#include <syslog.h>
+#include <pwd.h>
 
 #define Public
 #include "sddefs.h"
@@ -928,11 +933,15 @@ int DLLEntry SDConnected() {
 
 int DLLEntry SDConnectLocal(char* account) {
   int status = FALSE;
-
+  struct passwd *pwd;
   int cpid;
   char option[20];
   char path[MAX_PATHNAME_LEN + 1];
-
+/* rev 0.9.0 log local login */
+  char username[MAX_USERNAME_LEN + 1];
+  u_int32_t m;
+  char* p;
+  
   initialise_client();
 
   if (!FindFreeSession())
@@ -964,6 +973,31 @@ int DLLEntry SDConnectLocal(char* account) {
   {
     session[session_idx].pid = cpid; /* 0421 */
   }
+  
+  /* rev 0.9.0 log username of process, set forked process to uid gid of user forking process */
+ 
+  m = MAX_USERNAME_LEN + 1;
+  p = username;
+  if (!GetUserName(p,&m)){
+    sprintf(session[session_idx].sderror, "Error Could Not Establish Username");
+    goto exit_sdconnect_local; 
+  }
+
+  openlog ("sd_Log", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
+  syslog (LOG_INFO, "APISrvr Local Connection, user:");
+  syslog (LOG_INFO, "%s", username);
+
+  if (((pwd = getpwnam(username)) != NULL) && (setgid(pwd->pw_gid) == 0) && (setuid(pwd->pw_uid) == 0)) {
+            //         set_groups();
+    syslog (LOG_INFO, "sdApiSrvr login via Username: %s (%d) Group: %d",username,pwd->pw_uid, pwd->pw_gid);
+  } else {
+    syslog (LOG_INFO, "sdApiSrvr unable to set user and group for Username: %s",username);
+    closelog();
+    sprintf(session[session_idx].sderror, "Error Could Set User Group");
+    goto exit_sdconnect_local; 
+  }
+ 
+  closelog();
 
   /* Send local login packet */
 
