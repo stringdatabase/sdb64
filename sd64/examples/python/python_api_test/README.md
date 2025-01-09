@@ -21,14 +21,14 @@ Linux: LIBRARY_PATH = os.getcwd() +"/sdclilib.so"
 
 From windows 11 pc I use the following ssh command to create the tunnel to my linux box Z400:
 
-  ssh -L 4243:/tmp/sdsys/sdclient.socket -N myuser@Z400
+  ssh -L 4245:/tmp/sdsys/sdclient.socket -N myuser@Z400
  
 This allows me to connect to the APISRVR with the sdconnect method
-  sdconnect('127.0.0.1',4243,<username>,<password>,<account>)  
+  sdconnect('127.0.0.1',4245,<username>,<password>,<account>)  
  
 Tested from linux:  
 
-    myuser@Z400:~$ ssh -L 4243:/tmp/sdsys/sdclient.socket -N myuser@Z400
+    myuser@Z400:~$ ssh -L 4245:/tmp/sdsys/sdclient.socket -N myuser@Z400
     The authenticity of host 'z400 (127.0.1.1)' can't be established.
     ED25519 key fingerprint is SHA256:+uvamVBTjIN0OF4loZUAPgtgYxV5bCbwASBbZZTZR4g.
     This key is not known by any other names.
@@ -38,3 +38,4 @@ Tested from linux:
 
 Note! had to use sdconnect('127.0.1.1',4243,<username>,<password>,<account>)
 
+Double check local host ip with ip a

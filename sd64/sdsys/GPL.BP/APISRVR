@@ -23,6 +23,7 @@
 * 20240219x mab rebrand as APISRVR
 *               always run in secure mode
 * 28 Jul 24 mab remove enter.package / exit.package (commands not supported)
+* rev 0.9.0 Jan 25 mab test for user member of account on logto
 * END-HISTORY
 *
 *
@@ -352,6 +353,14 @@ if index(new.account, @ds, 1) = 0 then
       end
       close acc.f
    end
+end
+
+* rev 0.9.0 * is user member of account?   
+if  not(is_grp_member(@logname,acc.rec<ACC$GROUP>)) then
+    server.error = SV$ERROR
+    error.msg = sysmsg(10003) ;* User not allowed in requested account
+    abort.message = error.msg
+    goto revert.to.old.account 
 end
 
 if not(ospath(account.path, OS$CD)) then
