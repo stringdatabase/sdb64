@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * rev 0.9.0 Jan 25 mab catch null key id in op_sortdata()
  * 31 Dec 23 SD launch - prior history suppressed
  * END-HISTORY
  *
@@ -554,7 +555,9 @@ void op_sortdata() {
       if (sort_has_data)
         ts_copy(bte->data, strlen(bte->data));
       else
-        ts_copy(bte->key[0], strlen(bte->key[0]));
+/* rev 0.9.0 watch for NULL id */      
+        if (bte->key[0] != NULL)
+          ts_copy(bte->key[0], strlen(bte->key[0]));
       process.status += 1;
 
       /* Locate next item */
