@@ -22,6 +22,7 @@
 *                      1) users ACCOUNT
 *                      2) member of the ACCOUNT's linux group
 *                      regardles must be a member of sdusers
+*                      Set K$ADMINISTRATOR when loged in as admin (sudo sd)
 * 20240612 dsm removed read/write $LOGINS
 * 20240330 mab rev 064 mods to $LOGINS / ACCOUNTS
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
@@ -193,8 +194,11 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 
 * 20240330 mab for sd the only way to be an admin is to be root
 * Set administrator rights if appropriate
-*   i = kernel(K$ADMINISTRATOR, lgn.rec<LGN$ADMIN>)
-
+* rev 0.9.0  
+   if system(27) = 0 then
+     VOID = kernel(K$ADMINISTRATOR, 1)
+   end
+   
    s = pterm(PT$INVERT, @true)
 
    * Determine account
@@ -220,7 +224,7 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 
 * rev 0.9.0 *  user must be a member of ACCOUNT's linux group to access ACCOUNT
 *
-         if  not(is_grp_member(lgn.id,acc.rec<ACC$GROUP>)) then            
+         if  not(is_grp_member(lgn.id,acc.rec<ACC$GROUP>)) then  
             display sysmsg(10003) ;* User not allowed in requested account
             goto terminate.connection
          end
