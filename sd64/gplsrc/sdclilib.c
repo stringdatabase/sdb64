@@ -18,6 +18,7 @@
  * rev 0.9.0 mab add Callx GetArg 
  *               log local connections
  *               on local connection, set user / group id to user who forked process
+ *               on connectlocal if account fails, disconnect!
  *  Warning: sdclilib does not maintian a storage area for Getarg parameters for each session.
  *  Using Callx will "overwrite" the previous Callx parameters regardless of session number.
  *  A solution would be to add the return call buffers to the session structure....
@@ -1008,6 +1009,8 @@ int DLLEntry SDConnectLocal(char* account) {
   /* Now attempt to attach to required account */
 
   if (!message_pair(SrvrAccount, account, strlen(account))) {
+// rev 0.9.0
+    disconnect();
     goto exit_sdconnect_local;
   }
 
@@ -3811,7 +3814,7 @@ Private bool FindFreeSession() {
 
 /* ====================================================================== */
 
-Private void disconnect() {
+Private void  disconnect() {
   /* rev 0.9.0 */
    int16_t i;
 
