@@ -70,8 +70,16 @@ echo "Creating group: sdusers"
 sudo groupadd --system sdusers
 sudo usermod -a -G sdusers root
 
-echo "Creating user: sdsys."
-sudo useradd --system sdsys -G sdusers
+echo "Checking for user: sdsys."
+if id -u sdsys >/dev/null 2>&1; then
+    echo 'sdsys exists'
+else
+    echo "Creating user: sdsys, password will match" $tuser
+    pwhash=$(sudo getent shadow $tuser | cut -d: -f2)
+    sudo useradd -m -p "$pwhash" --system sdsys -G sdusers
+    sudo usermod -a -G sdsys root
+fi
+
 
 sudo cp -R sdsys /usr/local
 # Fool sd's vm into thinking gcat is populated

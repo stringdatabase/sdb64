@@ -21,6 +21,7 @@
 * rev 0.9.0 Jan 25 mab change dyn file prefix to %
 *           sd group belong to linux group of the same name
 *           on sd group directory creation, we set the setgid bit
+*           add %t  ~ to mapping sub 
 * 20240330 mab rev 064 list of valid users required in ACCOUNTS<2>
 * 20240309 mab create file BP for new accounts
 * 20240219 mab dflt user and group parent directory for accounts
@@ -389,6 +390,9 @@ make.account:
              fnid = '%G%L'
            case id = '>='
              fnid = '%G%E'
+* rev 0.9.0             
+           case id = '~'
+             fnid = '%t'             
            case 1
              fnid = id
          end case    
