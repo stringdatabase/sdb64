@@ -29,6 +29,7 @@
 * 06 Aug 24  mab remove PROCREAD/PROCWRITE
 *                correct len(function.args) test in ST.DEFFUN
 *                add SDEXT as internal function
+* rev 0.9.0  Jan 25 mab @FILE.NAME should be allowed as a lvalues per doc
 * END-HISTORY
 *
 *
@@ -290,8 +291,8 @@ $define STACK.MARK 9999         ;* Marks start of sub-expression
 
    * The following @variables, also in the AT.SYSCOM.VARS list above, may be
    * used as lvalues in non-internal mode code.
-
-   at.syscom.lvars = "USER.RETURN.CODE":@fm:"DATE":@fm:"TIME":@fm:"ID"
+* rev 0.9.0 
+   at.syscom.lvars = "USER.RETURN.CODE":@fm:"DATE":@fm:"TIME":@fm:"ID":@fm:"FILE.NAME"
    at.syscom.lvars := @fm:"RECORD":@fm:"SELECTED":@fm:"TRIGGER.RETURN.CODE"
    at.syscom.lvars := @fm:"USER0":@fm:"USER1":@fm:"USER2":@fm:"USER3":@fm:"USER4"
    at.syscom.lvars := @fm:"ANS":@fm:"PIB":@fm:"SIB":@fm:"POB":@fm:"SOB"
