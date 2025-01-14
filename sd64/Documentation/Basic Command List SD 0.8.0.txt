@@ -1,5 +1,6 @@
-RETAINED BASIC COMMANDS
+RETAINED AND NEW BASIC COMMANDS
 (usage the same as OpenQM 2.6.6)
+* = new command, unique to SD
 --------------------------------
 
 @(mode {, arg})
@@ -377,6 +378,7 @@ RTRANS({DICT} file.name, record.id, field, action)
 SAVE.SCREEN().
 SAVE.SCREEN(col, line, width, height)
 SAVELIST name {FROM list.no}
+* SDEXT(Arg, IsArgMV, Function_id)
 SEEK file.var {, offset{, relto }}
   {THEN statement(s)} {ELSE statement(s)}
 SELECT file.var {TO list.no} {ON ERROR statement(s)}
