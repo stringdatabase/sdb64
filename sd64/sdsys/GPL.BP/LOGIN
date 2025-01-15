@@ -196,7 +196,7 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 * Set administrator rights if appropriate
 * rev 0.9.0  
    if system(27) = 0 then
-     VOID = kernel(K$ADMINISTRATOR, 1)
+     VOID kernel(K$ADMINISTRATOR, 1)
    end
    
    s = pterm(PT$INVERT, @true)

@@ -30,7 +30,6 @@
 *                correct len(function.args) test in ST.DEFFUN
 *                add SDEXT as internal function
 * rev 0.9.0  Jan 25 mab @FILE.NAME should be allowed as a lvalues per doc
-*                       The VOID statement discards the result of an associated expression per doc
 * END-HISTORY
 *
 *
@@ -1488,11 +1487,8 @@ $define J.TXN                  7  ;* TRANSACTION
          end
       end else if symbol.refs<i,SYM.USE> = '' then
          if internal or bittest(mode, M.TRAP.UNUSED) then
-* rev 0.9.0 The VOID statement discards the result of an associated expression
-            if upcase(s) NE 'VOID' then
               err.msg = sysmsg(2826, s) ;* %1 is assigned a value but never used
               gosub warning
-            end
          end
       end
    next i
