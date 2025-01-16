@@ -1,6 +1,6 @@
-* GROUPM
-* GROUPMOD verb
-* Add / Delete user from group
+* MODIFYA
+* MODIFY.ACCOUNT verb
+* Add / Delete user from group account
 * Copyright (c) String Database
 *
 * This program is free software; you can redistribute it and/or modify
@@ -23,15 +23,15 @@
 * END-HISTORY
 *
 * START-DESCRIPTION:
-* GROUPMOD group.name <ADD/DELETE> user.name
+* MODIFY.ACCOUNT group.name <ADD/DELETE> user.name
 *
 * END-DESCRIPTION
 *
 * START-CODE
 
 $internal
-program $groupmod
-$catalog $GROUPM
+program $modify.account
+$catalog $MODIFYA
 
 $include keys.h
 $include int$keys.h
@@ -58,7 +58,7 @@ deffun is_group(group) calling '!is_group'
    * Get next token, group name
    call @parser(PARSER$GET.TOKEN, token.type, group.name, keyword)
    if token.type = PARSER$END then
-      crt 'Command Syntax:  GROUPMOD <GROUP> <ADD/DELETE> <USERNAME> '
+      crt 'Command Syntax:  MODIFY.ACCOUNT <GROUP> <ADD/DELETE> <USERNAME> '
       stop
    end
    *
@@ -113,7 +113,7 @@ deffun is_group(group) calling '!is_group'
          
          
       end else
-         crt 'GROUPMOD Action Must Be Add or Delete'
+         crt 'MODIFY.ACCOUNT Action Must Be Add or Delete'
       end 
    
    end else

@@ -5,7 +5,6 @@
 #	This software is released under the Blue Oak Model License
 #	a copy can be found on the web here: https://blueoakcouncil.org/license/1.0.0
 #
-# rev 0.9.0 Jan 25 mab remove sdsys group
 #
     if [[ $EUID -eq 0 ]]; then
        echo "This script must NOT be run as root" 1>&2
@@ -82,7 +81,6 @@ sudo rm /usr/lib/systemd/system/sdclient@.service
 echo "Removed systemd service files."
 # remove sdsys user and sdusers group
 sudo userdel sdsys
-sudo groupdel sdsys
 sudo groupdel sdusers
 echo "Removed sdsys user and sdusers group."
 
