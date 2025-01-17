@@ -15,7 +15,7 @@ it is installed to a different location and uses memory offsets not used by Open
 The current version of the SD repository contains no binary bits.  Al features are available
 for auditing.  Binary files are only created during the install.
 
-To install on your Debian or Uuntu based system, just clone the repository to the target computer
+To install on your Debian or Ubuntu based system, just clone the repository to the target computer
 and then run the ubuntu-installsd.sh install script found in the sdb64 directory.
 
 See the sd64/sdsys/changelog file for changes in each version release.
