@@ -7,7 +7,8 @@ it was forked to explore some new ideas as to what a modern multivalue database 
 
 SD is 64 bit only and runs only on Linux.  Releases are tested on the most current release
 of Debian, Ubuntu and Mint.  SD should run on any distribution based on Debian 12 
-or Ubuntu 24.04
+or Ubuntu 24.04.  The installer has also installed the database successfully on Ubuntu running
+under the Windows Subsystem for Linux, and Ubuntu on the Raspberry Pi 5.
 
 SD should cohabit peacefully with existing openQM and ScarletDME installations as
 it is installed to a different location and uses memory offsets not used by OpenQM or ScarletDME.
