@@ -34,13 +34,17 @@ TERMINFO := $(MAIN)terminfo/
 VPATH    := $(GPLOBJ):$(GPLBIN):$(GPLSRC)
 
 # rev 0.9.0 python header and libsodium headers 
-PYHDRS   := /usr/include/python3.12
+# using python3-config to hopefully make building python version independent
+
+PY_HDRS   := $(shell python3-config --includes)
+PY_LDFLAGS := $(shell python3-config --ldflags --embed)
+
 SODIUM   := /usr/include/sodium
 LIBSODIUM := /usr/lib/x86_64-linux-gnu/
 
 COMP     := gcc
 # rev 0.9.0 python
-L_FLAGS    := -Wl,--no-as-needed -lm -lcrypt -ldl -lbsd -L$(LIBSODIUM) -lsodium -lpython3.12
+L_FLAGS    := -Wl,--no-as-needed -lm -lcrypt -ldl -lbsd -L$(LIBSODIUM) -lsodium $(PY_LDFLAGS)
 SONAME_OPT := -soname
 
 RM       := rm
@@ -58,7 +62,7 @@ DIROBJS  := $(addprefix $(GPLOBJ),$(OBJS))
 sd: ARCH :=
 sd: BITSIZE := 64
 # rev 0.9.0 python
-sd: C_FLAGS  := -Wall -Wformat=2 -Wno-format-nonliteral -DLINUX -D_FILE_OFFSET_BITS=64 -I$(GPLSRC) -I$(PYHDRS) -DEMBED_PYTHON -DGPL -g $(ARCH) -fPIE
+sd: C_FLAGS  := -Wall -Wformat=2 -Wno-format-nonliteral -DLINUX -D_FILE_OFFSET_BITS=64 -I$(GPLSRC) $(PY_HDRS) -DEMBED_PYTHON -DGPL -g $(ARCH) -fPIE
 sd: $(SDOBJS) sdclilib.so sdtic sdfix sdconv sdidx sdlnxd terminfo
 	@echo Linking $@
 	@cd $(GPLOBJ)

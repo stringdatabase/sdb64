@@ -19,6 +19,7 @@
  * to do- add STATUS() = 0 successful call, or  STATUS() = 1 unsuccessful call
  * 
  * START-HISTORY:
+ * rev 0.9.0 Jan 25 mab use install script created file sdext_python_inc.h to tell us where to find python headers
  * 11 Aug 2024 mab add PyErr_Print() to file and string script execution failure
  * 15 Jul 2024 MAB add SDME_PY.C 
  * 19 Jul 2024 mab remove Py_DECREF(pdict) at finalize, not necessary (at least samples I have seen dont do it)
@@ -57,9 +58,9 @@
 #include "sd.h"
 #include <linux/limits.h>
 #include <libgen.h>            /* needed for basename function */ 
-#include <python3.12/Python.h>        
+      
 
-
+#include "sdext_python_inc.h"  /* NOTE! this file is created by the install script !!! */
 #include "keys.h"
 
 

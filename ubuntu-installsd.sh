@@ -6,7 +6,8 @@
 #
 #   rev 0.9.0 Jan 25 mab - tighten up permissions
 #                        - build with embedded python
-
+#                        - sdsys's pri group now sdusers - note require sudo groupdel sdsys in deletesd.sh
+#
     if [[ $EUID -eq 0 ]]; then
         echo "This script must NOT be run as root" 1>&2
         exit
@@ -45,13 +46,22 @@ echo Installing required packages
 echo
 sudo apt-get install build-essential micro lynx libbsd-dev libsodium-dev openssh-server python3-dev
 
-# rev 0.9.0 we expect a specific version of python to be installed, if not we need to make some source corrections
-if [ -d  "/usr/include/python3.12" ]; then
-	echo "Expected version of python found"
+# rev 0.9.0 need python dev to build, did we get it?
+python3 --version
+if [ $? -eq 0 ]; then
+# got it, what version and where are the include files?
+  PY_HDRS=$(python3-config --includes)
+# remove the first "-I"
+#  and get the first path (for some reason its output twice?
+  PY_HDRS_ARR=(${PY_HDRS#-I})
+#
+  echo "path to include file: " ${PY_HDRS_ARR[0]}
+# now create the includ file we will use
+  echo "#include <"${PY_HDRS_ARR[0]}"/Python.h>" > sd64/gplsrc/sdext_python_inc.h
+  
 else
-	echo "Expected version of python (python3.12) not found"
-	echo "Makefile and sdext_py.c require editing to reference installed version"
-	exit
+  echo "Python missing, cannot build"
+  exit
 fi
  
 cd $cwd/sd64
@@ -70,16 +80,10 @@ echo "Creating group: sdusers"
 sudo groupadd --system sdusers
 sudo usermod -a -G sdusers root
 
-echo "Checking for user: sdsys."
-if id -u sdsys >/dev/null 2>&1; then
-    echo 'sdsys exists'
-else
-    echo "Creating user: sdsys, password will match" $tuser
-    pwhash=$(sudo getent shadow $tuser | cut -d: -f2)
-    sudo useradd -m -p "$pwhash" --system sdsys -G sdusers
-    sudo usermod -a -G sdsys root
-fi
-
+echo "Creating user: sdsys."
+sudo useradd --system sdsys -G sdusers
+echo "Setting user: sdsys default group to sdusers."
+sudo usermod -g sdusers sdsys
 
 sudo cp -R sdsys /usr/local
 # Fool sd's vm into thinking gcat is populated
@@ -109,7 +113,8 @@ sudo chown -R sdsys:sdusers /usr/local/sdsys
 sudo chown root:root /usr/local/sdsys/ACCOUNTS/SDSYS
 sudo chmod 654 /usr/local/sdsys/ACCOUNTS/SDSYS
 sudo chown -R sdsys:sdusers /usr/local/sdsys/terminfo
-sudo chown root:root /usr/local/sdsys
+# rev 0.9.0 /usr/local/sdsys owner : group sdsys :sdusers
+sudo chown sdsys:sdusers /usr/local/sdsys
 sudo cp sd.conf /etc/sd.conf
 sudo chmod 644 /etc/sd.conf
 sudo chmod -R 755 /usr/local/sdsys
