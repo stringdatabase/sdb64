@@ -5,6 +5,7 @@
       $list off
       * rev 0.9.0 Jan 25 mab with the change in ownership of group ACCOUNTS
       *                      add SYSTEM() keys
+      *                      add SD_EUID_SET SD_EUID_RESTORE 
       * 09 Aug 24 mab add SDEXT embedded python key codes
       * 06 Aug 24 mab add SDEXT key codes
       * 30 Jul 24 mab define SD_ENCRYPT_SODIUM encode types 
@@ -266,7 +267,9 @@
       * Key Codes for op_sdext     *
       $define SDEXT_TestIt      1  ;* Function Test 
       $define SD_SALT         100  ; sd_encrypt_sodium sd_salt function 
-      $define SD_KEYFROMPW    101  ;* sd_encrypt_sodium sd_KeyFromPW function      
+      $define SD_KEYFROMPW    101  ;* sd_encrypt_sodium sd_KeyFromPW function  
+      $define SD_EUID_SET     102  ;* set current process's euid egid to that of user
+      $define SD_EUID_RESTORE 103  ;* set current process's euid egid to what it was on entry to sd
       
       * embedded python 
       $define  SD_PyInit        2000  ;* initialize the python interpreter   

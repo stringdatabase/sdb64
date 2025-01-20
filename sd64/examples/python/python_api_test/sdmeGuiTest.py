@@ -106,7 +106,7 @@ layout_l = [[sg.Checkbox("Connect Local",key='clocal')],
             [sg.Button('Close'),sg.Text('File Nbr'),sg.Input('0',key='-FILENBR-', size=(5))],
             [sg.Button('Read'),sg.Text('Rec Id'),sg.Input(key='-RECID-', size=(15))],
             [sg.Button('Write')],
-            [sg.Button('Execute'),sg.Combo(['listu','where','who',],key='-EXE-')],
+            [sg.Button('Execute'),sg.Combo(['listu','where','who','who.am.i'],key='-EXE-')],
             [sg.Button('Callx')],
             [sg.Text('Rem: ctrl+X - Cut  | ctrl+C - Copy | ctrl+V - Paste ')]]
 

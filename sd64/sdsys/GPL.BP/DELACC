@@ -19,6 +19,7 @@
 * 
 * START-HISTORY:
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
+* rev 0.9.0 delete-account requires admin priv, are we admin?
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -43,8 +44,8 @@ $include err.h
 
    parser = "!PARSER"
 
-   * 20240225 mab only admins allowed to create accounts
-   if system(27) # 0 then
+* rev 0.9.0 delete-account requires admin priv, are we admin?
+   if not(kernel(K$ADMINISTRATOR, -1)) then
      stop sysmsg(2001)  ;* Command requires administrator privileges
    end   
 
@@ -95,6 +96,8 @@ $include err.h
       @system.return.code = -status()
       stop sysmsg(6027) ;* Account not registered in ACCOUNTS file
    end
+* rev 0.9.0   
+   group_name = acc.rec<ACC$GROUP>
 
    pathname = parse.pathname.tokens(acc.rec<ACC$PATH>)
 
@@ -104,6 +107,7 @@ $include err.h
       display sysmsg(6028) ;* WARNING: Account directory does not exist
    end else
       * Check for cross-references from other accounts
+      * ie Files in this account are referenced from other accounts
 
       xref.found = @false
       select acc.f to 11
@@ -176,6 +180,15 @@ $include err.h
    * Delete ACCOUNTS entry
 
    delete acc.f, acc.name
+   
+   * rev 0.9.0 remove group.
+   OS.EXECUTE "sudo groupdel ": group_name 
+   stat = OS.ERROR()
+   if stat = 0 then
+	  crt 'group - ':group_name:' Deleted'
+   end else
+	  crt 'Warning unable to delete group: ':group_name: ' error: ':stat
+   end
 
    @system.return.code = 0
    return

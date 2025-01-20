@@ -23,7 +23,7 @@
 * END-HISTORY
 *
 * START-DESCRIPTION:
-* MODIFY.ACCOUNT group.name <ADD/DELETE> user.name
+* MODIFY.ACCOUNT account <ADD/DELETE> user.name
 *
 * END-DESCRIPTION
 *
@@ -43,25 +43,38 @@ deffun is_group(group) calling '!is_group'
 
    prompt ''
 
-   if system(27) # 0 then
+   if not(kernel(K$ADMINISTRATOR, -1)) then
       stop sysmsg(2001)  ;* Command requires administrator privileges
    end     
 
    parser = "!PARSER"
 
    @system.return.code = -ER$ARGS     ;* Preset for argument errors
+   
+   openpath @sdsys:@ds:'ACCOUNTS' to acc.f else
+      @system.return.code = -status()
+      stop sysmsg(6000) ;* Cannot open ACCOUNTS file in SDSYS account
+   end
 
    call @parser(PARSER$RESET, 0, @sentence, 0)
    
-   call @parser(PARSER$GET.TOKEN, token.type, token, keyword) ;* Verb groupmod
+   call @parser(PARSER$GET.TOKEN, token.type, token, keyword) ;* Verb modify.Account
 
-   * Get next token, group name
-   call @parser(PARSER$GET.TOKEN, token.type, group.name, keyword)
+   * Get next token, account name
+   call @parser(PARSER$GET.TOKEN, token.type, acc.name, keyword)
    if token.type = PARSER$END then
-      crt 'Command Syntax:  MODIFY.ACCOUNT <GROUP> <ADD/DELETE> <USERNAME> '
+      crt 'Command Syntax:  MODIFY.ACCOUNT <ACCOUNT> <ADD/DELETE> <USERNAME> '
       stop
    end
    *
+   acc.name = upcase(acc.name)   ;* account names are always upper case
+   *
+   read acc.rec from acc.f, acc.name else      
+      stop sysmsg(6003) ;* Account name is invalid
+   end
+   
+   group.name = acc.rec<ACC$GROUP>   ;* get associated group
+   
    if is_group(group.name) then
       * Get next token, ADD or DELETE
       call @parser(PARSER$GET.TOKEN, token.type, action, keyword)
