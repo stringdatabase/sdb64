@@ -22,7 +22,9 @@
 *                      1) users ACCOUNT
 *                      2) member of the ACCOUNT's linux group
 *                      regardles must be a member of sdusers
-*                      Set K$ADMINISTRATOR when loged in as admin (sudo sd)
+*                      3) if user started with sudo sd, cproc should have set K$ADMINISTRATOR
+*                         and dropped user to sdsys. we no longer test system(27) (uid of process)
+*
 * 20240612 dsm removed read/write $LOGINS
 * 20240330 mab rev 064 mods to $LOGINS / ACCOUNTS
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
@@ -170,9 +172,6 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
       goto terminate.connection
    end
 
-   * Open the $LOGINS file
-   
-
 * 20240219 mab always run in secure mode, no changes allowed to K$SECURE flag!! * 
 *               we also no longer allow telnet connections via the internal
 *               telnet server, nor are we supporting serial connections
@@ -192,13 +191,6 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 	 end
   end
 
-* 20240330 mab for sd the only way to be an admin is to be root
-* Set administrator rights if appropriate
-* rev 0.9.0  
-   if system(27) = 0 then
-     VOID kernel(K$ADMINISTRATOR, 1)
-   end
-   
    s = pterm(PT$INVERT, @true)
 
    * Determine account
@@ -217,7 +209,7 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 
 
          * 20240330 mab must be privilaged to enter sdsys
-         IF upcase(initial.account) = "SDSYS" and system(27) > 0 then            
+         IF (upcase(initial.account) = "SDSYS") and not(kernel(K$ADMINISTRATOR,-1)) then            
             display sysmsg(10002) ;* SDSYS Account access is restricted to privileged users
             goto terminate.connection
          end
@@ -238,9 +230,9 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 
          
 
-* 20240323 mab if sd command issued with sudo (system(27) = 0 )
+* 20240323 mab if sd command issued with sudo (K$ADMINISTRATOR set by cproc)
 *   and no account given wirh -a command, assume sdsys 
-      case system(27) = 0  ;* user id 0, "sudo sd"
+      case kernel(K$ADMINISTRATOR,-1)  ;* user id 0, "sudo sd"
          initial.account = "SDSYS"
 
          read acc.rec from acc.f, initial.account else

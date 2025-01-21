@@ -30,10 +30,12 @@
 * START-CODE
 
 $internal
+
 program $who.am.i
 $catalog $WHOAMI
 
 $include keys.h
+$include int$keys.h
 
 *
 crt str("=",25):'Who Am I':str('=',25)
@@ -45,8 +47,16 @@ crt 'Process UID : ':system(SYS$UNX_UID)
 crt 'Process EUID: ':system(SYS$UNX_EUID)
 crt 'Process GID : ':system(SYS$UNX_GID)
 crt 'Process EGID: ':system(SYS$UNX_EGID)
+if kernel(K$ADMINISTRATOR, -1) then
+   adm = 'Yes'
+end else
+  adm = 'No'
+end
+crt 'Admin?      : ':adm
+crt 'PID         : ':system(SYS$OS_PID)
 crt 'Sys Path    : ':system(SYS$SDSYS_PATH)
 crt 'Host Name   : ':@hostname
+crt 'umask       : ':oconv(umask(-1),'MO')
 
 crt str("=",58)
 END
