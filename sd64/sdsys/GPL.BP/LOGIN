@@ -156,7 +156,7 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
       *display "[ ScarletDME Rev " : SD.REV.STAMP : "   Copyright Ladybridge Systems, " : SD.COPYRIGHT.YEAR : " ]"
 * 20240126 mab add revstamp mods, VM rev and SD rev * 
       display "SD, the Multivalue String Database, version " : SD.REV.STAMP : ", Virtual Machine Version ": VM.REV.STAMP
-      display "(c) 2000-2024 by Ladybridge Systems and Other Contributors"
+      display "(c) 2000-2025 by Ladybridge Systems and Other Contributors"
       display
       * following must be left to comply with clause 1 of the gpl licence
       display "This program is free software and is supplied with ABSOLUTELY NO WARRANTY."
