@@ -63,7 +63,7 @@ deffun is_group(group) calling '!is_group'
    * Get next token, account name
    call @parser(PARSER$GET.TOKEN, token.type, acc.name, keyword)
    if token.type = PARSER$END then
-      crt 'Command Syntax:  MODIFY.ACCOUNT <ACCOUNT> <ADD/DELETE> <USERNAME> '
+      crt 'Command Syntax:  MODIFY.ACCOUNT <account> ADD | DELETE <username> '
       stop
    end
    *
