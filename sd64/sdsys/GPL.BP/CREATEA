@@ -144,7 +144,9 @@ deffun is_group(group) calling '!is_group'
 *
    case 1
 *   invalid command arg
-    stop sysmsg(10001,acc.type) ;* Invalid Create-Account argument 
+* rev 0.9.0 
+    crt 'Command Syntax: CREATE.ACCOUNT USER | GROUP <user name | group name>  {NO.QUERY}'
+    stop 
    end case
 
    * Check if already exists in ACCOUNTS file.  We will need to do this
