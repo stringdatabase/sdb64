@@ -97,9 +97,10 @@ void delete_semaphores() {
    Variants on StartExclusive and EndExclusive for use with no shared mem */
 
 void LockSemaphore(int semno) {
-  static struct sembuf sem_lock = {0, -1, 0};
+  static struct sembuf sem_lock = {0, -1, IPC_NOWAIT};
   sem_lock.sem_num = semno;
   while (semop(semid, &sem_lock, 1)) {
+  	RelinquishTimeslice;
   }
 }
 
