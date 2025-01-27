@@ -17,6 +17,8 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * rev 0.9.0 Jan 25 mab fix period or tilde character mapping (%t / %d) 
+ *                      to match either case
  * 31 Dec 23 SD launch - prior history suppressed
  * END-HISTORY
  *
@@ -1157,14 +1159,15 @@ Private bool dir_select(FILE_VAR* fvar, int16_t list_no) {
         {
           p = name;
           q = name;
-
+/* rev 0.9.0 */
           if ((*p == '%') &&
-              (*(p + 1) == 'D')) /* Special case - first char only */
+             ((*(p + 1) == 'D')  ||  (*(p + 1) == 'd')))    /* Special case - first char only */
           {
             *(q++) = '.';
             p += 2;
+/* rev 0.9.0 */            
           } else if ((*p == '%') &&
-                     (*(p + 1) == 'T')) /* Special case - first char only */
+                     ((*(p + 1) == 'T') ||  (*(p + 1) == 't')))/* Special case - first char only */
           {
             *(q++) = '~';
             p += 2;

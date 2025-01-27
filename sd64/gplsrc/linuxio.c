@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
  * START-HISTORY:
+ * 20240219 mab move to only allow AF_UNIX socket types
  * 31 Dec 23 SD launch - prior history suppressed
  * END-HISTORY
  *
@@ -742,11 +743,12 @@ bool login_user(char *username, char *password) {
         if ((q = strchr(p, ':')) != NULL)
           *q = '\0';
         if (strcmp((char *)crypt(password, p), p) == 0) {
-          if (((pwd = getpwnam(username)) != NULL) && (setgid(pwd->pw_gid) == 0) && (setuid(pwd->pw_uid) == 0)) {
-            //         set_groups();
-            syslog (LOG_INFO, "sdApiSrvr login via Username: %s (%d) Group: %d",username,pwd->pw_uid, pwd->pw_gid);
-            return TRUE;
-          }  
+
+            if (((pwd = getpwnam(username)) != NULL) && (setgid(pwd->pw_gid) == 0) && (setuid(pwd->pw_uid) == 0)) {
+              //         set_groups();
+              syslog (LOG_INFO, "sdApiSrvr login via Username: %s (%d) Group: %d",username,pwd->pw_uid, pwd->pw_gid);
+              return TRUE;
+            } 
         }
       }
     }

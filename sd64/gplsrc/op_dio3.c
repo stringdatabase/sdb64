@@ -19,7 +19,7 @@
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
  * 01 Jul 24 mab define max string size.
- * 
+ * rev 0.9.0 Jan 25 mab change dyn file prefix to % 
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -1289,7 +1289,8 @@ exit_op_read:
 }
 
 /* ======================================================================
-   map_t1_id()  -  Perform name mapping for directory files               */
+   map_t1_id()  -  Perform name mapping for directory files              
+   see ref manual - Directory Files Record IDs */
 
 bool map_t1_id(char *id, int16_t id_len, char *mapped_id) {
   char *p;
@@ -1368,7 +1369,8 @@ bool dir_write(FILE_VAR *fvar, char *mapped_id, STRING_CHUNK *str) {
 
   if (pcfg.safedir) {
     /* converted to snprintf() -gwb 22Feb20 */
-    if (snprintf(temp_path, MAX_PATHNAME_LEN + 1, "%s%c~~%d", pathname, DS, my_uptr->uid) >= (MAX_PATHNAME_LEN + 1)) {
+/* rev 0.9.0 */
+    if (snprintf(temp_path, MAX_PATHNAME_LEN + 1, "%s%c%%%%%d", pathname, DS, my_uptr->uid) >= (MAX_PATHNAME_LEN + 1)) {
       /* TODO: this should also be logged with more detail */
       k_error("Overflowed path/filename length in dir_write()!");
       goto exit_dir_write;

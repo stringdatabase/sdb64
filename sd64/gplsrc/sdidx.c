@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * rev 0.9.0 Jan 25 mab change dyn file prefix to %
  * END-HISTORY      
  *
  * START-DESCRIPTION:
@@ -158,8 +159,9 @@ int main(int argc, char *argv[]) {
         for (ak = 0; ak < MAX_INDICES; ak++) {
           if (header.ak_map & (1 << ak)) {
             // converted to snprintf() -gwb 25Feb20
-            if (snprintf(path, MAX_ACCOUNT_NAME_LEN + 1, "%s%c~%d", data_path, DS, SF(ak)) >= (MAX_ACCOUNT_NAME_LEN + 1)) {
-              printf("Overflowed path/filename buffer.  Truncated to:\n%s%c~%d", data_path, DS, SF(ak));
+/* rev 0.9.0 */            
+            if (snprintf(path, MAX_ACCOUNT_NAME_LEN + 1, "%s%c%%%d", data_path, DS, SF(ak)) >= (MAX_ACCOUNT_NAME_LEN + 1)) {
+              printf("Overflowed path/filename buffer.  Truncated to:\n%s%c%%%d", data_path, DS, SF(ak));
             }
             remove(path);
           }
@@ -233,8 +235,9 @@ int main(int argc, char *argv[]) {
         for (ak = 0; ak < MAX_INDICES; ak++) {
           if (header.ak_map & (1 << ak)) {
             // converted to snprintf() -gwb 25Feb20
-            if (snprintf(path, MAX_ACCOUNT_NAME_LEN + 1, "%s%c~%d", data_path, DS, SF(ak)) >= (MAX_ACCOUNT_NAME_LEN + 1)) {
-              printf("Overflowed path/filename buffer.  Truncated to:\n%s%c~%d", data_path, DS, SF(ak));
+/* rev 0.9.0 */            
+            if (snprintf(path, MAX_ACCOUNT_NAME_LEN + 1, "%s%c%%%d", data_path, DS, SF(ak)) >= (MAX_ACCOUNT_NAME_LEN + 1)) {
+              printf("Overflowed path/filename buffer.  Truncated to:\n%s%c%%%d", data_path, DS, SF(ak));
             }
             remove(path);
           }
@@ -334,8 +337,9 @@ bool open_primary() {
   int fno;
   FILE_ENTRY *fptr;
   // converted to snprintf() -gwb 25Feb20
-  if (snprintf(pathname, MAX_PATHNAME_LEN + 1, "%s%c~0", data_path, DS) >= (MAX_PATHNAME_LEN + 1)) {
-    printf("Overflowed path/filename buffer.  Truncated to:\n%s%c~0\n", data_path, DS);
+/* rev 0.9.0 */  
+  if (snprintf(pathname, MAX_PATHNAME_LEN + 1, "%s%c%%0", data_path, DS) >= (MAX_PATHNAME_LEN + 1)) {
+    printf("Overflowed path/filename buffer.  Truncated to:\n%s%c%%0\n", data_path, DS);
   }
 
   /* Check that this file is not currently in use within SD */
@@ -406,8 +410,9 @@ bool cross_check(char *path) {
 
   for (ak = 0; ak < MAX_INDICES; ak++) {
     if (header.ak_map & (1 << ak)) {
- /*  20240122  mab change sprintf to snprintf and test for buffer overflow */     
-      if (snprintf(pathname, MAX_PATHNAME_LEN + 1, "%s%c~%d", (path[0] != '\0') ? path : data_path, DS, SF(ak)) >= (MAX_PATHNAME_LEN + 1)){
+ /*  20240122  mab change sprintf to snprintf and test for buffer overflow */ 
+/* rev 0.9.0 */     
+      if (snprintf(pathname, MAX_PATHNAME_LEN + 1, "%s%c%%%d", (path[0] != '\0') ? path : data_path, DS, SF(ak)) >= (MAX_PATHNAME_LEN + 1)){
         printf("Overflowed directory/filename path length in sdidx.c cross_check()");
         goto exit_cross_check;
       }
@@ -468,7 +473,8 @@ bool copy_indices() {
 
       /* Form source path and open subfile */
 /*  20240122  mab change sprintf to snprintf and test for buffer overflow */
-      if (snprintf(src,MAX_PATHNAME_LEN + 1,"%s%c~%d", (header.akpath[0] != '\0') ? header.akpath : data_path, DS, SF(ak)) >= (MAX_PATHNAME_LEN + 1)){
+/* rev 0.9.0 */
+      if (snprintf(src,MAX_PATHNAME_LEN + 1,"%s%c%%%d", (header.akpath[0] != '\0') ? header.akpath : data_path, DS, SF(ak)) >= (MAX_PATHNAME_LEN + 1)){
         printf("Overflowed directory/filename path length in sdidx.c copy_indices()");
         goto exit_copy_indices;
       }
@@ -481,7 +487,8 @@ bool copy_indices() {
 
       /* Form target path and open subfile */
 /*  20240122  mab change sprintf to snprintf and test for buffer overflow */
-      if (snprintf(tgt, MAX_PATHNAME_LEN + 1, "%s%c~%d", (ak_path[0] != '\0') ? ak_path : data_path, DS, SF(ak)) >= (MAX_PATHNAME_LEN + 1)){
+/* rev 0.9.0 */
+      if (snprintf(tgt, MAX_PATHNAME_LEN + 1, "%s%c%%%d", (ak_path[0] != '\0') ? ak_path : data_path, DS, SF(ak)) >= (MAX_PATHNAME_LEN + 1)){
         printf("Overflowed directory/filename path length in sdidx.c copy_indices()");
         goto exit_copy_indices;
       }

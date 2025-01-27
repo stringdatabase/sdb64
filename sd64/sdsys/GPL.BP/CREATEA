@@ -18,17 +18,26 @@
 * 
 * 
 * START-HISTORY:
+* rev 0.9.0 Jan 25 mab change dyn file prefix to %
+*           sd group belong to linux group of the same name
+*           on sd directory creation, we set the setgid bit
+*           sd user's sd group is named sdu_<username>
+*           add %t  ~ to mapping sub 
 * 20240330 mab rev 064 list of valid users required in ACCOUNTS<2>
 * 20240309 mab create file BP for new accounts
 * 20240219 mab dflt user and group parent directory for accounts
+*
 * mods to command line:
 *  Rem was
 *    CREATE.ACCOUNT acc.name pathname {NO.QUERY}
 *  Now 
-*    CREATE.ACCOUNT USER <user acct name>  {NO.QUERY} - account created in  /home/sd/user_accounts/<user acct name>  owner:group set to <username>:<username>
+*    CREATE.ACCOUNT USER <user acct name>  {NO.QUERY}  - account created in  /home/sd/user_accounts/<user acct name>  owner:group set to <username>:"sdu_"+<username>
 *                                                 <username> must be found in sdusers group!
-*    CREATE.ACCOUNT GROUP <grp acct name  {NO.QUERY} - account created in  /home/sd/group_accounts/<grp acct name> owner:group set to root:sdusers
-*    CREATE.ACCOUNT OTHER acc.name pathname {NO.QUERY} - account created in pathname
+*    CREATE.ACCOUNT GROUP <grp acct name>  {NO.QUERY}  - account created in  /home/sd/group_accounts/<grp acct name> owner:group set to sdsys:group_name
+*                                                        Note - users will need to be added to group with sudo usermod -aG group_name username
+*    CREATE.ACCOUNT OTHER acc.name pathname {NO.QUERY} - account created in pathname, maintained for backwards compatiblilty. This will require manual editing
+*                                                        of the accounts record to specify linux group the account belongs to.
+*
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * END-HISTORY
 *
@@ -50,13 +59,16 @@ $include parser.h
 $include err.h
 * 20240219 mab user must be member of sdusers  
 deffun is_grp_member(user,group) calling '!is_grp_member'
+* rev 0.9.0 *
+deffun is_group(group) calling '!is_group'
 
    prompt ''
 
-* 20240225 mab only admins allowed to create accounts
-   if system(27) # 0 then
+* rev 0.9.0 create-account requires admin priv, are we admin?
+   if not(kernel(K$ADMINISTRATOR, -1)) then
       stop sysmsg(2001)  ;* Command requires administrator privileges
-   end     
+   end
+      
 * we run as root, and the root umask is usually 022, that will not work for us
    if umask(002) then null
 
@@ -80,6 +92,7 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
    call @parser(PARSER$GET.TOKEN, token.type, acc.type, keyword)
    *
    uid = ''
+   group_name = ''   ;* will be set to callers entered group name on group create, no case changes
    begin case
    case upcase(acc.type) = 'USER' 
 *    CREATE.ACCOUNT USER <user acct name>  {NO.QUERY}   
@@ -91,11 +104,18 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
      if not(is_grp_member(acc.uname,'sdusers')) then
        stop sysmsg(5009) ;* This user is not registered for String Database (sd) use
      end
+
      * save uid and gid for set.owner of USER account
      uid = acc.uname  
-     gid = acc.uname
+     gid = "sdu_":acc.uname
      pathname := @ds:acc.uname
      acc.name = acc.uname
+     * rev 0.9.0 *	   
+	 group_name = gid       
+	 gosub create.group
+     if not(group_success) then
+       stop
+     end
 *   
    case upcase(acc.type) = 'GROUP' 
 *    CREATE.ACCOUNT GROUP <grp acct name>  {NO.QUERY}     
@@ -104,6 +124,13 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
        call @parser(PARSER$GET.TOKEN, token.type, acc.name, keyword)
        if token.type = PARSER$END then stop
        pathname := @ds:acc.name
+* rev 0.9.0 *	   
+	   group_name = acc.name      ;* callers entered group name, no changes to group_name case 
+	   gosub create.group
+       if not(group_success) then
+         stop
+       end
+	   
 *
    case upcase(acc.type) = 'OTHER'  
 * process as original 
@@ -117,7 +144,9 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 *
    case 1
 *   invalid command arg
-    stop sysmsg(10001,acc.type) ;* Invalid Create-Account argument 
+* rev 0.9.0 
+    crt 'Command Syntax: CREATE.ACCOUNT USER | GROUP <user name | group name>  {NO.QUERY}'
+    stop 
    end case
 
    * Check if already exists in ACCOUNTS file.  We will need to do this
@@ -246,6 +275,23 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
          @system.return.code = -ER$NOT.CREATED
          stop sysmsg(6013) ;* Unable to create account directory
       end
+      
+* rev 0.9.0 *
+* for all accounts set the setgid bit
+* When the bit is set for a directory, the set of files in that directory will have the same group as the group of the parent directory,
+* and not that of the user who created those files.
+* This is used for file sharing since they can be now modified by all the users who are part of the group of the parent directory.
+*
+      if upcase(acc.type) = "GROUP"  or  upcase(acc.type) = "USER" then
+        OS.EXECUTE "sudo chmod g+s ":pathname 
+		stat = OS.ERROR()
+		if stat = 0 then
+		  crt 'setgid bit set on: ':pathname 
+		end else
+		  crt 'Warning unable to setgid bit on: ':pathname:' status - ':stat
+	    end
+      end
+*       
 
       gosub make.account
 
@@ -261,10 +307,16 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 
    acc.rec = ''
    acc.rec<ACC$PATH> = pathname
-   * 20240330 mab add user name to user account allowed users list
-   if upcase(acc.type) = "USER" then
-     acc.rec<ACC$USERS> = acc.uname
-   end
+   * rev 0.9.0 add group name to ACCOUNT record
+   * group name depends on which type of ACCOUNT we are creating
+   * We do not default to ACCOUNT name because account names are (historically?) always upper case
+   * Not sure what to do about account type "OTHER" ???
+   begin case
+   case upcase(acc.type) = "USER"
+     acc.rec<ACC$GROUP> = "sdu_":acc.uname
+   case upcase(acc.type) = "GROUP"
+     acc.rec<ACC$GROUP> = group_name
+   end case  
    write acc.rec to acc.f, acc.name
    close acc.f
 
@@ -333,6 +385,9 @@ make.account:
              fnid = '%G%L'
            case id = '>='
              fnid = '%G%E'
+* rev 0.9.0             
+           case id = '~'
+             fnid = '%t'             
            case 1
              fnid = id
          end case    
@@ -426,10 +481,11 @@ create.dir.file:
          @system.return.code = -ER$NOT.CREATED
          stop sysmsg(6023, fn) ;* Unable to create dictionary part of xx
       end
-* 20240302 mab set file ownership accordingly  
-      set.owner.path = pathname:@ds:os.name:'.DIC':@ds:'~0'
+* 20240302 mab set file ownership accordingly 
+* rev 0.9.0 * 
+      set.owner.path = pathname:@ds:os.name:'.DIC':@ds:'%0'
       gosub set.owner
-      set.owner.path = pathname:@ds:os.name:'.DIC':@ds:'~1'
+      set.owner.path = pathname:@ds:os.name:'.DIC':@ds:'%1'
       gosub set.owner            
 
       openpath pathname:@ds:os.name:'.DIC' to dict.f else
@@ -465,10 +521,11 @@ set.owner:
 
    begin case
       case upcase(acc.type) = 'USER'
-        null ;* uid/gid set at is_grp_member validation
+        null ;* uid/gid set at "case upcase(acc.type) = 'USER'" validation
+* rev 0.9.0 *        
       case upcase(acc.type) = 'GROUP' 
-        uid='root'
-        gid='sdusers'
+        uid='sdsys'
+        gid= group_name
       case 1
         uid='root'
         gid='sdusers'
@@ -481,6 +538,45 @@ set.owner:
      display sysmsg(10000,st) ;* Unable change ownership of directory error %1 
    end
 
+return
+
+* rev 0.9.0 
+*=======================================================================
+* create.group
+* group_name - name of group to create
+* acc.type   - account type (USER/GROUP)
+* acc.uname  - user name for acc.type USER
+* return group_success t/f
+*        group_stat
+* rem: stat groupadd
+* 0 success
+* 2 invalid command syntax
+* 3 invalid argument to option
+* 4 GID not unique (when -o not used)
+* 9 group name not unique
+* 10 can't update group file
+create.group:  *
+ group_success = @TRUE 
+*
+* does group already exist in /etc/group?
+*	   
+   if not(is_group(group_name)) then 
+*
+* no, attempt to create it
+*
+      if upcase(acc.type) = 'USER' then
+        OS.EXECUTE "sudo groupadd -U root,sdsys,":acc.uname :" ": group_name
+      end else
+        OS.EXECUTE "sudo groupadd -U root,sdsys ": group_name
+      end
+	  group_stat = OS.ERROR()
+	  if group_stat = 0 then
+		crt 'group - ':group_name:' created'
+	  end else
+	    crt 'unable to create group - ':group_name:' status - ':group_stat
+		group_success = @FALSE
+	  end
+   end
 return
 
 

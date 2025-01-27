@@ -21,6 +21,8 @@
  * 28 Jul 24 mab SD_ENCRYPT_SODIUM encode types
  * 08 Aug 24 mab SDEXT keys for salt and key from password
  * 09 Aug 24 mab embedded python SDEXT keys
+ * rev 0.9.0 Jan 25 mab SD_EUID_SET SD_EUID_RESTORE
+ * 
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -346,6 +348,8 @@
 #define SDEXT_TestIt   1  /* Function Test */
 #define SD_SALT      100  /* sd_encrypt_sodium sd_salt function */
 #define SD_KEYFROMPW 101  /* sd_encrypt_sodium sd_KeyFromPW function */
+#define SD_EUID_SET     102  /* set current process's euid egid to that of user */
+#define SD_EUID_RESTORE 103  /* set current process's euid egid to what it was on entry to sd */
 
 /* embedded python */
 #define  SD_PyInit        2000  /* initialize the python interpreter   */

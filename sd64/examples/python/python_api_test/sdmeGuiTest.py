@@ -9,15 +9,26 @@
 #  Ussage:
 #
 #  Upper Memo will display responses and status codes, lower Memo is used for read / write actions.
-#  
+#
+#  Remote connections require ssh tunnel to SD server
+#
+# Example:
+#  ssh -L 4245:/tmp/sdsys/sdclient.socket -N <username>@<servername>
+#
+# With the above tunnel, enter:
+#  Address: 127.0.0.1
+#  User Name: <username>
+#  Password:  username's password
+#  Account: <username>
+#
+# NOTE This is assuming <username> is setup to use SD! 
+#
+#    
 #  Enter Address, User Name, Password and Account (next to login button) in associated fields, click login to connect.
 #  (Note I have my default info in these fields to speed up testing)
 #  
 #  You will hopefull see something like:
 #  
-#    Connecting to QM Server: 192.168.0.253
-#    Connection stat: 1
-#    Connected
 #
 #  In the upper memo.
 #
@@ -36,7 +47,7 @@
 #  
 #  Using the lower memo change the record, and click Write.
 #  
-#  The record should be updated, verify via terminal logged into ScarletDME.
+#  The record should be updated, verify via terminal logged into SD.
 #
 #  The QMExecute button will execute the command selected from the drop down list.
 #  
@@ -53,7 +64,7 @@
 #
 #  BP testsub 
 # 
-# * very simple test of QMCallx
+# * very simple test of SDCallx
 # *  open TESTDATA
 # *  create a record made up of passed values
 # *  add a field with a time date stamp
@@ -95,7 +106,7 @@ layout_l = [[sg.Checkbox("Connect Local",key='clocal')],
             [sg.Button('Close'),sg.Text('File Nbr'),sg.Input('0',key='-FILENBR-', size=(5))],
             [sg.Button('Read'),sg.Text('Rec Id'),sg.Input(key='-RECID-', size=(15))],
             [sg.Button('Write')],
-            [sg.Button('Execute'),sg.Combo(['listu','where','who',],key='-EXE-')],
+            [sg.Button('Execute'),sg.Combo(['listu','where','who','who.am.i'],key='-EXE-')],
             [sg.Button('Callx')],
             [sg.Text('Rem: ctrl+X - Cut  | ctrl+C - Copy | ctrl+V - Paste ')]]
 

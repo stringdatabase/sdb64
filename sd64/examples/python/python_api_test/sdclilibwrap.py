@@ -18,14 +18,12 @@
 #Jointly developed by Ladybridge Systems and George R Smith.
 #
 #Use:
-# import SDClient as qm to import this module into your application.
+# import SDClient as sd to import this module into your application.
 #  Then, all SDClient function  names are accessed as "sd.Name" where
 #  the leading "SD" of the documented library function name is replaced
-#  by 'qm.'
-#  For example, QMRead becomes qm.Read
+#  by 'sd.'
+#  For example, SDRead becomes sd.Read
 #
-#  On Linux, the QMSYSCLI or QMSYS environment variable must be set to
-#  point to the QMSYS account directory.
 #
 #  The status codes returned by some functions are:
 #     SV_OK         0   Action successful
@@ -82,13 +80,10 @@ __sdClilib = None
 #
 def sdmeInitialize():
     
-    global __sdClilib
+  global __sdClilib
 
-    if __sdClilib is None:
-        if os.name == 'nt':
-            LIBRARY_PATH = '.\\winsdclilib.dll'
-        else:
-            LIBRARY_PATH = os.getcwd() +"/sdclilib.so"
+  if __sdClilib is None:
+    LIBRARY_PATH = os.getcwd() +"/sdclilib.so"
     __sdClilib = ctypes.cdll.LoadLibrary(LIBRARY_PATH)
 
 def sdmeConnect(host, port, username, password, account):
@@ -235,7 +230,8 @@ def sdmeExecute(command):
     err = ctypes.c_int()
     s = libfunc(command, ctypes.byref(err))
     out_str = ctypes.string_at(s)
-    out_str = str(out_str,'latin-1')
+    out_list = str(out_str,'latin-1').split(chr(254))
+    out_str = '\n'.join(out_list)
     __Free(s)
     return out_str, err.value
 

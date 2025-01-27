@@ -15,6 +15,20 @@
  * 31 Dec 23 SD launch - prior history suppressed
  * 20240219  mab Major update to use AF_UNIX socket to talk to sd
  * 20240702  mab add MAX_STING_SIZE test to write
+ * rev 0.9.0 mab add Callx GetArg 
+ *               log local connections
+ *               on local connection, set user / group id to user who forked process
+ *               on connectlocal if account fails, disconnect!
+ *  Warning: sdclilib does not maintian a storage area for Getarg parameters for each session.
+ *  Using Callx will "overwrite" the previous Callx parameters regardless of session number.
+ *  A solution would be to add the return call buffers to the session structure....
+ *    Or size the pointer array CallArgArray to have a slot for the max number of call args * the max number of sessions
+ *    char *    CallArgArray[MAX_ARGS*MAX_SESSIONS]
+ *    Then use session_idx*MAX_ARGS as the offset into CallArgArray for the sessions SDCall arguments
+ *  I cannot find where the transfer buffer "buff" is freed, need to test for memory leak to see if this is really the case.
+ *     For now I have added code to disconnect() to free buff if there are no more remainging active connections.
+ *
+ * 
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -84,6 +98,8 @@
  * Subroutine Execution
  * ====================
  * SDCall()
+ * SDCallx()
+ * SDGetArg()
  *
  *
  * Error Handling
@@ -114,6 +130,9 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/stat.h>
+/* rev 0.9.0 */
+#include <syslog.h>
+#include <pwd.h>
 
 #define Public
 #include "sddefs.h"
@@ -194,6 +213,13 @@ Private int32_t buff_size;  /* Allocated size of buffer */
 Private int32_t buff_bytes; /* Size of received packet */
 Private FILE* srvr_debug = NULL;
 
+/* rev 0.9.0 */
+/* buffers for Callx return arguments  */
+#define MAX_ARGS 20
+Private char *    CallArgArray[MAX_ARGS];          /* create an array of pointers, for string arguments (returned by Callx) not sure if this is correct */
+Private int       CallArgArraySz[MAX_ARGS];        /* and size of memory allocated for each  string length + terminator */
+
+
 #define MAX_SESSIONS 4
 Private struct {
   bool is_local;
@@ -241,6 +267,184 @@ Private char* NullString(void);
 Private char* sysdir(void);
 
 #define ClearError session[session_idx].sderror[0] = '\0'
+
+/* rev 0.9.0 */
+/* ======================================================================
+   SDCall()  - Callx catalogued subroutine
+   Note, this version does NOT repopulate the returned values of the QMCallx calling arguments, you must use QMGetArg to retrive them */
+void DLLEntry SDCallx(char* subrname, int16_t argc, ...) {
+  va_list ap;    /* variable arg list, see man va_list */
+  int16_t i;
+  char* arg;
+  char* arg_p;   /* pointer to memory for coping arg string*/
+  int subrname_len;
+  int32_t arg_len;
+  int32_t bytes; /* Total length of outgoing packet */
+  int32_t n;
+  char* p;
+  INBUFF* q;
+  struct ARGDATA* argptr;
+  int offset;
+
+  if (context_error(CX_CONNECTED))
+    return;
+  subrname_len = strlen(subrname);
+  if ((subrname_len < 1) || (subrname_len > MAX_CALL_NAME_LEN)) {
+    Abort("Illegal subroutine name in call", FALSE);
+  }
+  if ((argc < 0) || (argc > MAX_ARGS)) {
+    Abort("Illegal argument count in call", FALSE);
+  }
+ /* free up any memory allocated for prev callx arg strorage */
+  for (i = 0; i < MAX_ARGS; i++) {
+	if (CallArgArray[i] != NULL ){
+	 free(CallArgArray[i]);
+	 CallArgArray[i] = NULL;
+	 CallArgArraySz[i] = 0;
+	}
+  }
+  /* Accumulate outgoing packet size */
+  bytes = 2;                        /* Subrname length */
+  bytes += (subrname_len + 1) & ~1; /* Subrname string (padded) */
+  bytes += 2;                       /* Arg count */
+  va_start(ap, argc);
+  for (i = 0; i < argc; i++) {
+    arg = va_arg(ap, char*);
+    arg_len = (arg == NULL) ? 0 : strlen(arg);
+    bytes +=
+        4 + ((arg_len + 1) & ~1); /* Four byte length + arg text (padded) */
+  }
+  va_end(ap);
+  /* Ensure buffer is big enough */
+  if (bytes >= buff_size) /* Must reallocate larger buffer */
+  {
+    n = (bytes + BUFF_INCR - 1) & ~BUFF_INCR;
+    q = (INBUFF*)malloc(n);
+    if (q == NULL) {
+      Abort("Unable to allocate network buffer", FALSE);
+    }
+    free(buff);
+    buff = q;
+  }
+  /* Set up outgoing packet */
+  p = (char*)buff;
+  *((int16_t*)p) = ShortInt(subrname_len); /* Subrname length */
+  p += 2;
+  memcpy(p, subrname, subrname_len); /* Subrname */
+  p += (subrname_len + 1) & ~1;
+  *((int16_t*)p) = ShortInt(argc); /* Arg count */
+  p += 2;
+ /* we do 2 things in this block, move callx args to the send buffer    */
+ /* and save a copy pointed to by  CallArgArray[i]   for use by GetArg  */
+  va_start(ap, argc);
+  for (i = 1; i <= argc; i++) {
+  /* first move arg to io buffer  */
+    arg = va_arg(ap, char*);
+    arg_len = (arg == NULL) ? 0 : strlen(arg);
+    *((int32_t*)p) = LongInt(arg_len); /* Arg length */
+    p += 4;
+    if (arg_len)
+      memcpy(p, arg, arg_len); /* Arg text */
+	p += (arg_len + 1) & ~1;
+  /* now save a copy                    */
+	arg_p = (char *)malloc((arg_len+1) * sizeof(char));   /* reserver mem for string and terminator */
+	/* if we fail to allocate memory, bomb out */
+	if (arg_p == NULL) {
+	   Abort("Unable to allocate Callx buffer", FALSE);
+	} else {
+   /* save ponter to allocated memory */
+	  CallArgArray[i-1] = arg_p;
+	  CallArgArraySz[i-1] = arg_len + 1;  /* along with the buffer size (string sz + terminator)    */
+	  if (arg_len == 0) {
+		*arg_p = '\0';
+	  } else {
+   /* copy arg to allocated memory, we are assuming arg is '\0' terminated, probably should check on this */
+		strcpy(arg_p,arg);
+	  }
+	}
+  }
+  va_end(ap);
+  if (!message_pair(SrvrCall, (char*)buff, bytes)) {
+    goto err;
+  }
+  /* Now update CallArgArray with any returned arguments */
+  offset = offsetof(INBUFF, data.call.argdata);
+  if (offset < buff_bytes) {
+    va_start(ap, argc);
+	for (i = 1; i <= argc; i++) {
+      argptr = (ARGDATA*)(((char*)buff) + offset);
+      arg = va_arg(ap, char*);
+	  if (i == argptr->argno) {
+		arg_len = LongInt(argptr->arglen);
+	   /*  memcpy(arg, argptr->text, arg_len);  */
+	   /*  arg[arg_len] = '\0';                 */
+	   /* check CallArgArray buffer is large enough for returned value */
+		if ((CallArgArraySz[i-1]) < (arg_len+1)) {
+	   /* not large enough, free and re allocate  */
+		  if (CallArgArray[i-1] != NULL)
+			 free(CallArgArray[i-1]);
+		  CallArgArray[i-1] = malloc((arg_len+1) * sizeof(char));
+		  if (CallArgArray[i-1] != NULL){
+			CallArgArraySz[i-1] = (arg_len+1) * sizeof(char);
+			memcpy(CallArgArray[i-1], argptr->text, arg_len);
+			CallArgArray[i-1][arg_len] = '\0';
+		  }else{
+			Abort("Unable to allocate Callx buffer on return", FALSE);
+		  }
+		}else{
+	  /* existing buffer large enough  */
+		  memcpy(CallArgArray[i-1], argptr->text, arg_len);
+		  CallArgArray[i-1][arg_len] = '\0';
+		}
+
+		offset +=
+            offsetof(ARGDATA, text) + ((LongInt(argptr->arglen) + 1) & ~1);
+        if (offset >= buff_bytes)
+          break;
+	  }
+	}
+    va_end(ap);
+  }
+err:
+  switch (session[session_idx].server_error) {
+    case SV_OK:
+      break;
+    case SV_ON_ERROR:
+      Abort("CALL generated an abort event", TRUE);
+      break;
+    case SV_LOCKED:
+    case SV_ELSE:
+    case SV_ERROR:
+      break;
+  }
+}
+/* ======================================================================
+   SDGetArg() Get called subroutine return argument
+*/
+char* DLLEntry SDGetArg(int ArgNbr) {
+  int arg_idx;
+  int arg_len;
+  char* arg;
+  if ((ArgNbr < 1) || (ArgNbr > MAX_ARGS)) {
+	Abort("Illegal argument index in call", TRUE);
+    return NULL;
+  }
+  arg_idx = ArgNbr - 1;
+  if ((CallArgArray[arg_idx] == NULL)) {
+	Abort("Argument value NULL", TRUE);
+    return NULL;
+  }
+  arg_len = strlen(CallArgArray[arg_idx]);
+  arg = (char *)malloc((arg_len+1) * sizeof(char));   /* reserver mem for string and terminator */
+  /* if we fail to allocate memory, bomb out */
+  if (arg == NULL) {
+	Abort("GetgArg Memory Allocation Failed", TRUE);
+    return NULL;
+  }
+  strcpy(arg,CallArgArray[arg_idx]);
+  return arg;
+}
+
 
 /* ======================================================================
    SDCall()  - Call catalogued subroutine                                 */
@@ -730,11 +934,15 @@ int DLLEntry SDConnected() {
 
 int DLLEntry SDConnectLocal(char* account) {
   int status = FALSE;
-
+  struct passwd *pwd;
   int cpid;
   char option[20];
   char path[MAX_PATHNAME_LEN + 1];
-
+/* rev 0.9.0 log local login */
+  char username[MAX_USERNAME_LEN + 1];
+  u_int32_t m;
+  char* p;
+  
   initialise_client();
 
   if (!FindFreeSession())
@@ -766,6 +974,31 @@ int DLLEntry SDConnectLocal(char* account) {
   {
     session[session_idx].pid = cpid; /* 0421 */
   }
+  
+  /* rev 0.9.0 log username of process, set forked process to uid gid of user forking process */
+ 
+  m = MAX_USERNAME_LEN + 1;
+  p = username;
+  if (!GetUserName(p,&m)){
+    sprintf(session[session_idx].sderror, "Error Could Not Establish Username");
+    goto exit_sdconnect_local; 
+  }
+
+  openlog ("sd_Log", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
+  syslog (LOG_INFO, "APISrvr Local Connection, user:");
+  syslog (LOG_INFO, "%s", username);
+
+  if (((pwd = getpwnam(username)) != NULL) && (setgid(pwd->pw_gid) == 0) && (setuid(pwd->pw_uid) == 0)) {
+            //         set_groups();
+    syslog (LOG_INFO, "sdApiSrvr login via Username: %s (%d) Group: %d",username,pwd->pw_uid, pwd->pw_gid);
+  } else {
+    syslog (LOG_INFO, "sdApiSrvr unable to set user and group for Username: %s",username);
+    closelog();
+    sprintf(session[session_idx].sderror, "Error Could Set User Group");
+    goto exit_sdconnect_local; 
+  }
+ 
+  closelog();
 
   /* Send local login packet */
 
@@ -776,6 +1009,8 @@ int DLLEntry SDConnectLocal(char* account) {
   /* Now attempt to attach to required account */
 
   if (!message_pair(SrvrAccount, account, strlen(account))) {
+// rev 0.9.0
+    disconnect();
     goto exit_sdconnect_local;
   }
 
@@ -3500,7 +3735,7 @@ Private char* sysdir() {
       if ((p = strchr(rec, ']')) != NULL)
         *p = '\0';
       strcpy(section, rec + 1);
-      printf("Section '%s'\n", section);
+
       for (p = section; *p != '\0'; p++)
         *p = UpperCase(*p);
       continue;
@@ -3547,6 +3782,11 @@ Private void initialise_client() {
       session[i].TxPipe[0] = -1;
       session[i].TxPipe[1] = -1;
     }
+    /* rev 0.9.0  initialize the arg pointer array for Callx */
+	  for (i = 0; i < MAX_ARGS; i++) {
+	    CallArgArray[i] = NULL;
+	    CallArgArraySz[i] = 0;
+	  }
   }
 }
 
@@ -3574,7 +3814,10 @@ Private bool FindFreeSession() {
 
 /* ====================================================================== */
 
-Private void disconnect() {
+Private void  disconnect() {
+  /* rev 0.9.0 */
+   int16_t i;
+
   (void)write_packet(SrvrQuit, NULL, 0);
   if (session[session_idx].is_local) {
     if (session[session_idx].RxPipe[0] >= 0) {
@@ -3599,6 +3842,35 @@ Private void disconnect() {
   }
 
   session[session_idx].context = CX_DISCONNECTED;
+
+ /* rev 0.9.0 
+  I cannot find where the original transfer buffer "buff" is freed on exit
+	So look for connected session, if none, release buffer                */
+
+  for (i = 0; i < MAX_SESSIONS; i++) {
+	  if (session[i].context == CX_CONNECTED)
+	    break;
+  }
+
+  if (i == MAX_SESSIONS) {
+	/* looked at all the sessions and none connected free buff */
+	  if (buff != NULL) {
+	    free(buff);
+	    buff = NULL;
+	  }
+
+   /* free the callx arg buffers if they are still around */
+   /* this needs modifing if we go with more than 1 session, see comments at top */
+	  for (i = 0; i < MAX_ARGS; i++) {
+	    if (CallArgArray[i] != NULL ){
+		    free(CallArgArray[i]);
+		    CallArgArray[i] = NULL;
+		    CallArgArraySz[i] = 0;
+	    }
+    }
+
+  }
+
 }
 
 #ifdef BIG_ENDIAN_SYSTEM

@@ -1,9 +1,13 @@
 #!/bin/bash
 # 	SD bash install script
-# 	(c) 2023 Donald Montaine
+# 	(c) 2023-2025 Donald Montaine and Mark Buller
 #	This software is released under the Blue Oak Model License
 #	a copy can be found on the web here: https://blueoakcouncil.org/license/1.0.0
 #
+#   rev 0.9.0 Jan 25 mab - tighten up permissions
+#                        - build with embedded python
+#                        - sdsys's pri group now sdusers - note require sudo groupdel sdsys in deletesd.sh
+#                        - comment define statement in file sdsys/GPL.BP/define_install.h and recompile CPROC at end of install, 
     if [[ $EUID -eq 0 ]]; then
         echo "This script must NOT be run as root" 1>&2
         exit
@@ -40,11 +44,36 @@ clear
 echo
 echo Installing required packages
 echo
-sudo apt-get install build-essential micro lynx libbsd-dev libsodium-dev openssh-server
+sudo apt-get install build-essential micro lynx libbsd-dev libsodium-dev openssh-server python3-dev
+
+# rev 0.9.0 need python dev to build, did we get it?
+python3 --version
+if [ $? -eq 0 ]; then
+# got it, what version and where are the include files?
+  PY_HDRS=$(python3-config --includes)
+# remove the first "-I"
+#  and get the first path (for some reason its output twice?
+  PY_HDRS_ARR=(${PY_HDRS#-I})
+#
+  echo "path to include file: " ${PY_HDRS_ARR[0]}
+# now create the includ file we will use
+  echo "#include <"${PY_HDRS_ARR[0]}"/Python.h>" > sd64/gplsrc/sdext_python_inc.h
+  
+else
+  echo "Python missing, cannot build"
+  exit
+fi
  
 cd $cwd/sd64
 
 sudo make 
+# rev 0.9.0 if make fails, abort install
+if [ $? -eq 0 ]; then
+  echo "Successful Build"
+else
+  echo "Build Failed"
+  exit
+fi
 
 # Create sd system user and group
 echo "Creating group: sdusers"
@@ -53,10 +82,16 @@ sudo usermod -a -G sdusers root
 
 echo "Creating user: sdsys."
 sudo useradd --system sdsys -G sdusers
+echo "Setting user: sdsys default group to sdusers."
+sudo usermod -g sdusers sdsys
 
 sudo cp -R sdsys /usr/local
 # Fool sd's vm into thinking gcat is populated
 sudo touch /usr/local/sdsys/gcat/\$CPROC
+# create errlog
+sudo touch /usr/local/sdsys/errlog
+
+# copy install template
 sudo cp -R bin /usr/local/sdsys
 sudo cp -R gplsrc /usr/local/sdsys
 sudo cp -R gplobj /usr/local/sdsys
@@ -76,14 +111,14 @@ sudo cp terminfo.src /usr/local/sdsys
 
 sudo chown -R sdsys:sdusers /usr/local/sdsys
 sudo chown root:root /usr/local/sdsys/ACCOUNTS/SDSYS
-sudo chmod 664 /usr/local/sdsys/ACCOUNTS/SDSYS
+sudo chmod 654 /usr/local/sdsys/ACCOUNTS/SDSYS
 sudo chown -R sdsys:sdusers /usr/local/sdsys/terminfo
-sudo chown root:root /usr/local/sdsys
+
 sudo cp sd.conf /etc/sd.conf
 sudo chmod 644 /etc/sd.conf
-sudo chmod -R 775 /usr/local/sdsys
-sudo chmod 775 /usr/local/sdsys/bin
-sudo chmod 775 /usr/local/sdsys/bin/*
+sudo chmod -R 755 /usr/local/sdsys
+sudo chmod 775 /usr/local/sdsys/errlog
+
 
 #	Add $tuser to sdusers group
 sudo usermod -aG sdusers $tuser
@@ -93,9 +128,11 @@ ACCT_PATH=/home/sd
 if [ ! -d "$ACCT_PATH" ]; then
    sudo mkdir -p "$ACCT_PATH"/user_accounts
    sudo mkdir "$ACCT_PATH"/group_accounts
-   sudo chown root:sdusers "$ACCT_PATH"/group_accounts
+   sudo chown sdsys:sdusers "$ACCT_PATH"
+   sudo chmod 775 "$ACCT_PATH"
+   sudo chown sdsys:sdusers "$ACCT_PATH"/group_accounts
    sudo chmod 775 "$ACCT_PATH"/group_accounts
-   sudo chown root:sdusers "$ACCT_PATH"/user_accounts
+   sudo chown sdsys:sdusers "$ACCT_PATH"/user_accounts
    sudo chmod 775 "$ACCT_PATH"/user_accounts
 fi
 
@@ -139,15 +176,16 @@ sudo bin/sd -start
 echo
 echo "Bootstap pass 1"
 sudo bin/sd -i
+
 # files added in pass1 need perm and owner setup
-sudo chmod -R 775 /usr/local/sdsys/\$HOLD.DIC
+sudo chmod -R 755 /usr/local/sdsys/\$HOLD.DIC
 sudo chmod -R 775 /usr/local/sdsys/\$IPC
-sudo chmod -R 775 /usr/local/sdsys/\$MAP
-sudo chmod -R 775 /usr/local/sdsys/\$MAP.DIC
-sudo chmod -R 775 /usr/local/sdsys/ACCOUNTS.DIC
-sudo chmod -R 775 /usr/local/sdsys/DICT.DIC
-sudo chmod -R 775 /usr/local/sdsys/DIR_DICT
-sudo chmod -R 775 /usr/local/sdsys/VOC.DIC
+sudo chmod -R 755 /usr/local/sdsys/\$MAP
+sudo chmod -R 755 /usr/local/sdsys/\$MAP.DIC
+sudo chmod -R 755 /usr/local/sdsys/ACCOUNTS.DIC
+sudo chmod -R 755 /usr/local/sdsys/DICT.DIC
+sudo chmod -R 755 /usr/local/sdsys/DIR_DICT
+sudo chmod -R 755 /usr/local/sdsys/VOC.DIC
 #
 sudo chown -R sdsys:sdusers /usr/local/sdsys/\$HOLD.DIC
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/\$IPC
@@ -157,12 +195,19 @@ sudo chown -R sdsys:sdusers  /usr/local/sdsys/ACCOUNTS.DIC
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/DICT.DIC
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/DIR_DICT
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/VOC.DIC
+
 echo "Bootstap pass 2"
 sudo bin/sd -internal SECOND.COMPILE
 echo "Bootstap pass 3"
 sudo bin/sd RUN GPL.BP WRITE_INSTALL_DICTS NO.PAGE
 echo "Compile C and I type dictionaries"
 sudo bin/sd THIRD.COMPILE
+
+echo "Compile CPROC without IS_INSTALL defined"
+sudo bash -c 'echo "*comment out * $define IS_INSTALL" > /usr/local/sdsys/GPL.BP/define_install.h'
+sudo bin/sd -internal BASIC GPL.BP CPROC
+sudo chmod -R 755 /usr/local/sdsys/gcat
+
 #  create a user account for the current user
 echo
 echo

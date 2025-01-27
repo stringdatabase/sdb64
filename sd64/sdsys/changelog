@@ -1,7 +1,84 @@
-SD, the Multivalue String Database
+    SD, the Multivalue String Database
 
 Change Log:
 -----------------------
+Version 0.9.0
+-------------
+(mab) Convert sd dynamic file blobs prefix from '~' to '%'
+      
+  Turn function "process_file" back on in sdfix. For some reason it was commented out (sdfix did nothing).
+
+  Fix directory file name mapping of '~' and '%t'
+  
+  The BASIC command SSELECT is processed by pcode routine _SSELCT, when it attempts to sort the NULL id, the wheels come off (seg fault).
+    Correct op_sort.c  / op_sortdata() to test for a NULL id before processing (prevent segfault on strlen() function.
+  
+  Add SYS$ keys in KEYS.H (see op_sys.c) for BASIC function system() (prep for qmExplorer)
+  
+  Add subroutines EUID_SET and EUID_RESTORE to set and restore the euid and egid of the process running sd.
+      If a process is started with sudo sd, the process will be dropped to runing as sdsys and only run as root (euid = 0) 
+      when necessary.  This switch is all performed in CPROC with the dynamic array privileged_commands defining the commands
+      that require root privileges.
+      
+  special note:      At install we cannot reduce running privialges to sdsys, none of the groups are effective
+                      casuing all sorts for access issues.  To get around this CPROC must be complied with
+                      IS_INSTALL defined.  This define statement will be found in GPL.BP file "define_install.h"
+                      The install script overwrites this file with IS_INSTALL commented out, and CPROC will be
+                      recomplied.
+        
+  Modify how group accounts are setup / handled (CREATE.ACCOUNT).
+  Group accounts now have their parent directory ownership starting as sdsys : group
+  To access a group account, a user must belong to the linux group of the same name (LOGIN / LOGTO) 
+  CREATE.ACCOUNT will create the linux group (if it does not exist) and add "sdsys" and "root" to members.
+  CREATE.ACCOUNT sets the setgid bit on the account's parent directory.   This allows the directories / files 
+    to be modified by all the users who are part of the group of the parent directory.
+  CREATE,ACCOUNT saves group name in fld 3 of ACCOUNTS record (for both CREATE.ACCOUNT USER and GROUP)
+  LOGIN and LOGTO(CPROC) now checks to confirm user is a member of sdusers group and ACCOUNT group
+    mod to function is_grp_member(user,group) to return true if group found or if group = user
+
+  Add command MODIFY.ACCOUNT to add users as members to the sd account.
+  
+  Add command WHO.AM.I to display information on the current user and process.
+
+  Tighten up sdsys file permissions (only allow group to have write access on necessary directories / files).
+    Install script sets  /usr/local/sdsys owner : group  sdsys : sduser with permissions 755
+    except:
+     775 /usr/local/sdsys/ errlog
+     654 /usr/local/sdsys/ACCOUNTS/SDSYS
+
+  Remove the ability to set "PICK" compatibility options via the OPTION program:
+  PICK.BREAKPOINT    : Off   Pick syntax for BREAK.ON and BREAK.SUP
+  PICK.BREAKPOINT.U  : Off   Handle U breakpoint option in Pick manner
+  PICK.EXPLODE       : Off   Pick style processing of single value item in BY.EXP
+  PICK.GRAND.TOTAL   : Off   GRAND.TOTAL text on same line as values
+  PICK.IMPLIED.EQ    : Off   Implied EQ between field and literal in query
+  PICK.NULL          : Off   Return null for null data in ML, MR and FMT()
+  PICK.WILDCARD      : Off   Allow use of Pick style wildcards in queries
+  QUALIFIED.DISPLAY  : Off   Allow Pick style qualified display clauses
+
+  Note: at this time the source still contains the code to implement these options,
+     but the intent is to not continue supporting "PICK" compatibility.
+
+  Modify the GPL.BP/CATALOG program to:
+     require admin priviliges for global catalog   
+     set owner : group to sdsys : sdusers on write to gcat
+
+  Install script:
+     - If make fails, exit script
+     - If modify script to use whatever version of python is installed.
+     - add root to sdsys group.
+     - update install ACCOUNTS/SDSYS record to include group name sdsys
+  Delete Script:
+   - Remove group sdsys on sd delete
+
+  MakeFile:
+      Builds embedded python
+  
+      Move "Embedded Python" code from examples to gplsrc and GPL.BP 
+
+      BCOMP - allow @FILE.NAME on left side of assignment.
+
+      VOC / NEWVOC add SD.ACCOUNTS q pointer to SDSYS/ACCOUNTS	  
 
 Version 0.8.1
 -------------

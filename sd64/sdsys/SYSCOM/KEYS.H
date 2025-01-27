@@ -3,6 +3,9 @@
       * Copyright (c) 2004, Ladybridge Systems, All Rights Reserved
       
       $list off
+      * rev 0.9.0 Jan 25 mab with the change in ownership of group ACCOUNTS
+      *                      add SYSTEM() keys
+      *                      add SD_EUID_SET SD_EUID_RESTORE 
       * 09 Aug 24 mab add SDEXT embedded python key codes
       * 06 Aug 24 mab add SDEXT key codes
       * 30 Jul 24 mab define SD_ENCRYPT_SODIUM encode types 
@@ -252,8 +255,8 @@
       * Id = account name (forced to uppercase)
       $define ACC$PATH         1     ;* Account pathname
       $define ACC$DESCR        2     ;* Account description
-      * 20240330 mab add ACC$USERS
-      $define ACC$USERS        3     ;* List of Users allowed to access this Account
+      * REV 0.9.0
+      $define ACC$GROUP        3     ;* lINUX group for this Account
       deffun parse.pathname.tokens(path) calling "!PATHTKN"
       
       * encrytption decryption  *
@@ -264,7 +267,9 @@
       * Key Codes for op_sdext     *
       $define SDEXT_TestIt      1  ;* Function Test 
       $define SD_SALT         100  ; sd_encrypt_sodium sd_salt function 
-      $define SD_KEYFROMPW    101  ;* sd_encrypt_sodium sd_KeyFromPW function      
+      $define SD_KEYFROMPW    101  ;* sd_encrypt_sodium sd_KeyFromPW function  
+      $define SD_EUID_SET     102  ;* set current process's euid egid to that of user
+      $define SD_EUID_RESTORE 103  ;* set current process's euid egid to what it was on entry to sd
       
       * embedded python 
       $define  SD_PyInit        2000  ;* initialize the python interpreter   
@@ -272,4 +277,66 @@
       $define  SD_IsPyInit      2002  ;* Is python interpreter initialized 
       $define  SD_PyRunStr      2010  ;* Take the string in qmBasic variable VAL and run in python interpreter   
       $define  SD_PyRunFile     2011  ;* Take the file and path defined in qmBasic variable VAL and run in python interpreter   
-      $define  SD_PyGetAtt      2100  ;* Return the (string) value of python attribute defined in qmBasic variable VAL        
+      $define  SD_PyGetAtt      2100  ;* Return the (string) value of python attribute defined in qmBasic variable VAL    
+      
+      * SYSTEM() keys for BASIC Function SYSTEM() as defined in gplsrc/op_sys.c
+      $define SYS$PTR_ON        1  ;*   Printer on?
+      $define SYS$PTR_WIDTH     2  ;*   Default print unit page width
+      $define SYS$PTR_DEPTH     3  ;*   Default print unit page depth
+      $define SYS$PTR_LNS_REM   4  ;*   Default print unit lines remaining on page
+      $define SYS$PTR_PAGE_NBR  5  ;*   Default print unit page number
+      $define SYS$PTR_LINE_NBR  6  ;*   Default print unit line number
+      $define SYS$TERM_TYPE     7  ;*   @TERM.TYPE
+      $define SYS$CPU_TIME      9  ;*   CPU time (mS)
+      $define SYS$DAT_Q_ACTIVE 10  ;*   DATA queue active?
+      $define SYS$SEl_0_ACTIVE 11  ;*   Select list 0 active?
+      $define SYS$TIME         12  ;*   Time (same as TIME())
+      $define SYS$USER_NBR     18  ;*   User number
+      $define SYS$BREAK_ENABLE 23  ;*   Break key enabled?
+      $define SYS$ECHO_ENABLE  24  ;*   Echo enabled?
+      $define SYS$IS_PHANTOM   25  ;*   Phantom process?
+      $define SYS$PROMPT_CHAR  26  ;*   Prompt character
+      $define SYS$UNX_UID      27  ;*   UID   
+      $define SYS$UNX_EUID     28  ;*   EUID  
+      $define SYS$UNX_GID      29  ;*   GID   
+      $define SYS$UNX_EGID     30  ;*   EGID  
+      $define SYS$LIC_NBR      31  ;*   Licence number
+      $define SYS$SDSYS_PATH   32  ;*   System directory pathname
+      $define SYS$TEMP_PATH    38  ;*   Temporary directory pathname
+      $define SYS$CLIENT_IP    42  ;*   Client IP address
+      $define SYS$WIN_OS       91  ;*   Windows? (see also 1006)
+      $define SYS$IS_CAPTURE  1000  ;*   CAPTURING in effect?
+      $define SYS$IS_INV_CASE 1001  ;*   Case inversion on?
+      $define SYS$CALL_STACK  1002  ;*   Call stack
+      $define SYS$OPEN_FILES  1003  ;*   Return list of open files
+      $define SYS$PEAK_FILES  1004  ;*   Peak number of open files
+      $define SYS$INT_TIME    1005  ;*   Internal time equivalent to DATE()      $define SYS$ 86400 + TIME()
+      $define SYS$WIN_NT_OS   1006  ;*   Windows NT style (NT, 2000, XP)?
+      $define SYS$TRANS_NBR   1007  ;*   Transaction number, zero if none
+      $define SYS$TRANS_LEVEL 1008  ;*   Transaction level, zero if none
+      $define SYS$IS_BIG_END  1009  ;*   Returns 1 on big endian system, 0 on little endian system
+      $define SYS$PLAT_NAME   1010  ;*   Platform name
+      $define SYS$CONFIG_PATH 1011  ;*   sd.ini or sdconfig file pathname
+      $define SYS$SD_VERSION  1012  ;*   SD version number
+      $define SYS$USER_LIMIT  1013  ;*   User limit (excluding phantom pool)
+      $define SYS$USER_LMT_PH 1014  ;*   User limit (including phantom pool)
+      $define SYS$HOST_NAME   1015  ;*   Computer name
+      $define SYS$USRS_AVAIL  1016  ;*   Number of available users
+      $define SYS$IP_PORT     1017  ;*   Port number for tcp/ip connection
+      $define SYS$DEV_LIC_LMT 1018  ;*   Device licensing ip address limit
+      $define SYS$DEV_LIC_CNT 1019  ;*   Device licensing current ip address count
+      $define SYS$TIME_MS     1020  ;*   Time of day in milliseconds
+      $define SYS$CLLCT_MAP   1021  ;*   Get collation map name
+      $define SYS$CLL_MAP_USR 1022  ;*   Get collation map (user format)
+      $define SYS$CLL_MAP_SYS 1023  ;*   Get collation map (internal format)
+      $define SYS$CUR_DIR     1024  ;*   Current directory on entry to SD
+      $define SYS$ENVIR_VARS  1025  ;*   Environment variables
+      $define SYS$CMD_LINE    1026  ;*   Command text from "sd xxx"
+      $define SYS$TTY_NAME    1027  ;*   Port name for serial connection
+      $define SYS$SYS_ID      1028  ;*   System id code for system specific licences
+      $define SYS$SUB_DEPTH   1029  ;*   Internal subroutine depth
+      $define SYS$LOGIN_TIME  1030  ;*   Login time as date      $define SYS$ 86400 + time
+      $define SYS$OS_PID      1031  ;*   Operating system process id
+      $define SYS$BRK_PT_FLG  1032  ;*   Test and clear break pending flag
+      $define SYS$SYS_TYPE    9010  ;*   Return "SD"
+      $define SYS$MAX_STR     9011  ;*   Return MAX_STRING_SIZE - max string / record length         

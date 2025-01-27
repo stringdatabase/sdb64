@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * rev 0.9.0 Jan 25 mab change dyn file prefix to %
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -130,8 +131,8 @@ bool dh_create_file(char path[],
   }
 
   /* Create primary subfile */
-
-  sprintf(primary_subfile, "%s%c~0", path, DS);
+/* rev 0.9.0 */
+  sprintf(primary_subfile, "%s%c%%0", path, DS);
   fu = dio_open(primary_subfile, DIO_NEW);
 
   if (!ValidFileHandle(fu)) {
@@ -192,8 +193,8 @@ bool dh_create_file(char path[],
   fu = INVALID_FILE_HANDLE;
 
   /* Create overflow subfile */
-
-  sprintf(overflow_subfile, "%s%c~1", path, DS);
+/* rev 0.9.0 */
+  sprintf(overflow_subfile, "%s%c%%1", path, DS);
   fu = dio_open(overflow_subfile, DIO_NEW);
 
   if (!ValidFileHandle(fu)) {

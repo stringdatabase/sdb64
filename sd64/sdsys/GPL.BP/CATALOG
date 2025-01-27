@@ -18,6 +18,8 @@
 * 
 * 
 * START-HISTORY:
+* rev 0.9.0 Jan 25 mab require admin priviliges for global catalog
+*                       and set owner : group to sdsys : sdusers on write
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * END-HISTORY
 *
@@ -99,6 +101,10 @@ $define CAT_PCODE  3
             if mode and mode # CAT_GLOBAL then stop sysmsg(3021) ;* Incompatible cataloguing modes specified
             option.seen = @true
             mode = CAT_GLOBAL
+            * rev 0.9.0 must be admin for Global
+            if system(27) # 0 then
+              stop sysmsg(2001)  ;* Command requires administrator privileges
+            end 
 
          case keyword = KW$PCODE
             if mode and mode # CAT_PCODE then stop sysmsg(3021) ;* Incompatible cataloguing modes specified
@@ -318,7 +324,10 @@ catalogue.program:
          recordlocku gcat.f, call.name
          mark.mapping gcat.f, off
          write object.code to gcat.f, call.name
-      
+         *
+         * rev 0.9.0 set file ownership
+         set.owner.path =  @sdsys:@ds:'gcat':@ds:call.name 
+         gosub set.owner     
          display sysmsg(3030, call.name) ;* xx added to global catalogue
 
          gosub check.local
@@ -464,6 +473,26 @@ check.global:
    release gcat.f, call.name    ;* Ensure released for all paths
 
    return
+   
+   
+* ======================================================================
+* rev 0.9.0  mab set file ownership    
+* assumes:
+* set.owner.path - file path
+
+set.owner:
+   uid='sdsys'
+   gid='sdusers'
+   chown_parm = uid:@VM:gid:@VM:set.owner.path
+   * print 'set.owner: ':chown_parm
+   result = ospath(chown_parm,OS$CHOWN)
+   if result <= 0 then
+     st = set.owner.path:' err: ':status()
+     display sysmsg(10000,st) ;* Unable change ownership of directory error %1 
+   end
+
+return
+   
 end
 
 * END-CODE

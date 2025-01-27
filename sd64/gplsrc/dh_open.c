@@ -22,6 +22,7 @@
  *
  * START-DESCRIPTION:
  * 31 Dec 23 SD launch - prior history suppressed
+ * rev 0.9.0 Jan 25 mab change dyn file prefix to %
  * END-DESCRIPTION
  *
  * START-CODE
@@ -108,7 +109,8 @@ DH_FILE* dh_open(char path[]) {
 
   /* Open primary subfile */
   /* replaced sprintf() -gwb 22Feb20 */
-  if (snprintf(pathname, MAX_PATHNAME_LEN + 1, "%s%c~0", filename, DS) >= (MAX_PATHNAME_LEN + 1)) {
+  /* 0.9.0 */
+  if (snprintf(pathname, MAX_PATHNAME_LEN + 1, "%s%c%%0", filename, DS) >= (MAX_PATHNAME_LEN + 1)) {
     /* TODO: this should be added to the system log file. */
      k_error("Overflowed directory/filename path length in dh_open()!");
      goto exit_dh_open;
@@ -167,7 +169,8 @@ DH_FILE* dh_open(char path[]) {
 
   /* Open overflow subfile */
   /* converted to snprintf() -gwb 22Feb20 */
-  if (snprintf(pathname, MAX_PATHNAME_LEN + 1, "%s%c~1", filename, DS) >= (MAX_PATHNAME_LEN + 1)) {
+  /* rev 0.9.0 */
+  if (snprintf(pathname, MAX_PATHNAME_LEN + 1, "%s%c%%1", filename, DS) >= (MAX_PATHNAME_LEN + 1)) {
     /* TODO: this should be added to the system log file. */
      k_error("Overflowed directory/filename path length in dh_open()!");
      goto exit_dh_open;

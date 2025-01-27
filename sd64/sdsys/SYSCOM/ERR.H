@@ -278,6 +278,12 @@ $define SD_EDType_Err           10205 ;* Encode Decode type error
 $define SD_EXT_KEY_ERR          10300 ;* unknown key 
 $define SD_EXT_ARG_CNT          10301 ;* incorrect argument count for called function 
 
+* sdext_eguid_set error codes
+$define SD_EUID_PWD_Err         10400 ;* Couldn't get pwd of user
+$define SD_EUID_SET_Err         10401 ;* Couldn't set proess to uid / gid of user
+$define SD_EUID_RST_Err         10402 ;* Couldn't return proess to uid / gid of caller
+$define SD_EUID_NSET_Err        10403 ;* SD_EUID_RESTORE called before SD_EUID_SET 
+
 * Embedded Python Error codes   
 $define SD_PyEr_NotInit    12001    ;* interperter not initiialized 
 $define SD_PyEr_Dict       12002    ;* PyDict_New() failed 

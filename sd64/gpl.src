@@ -81,3 +81,5 @@ telnet
 time
 to_file
 txn
+sdext_py
+sdext_eguid

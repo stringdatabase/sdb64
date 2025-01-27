@@ -18,6 +18,7 @@
  *
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * rev 0.9.0 Jan 25 mab change dyn file prefix to % 
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -104,9 +105,10 @@ bool dh_open_subfile(DH_FILE* dh_file,
     mode = DIO_UPDATE;
 
   if ((subfile >= AK_BASE_SUBFILE) && (dh_file->akpath != NULL)) {
-    sprintf(filename, "%s%c~%d", dh_file->akpath, DS, (int)subfile);
+/* rev 0.9.0 */    
+    sprintf(filename, "%s%c%%%d", dh_file->akpath, DS, (int)subfile);
   } else {
-    sprintf(filename, "%s%c~%d", pathname, DS, (int)subfile);
+    sprintf(filename, "%s%c%%%d", pathname, DS, (int)subfile);
   }
 
   dh_file->sf[subfile].fu = dio_open(filename, mode);

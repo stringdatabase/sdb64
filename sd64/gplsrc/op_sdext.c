@@ -18,6 +18,7 @@
  * START-HISTORY:
  * 06 Aug 2024 MAB add SDEXT
  * 08 Aug 2024 mab add embedded python
+ * rev 0.9.0 Jan 25 mab add sdext_eguid_set set / restore euid egid of process
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -46,6 +47,7 @@
 
 extern char* sd_salt();
 extern char* sd_KeyFromPW(char* mypassword, char* mysalt);
+extern void sdext_eguid_set(int key, char* Arg);
 
 /* 20240808 mab embedding python? */
 #ifdef EMBED_PYTHON
@@ -226,6 +228,12 @@ void op_sdext() {
       }	else {
         sdme_err_rsp(process.status);      /* eror set in process.status */
       }
+      break;
+
+/* rev 0.9.0 set restore process euid and egid */
+    case SD_EUID_SET:
+    case SD_EUID_RESTORE:
+      sdext_eguid_set(key, SDMEArgArray[0]);
       break;
 
     /* 20240808 mab embedding python? */

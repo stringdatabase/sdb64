@@ -18,8 +18,15 @@
 * 
 * 
 * START-HISTORY:
-* 20240330 mab rev 064 mods to $LOGINS / ACCOUNTS
+* rev 0.9.0 Jan 25 mab change permission required for account login, must now either be;
+*                      1) users ACCOUNT
+*                      2) member of the ACCOUNT's linux group
+*                      regardles must be a member of sdusers
+*                      3) if user started with sudo sd, cproc should have set K$ADMINISTRATOR
+*                         and dropped user to sdsys. we no longer test system(27) (uid of process)
+*
 * 20240612 dsm removed read/write $LOGINS
+* 20240330 mab rev 064 mods to $LOGINS / ACCOUNTS
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * END-HISTORYPTION:
 *
@@ -149,7 +156,7 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
       *display "[ ScarletDME Rev " : SD.REV.STAMP : "   Copyright Ladybridge Systems, " : SD.COPYRIGHT.YEAR : " ]"
 * 20240126 mab add revstamp mods, VM rev and SD rev * 
       display "SD, the Multivalue String Database, version " : SD.REV.STAMP : ", Virtual Machine Version ": VM.REV.STAMP
-      display "(c) 2000-2024 by Ladybridge Systems and Other Contributors"
+      display "(c) 2000-2025 by Ladybridge Systems and Other Contributors"
       display
       * following must be left to comply with clause 1 of the gpl licence
       display "This program is free software and is supplied with ABSOLUTELY NO WARRANTY."
@@ -164,9 +171,6 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
       display sysmsg(2200) ;* Cannot open accounts register
       goto terminate.connection
    end
-
-   * Open the $LOGINS file
-   
 
 * 20240219 mab always run in secure mode, no changes allowed to K$SECURE flag!! * 
 *               we also no longer allow telnet connections via the internal
@@ -187,10 +191,6 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 	 end
   end
 
-* 20240330 mab for sd the only way to be an admin is to be root
-* Set administrator rights if appropriate
-*   i = kernel(K$ADMINISTRATOR, lgn.rec<LGN$ADMIN>)
-
    s = pterm(PT$INVERT, @true)
 
    * Determine account
@@ -209,13 +209,14 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 
 
          * 20240330 mab must be privilaged to enter sdsys
-         IF upcase(initial.account) = "SDSYS" and system(27) > 0 then            
+         IF (upcase(initial.account) = "SDSYS") and not(kernel(K$ADMINISTRATOR,-1)) then            
             display sysmsg(10002) ;* SDSYS Account access is restricted to privileged users
             goto terminate.connection
          end
 
-         * 20240330 mab user's access to account is spec in ACCOUNTS Rec<ACC$USERS>
-         IF not(locate(lgn.id,acc.rec,ACC$USERS,1)) then            
+* rev 0.9.0 *  user must be a member of ACCOUNT's linux group to access ACCOUNT
+*
+         if  not(is_grp_member(lgn.id,acc.rec<ACC$GROUP>)) then  
             display sysmsg(10003) ;* User not allowed in requested account
             goto terminate.connection
          end
@@ -229,9 +230,9 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 
          
 
-* 20240323 mab if sd command issued with sudo (system(27) = 0 )
+* 20240323 mab if sd command issued with sudo (K$ADMINISTRATOR set by cproc)
 *   and no account given wirh -a command, assume sdsys 
-      case system(27) = 0  ;* user id 0, "sudo sd"
+      case kernel(K$ADMINISTRATOR,-1)  ;* user id 0, "sudo sd"
          initial.account = "SDSYS"
 
          read acc.rec from acc.f, initial.account else

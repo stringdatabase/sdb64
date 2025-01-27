@@ -18,6 +18,17 @@
 * 
 * 
 * START-HISTORY:
+* rev 0.9.0 Jan 25 mab change permission required for account logto, must now either be;
+*                      1) users ACCOUNT
+*                      2) member of the ACCOUNT's linux group
+*                      3) use euid_set / euid_restore to change process euid/egid if we are root
+*                         doing this to prevent sd from running at root level when unneccesary 
+*   special note:      At install we cannot reduce running privialges to sdsys, none of the groups are effective
+*                      casuing all sorts for access issues.  To get around this CPROC must be complied with
+*                      IS_INSTALL defined.  This define statement will be found in GPL.BP file "define_install.h"
+*                      The install script overwrites this file with IS_INSTALL commented out, and CPROC will be
+*                      recomplied.
+*                      
 * 20240615 mab  mods for bootstrap builder
 * 20240330 mab restrict logto account to allowed users
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
@@ -133,9 +144,24 @@ $include keyin.h
 $include menu.h
 $include keycode.h
 
+* rev 0.9.0  at install we cannot reduce running privialges to sdsys, none of the groups are effective
+*            casuing all sorts for access issues.  To get around this CPROC must be complied with
+*            IS_INSTALL defined.  This define statement will be found in GPL.BP file "define_install.h"
+*            The install script overwrites this file with IS_INSTALL commented out when completed
+*            
+$include define_install.h
+
 deffun errtext(err) calling '!errtext'
+* rev 0.9.0 *
+deffun is_grp_member(user,group) calling '!is_grp_member'
 
 $define max.elements 500
+
+* rev 0.9.0 define commands requiring admin (root) privilege 
+   privileged_commands = ''
+   privileged_commands<-1> = "$CREATEA"  ;*"CREATE.ACCOUNT"
+   privileged_commands<-1> = "$DELACC"   ;*"DELETE.ACCOUNT"
+   privileged_commands<-1> = "$MODIFYA"  ;*"MODIFY.ACCOUNT"
 
    logto.reset = @false      ;* 0555
 
@@ -237,10 +263,30 @@ restart.cproc:
       gosub reset.environment
 
       prompt ''
+* rev 0.9.0 entered as root?   
+* if we run as root, and the root umask is usually 022, that will not work for us
+   
+      if umask(002) then null
+ 
+*           drop to sdsys, and set K$ADMINISTRATOR)       
+      if system(27) = 0 then           ;* entered as root?
+$ifndef IS_INSTALL
+        call !EUID_SET('sdsys',rstat)  ;* yes, drop to sdsys
+        if rstat > 0 then
+          crt 'Warning: failed to resend root priviages, error: ':status()
+        end else
+          logname = kernel(K$USERNAME, 0)    ;* set the username in syscom to sdsys
+        end
+$endif
+        void kernel(K$ADMINISTRATOR, 1)   ;* set admin bit
+      end
       
       i = '$LOGIN'
       call @i(j,0)
       if not(j) then goto abort.cproc
+
+
+      
       i = ''
 
       gosub get.voc.parser.rec
@@ -1394,7 +1440,32 @@ reparse:
             begin case
                case dispatch.mode = "CA"  ;* Catalogued command
                   s = voc.rec<3>
+* rev 0.9.0
+* this is the point that a command defined in voc as type "CA" is execute
+* we check to see if the command is in out list of commands requiring addition priviliges 
+* we skip this during install
+$ifndef IS_INSTALL
+                  priv_required = 0    
+                  locate s in privileged_commands<1> setting priv_required then
+                     priv_required = 1 
+*                    * must raise  privilige 
+                    call !EUID_RESTORE(rstat)  ;* restore root privilages
+                    if rstat > 0 then
+                       crt 'Warning: failed to restore root privilages, command may fail, error: ':status() 
+                    end
+                  end  
+$endif       
                   call @s
+                  
+$ifndef IS_INSTALL 
+                  if priv_required then
+                     call !EUID_SET('sdsys',rstat)  ;* drop back to sdsys
+                     if rstat > 0 then
+                        crt 'Warning: failed to resend root priviages, error: ':status()
+                     end
+                  end
+$endif
+                  
                   s = ''   ;* Allow unload of object code
 
                case dispatch.mode = "CS"  ;* Catalogued subroutine
@@ -2432,9 +2503,8 @@ int.logto:
    * acc.rec contains the pathname of the account (other fields removed)
    * acc.record contains the full ACCOUNT record 
 
-* 20240330 mab user must be allowed in new account   
-
-   IF not(locate(@logname,acc.record,ACC$USERS,1)) then            
+* rev 0.9.0 * is user member of account?   
+   if  not(is_grp_member(@logname,acc.record<ACC$GROUP>)) then
       display sysmsg(10003) ;* User not allowed in requested account
       if ospath(account.path, OS$CD) then return
       display sysmsg(5162) ;* Fatal error : Cannot return to previous account
