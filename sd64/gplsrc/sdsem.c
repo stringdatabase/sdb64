@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * rev 0.9.0 Jan 25 d-chou add IPC_NOWAIT and RelinquishTimeslice (sched_yield) to LockSemaphore
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -29,6 +30,7 @@
 
 #include "sd.h"
 #include <sys/sem.h>
+#include <sched.h>
 
 /* ======================================================================
    get_semaphores()  -  Get inter-process semaphores                      */
@@ -97,9 +99,11 @@ void delete_semaphores() {
    Variants on StartExclusive and EndExclusive for use with no shared mem */
 
 void LockSemaphore(int semno) {
+// rev 0.9.0  
   static struct sembuf sem_lock = {0, -1, IPC_NOWAIT};
   sem_lock.sem_num = semno;
   while (semop(semid, &sem_lock, 1)) {
+// rev 0.9.0     
   	RelinquishTimeslice;
   }
 }
