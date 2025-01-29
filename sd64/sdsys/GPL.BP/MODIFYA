@@ -68,6 +68,9 @@ deffun is_group(group) calling '!is_group'
    end
    *
    acc.name = upcase(acc.name)   ;* account names are always upper case
+   if acc.name = 'SDSYS' then
+      stop sysmsg(2202) ;* Account name is invalid
+   end   
    *
    read acc.rec from acc.f, acc.name else      
       stop sysmsg(6003) ;* Account name is invalid

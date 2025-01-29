@@ -34,7 +34,7 @@
 *    CREATE.ACCOUNT USER <user acct name>  {NO.QUERY}  - account created in  /home/sd/user_accounts/<user acct name>  owner:group set to <username>:"sdu_"+<username>
 *                                                 <username> must be found in sdusers group!
 *    CREATE.ACCOUNT GROUP <grp acct name>  {NO.QUERY}  - account created in  /home/sd/group_accounts/<grp acct name> owner:group set to sdsys:group_name
-*                                                        Note - users will need to be added to group with sudo usermod -aG group_name username
+*                                                        Note - users will need to be added to group with MODIFY.ACCOUNT ADD group_name username
 *    CREATE.ACCOUNT OTHER acc.name pathname {NO.QUERY} - account created in pathname, maintained for backwards compatiblilty. This will require manual editing
 *                                                        of the accounts record to specify linux group the account belongs to.
 *
@@ -61,7 +61,7 @@ $include err.h
 deffun is_grp_member(user,group) calling '!is_grp_member'
 * rev 0.9.0 *
 deffun is_group(group) calling '!is_group'
-
+deffun is_user(uname) calling '!is_user'
    prompt ''
 
 * rev 0.9.0 create-account requires admin priv, are we admin?
@@ -100,37 +100,37 @@ deffun is_group(group) calling '!is_group'
      if pathname = '' then pathname = '/home/sd/user_accounts'
      call @parser(PARSER$GET.TOKEN, token.type, acc.uname, keyword)
      if token.type = PARSER$END then stop
-     * is this user a member or sdusers?
-     if not(is_grp_member(acc.uname,'sdusers')) then
-       stop sysmsg(5009) ;* This user is not registered for String Database (sd) use
+     * Is the user a valid os user?
+     if not(is_user(acc.uname)) then
+       stop sysmsg(6074)  ;*    Invalid user name
      end
-
+     * is user reserved?
+     if upcase(acc.uname) = 'SDSYS' then
+       stop sysmsg(6052) ;* User name is invalid
+     end 
+     if upcase(acc.uname) = 'SDUSERS' then
+       stop sysmsg(6052) ;* User name is invalid
+     end 
+     
      * save uid and gid for set.owner of USER account
      uid = acc.uname  
      gid = "sdu_":acc.uname
      pathname := @ds:acc.uname
      acc.name = acc.uname
-     * rev 0.9.0 *	   
-	 group_name = gid       
-	 gosub create.group
-     if not(group_success) then
-       stop
-     end
-*   
+     
+
    case upcase(acc.type) = 'GROUP' 
 *    CREATE.ACCOUNT GROUP <grp acct name>  {NO.QUERY}     
-       pathname = CONFIG('GRPDIR')
-       if pathname = '' then pathname = '/home/sd/group_accounts'
-       call @parser(PARSER$GET.TOKEN, token.type, acc.name, keyword)
-       if token.type = PARSER$END then stop
-       pathname := @ds:acc.name
-* rev 0.9.0 *	   
-	   group_name = acc.name      ;* callers entered group name, no changes to group_name case 
-	   gosub create.group
-       if not(group_success) then
-         stop
-       end
-	   
+     pathname = CONFIG('GRPDIR')
+     if pathname = '' then pathname = '/home/sd/group_accounts'
+     call @parser(PARSER$GET.TOKEN, token.type, acc.name, keyword)
+     if token.type = PARSER$END then stop
+     pathname := @ds:acc.name
+     if upcase(acc.name) = 'SDUSERS' then
+       stop sysmsg(2202) ;* Account name is invalid
+     end        
+
+       
 *
    case upcase(acc.type) = 'OTHER'  
 * process as original 
@@ -284,16 +284,57 @@ deffun is_group(group) calling '!is_group'
 *
       if upcase(acc.type) = "GROUP"  or  upcase(acc.type) = "USER" then
         OS.EXECUTE "sudo chmod g+s ":pathname 
-		stat = OS.ERROR()
-		if stat = 0 then
-		  crt 'setgid bit set on: ':pathname 
-		end else
-		  crt 'Warning unable to setgid bit on: ':pathname:' status - ':stat
-	    end
+        stat = OS.ERROR()
+        if stat = 0 then
+          crt 'setgid bit set on: ':pathname 
+        end else
+          crt 'Warning unable to setgid bit on: ':pathname:' status - ':stat
+        end
       end
-*       
 
+      
+     * rev 0.9.0  create group for the account *   
+      begin case
+      case upcase(acc.type) = "USER" 
+
+     *  is this user a member or sdusers?
+        if not(is_grp_member(acc.uname,'sdusers')) then
+         * not a member, add them
+          os.execute "sudo usermod -aG sdusers ":acc.uname
+          stat = OS.ERROR()
+          if stat = 0 then
+            crt acc.uname: ' added to sdusers'
+          end else
+            crt 'unable to add user ': acc.uname : ' to sdusers, status: ':stat
+            stop
+          end
+        end 
+      
+       
+      *
+      * create user's sd group      
+        group_name = "sdu_":acc.uname      
+        gosub create.group  
+        if not(group_success) then
+          stop
+        end
+      case upcase(acc.type) = "GROUP" 
+      *
+      * create account's sd group          
+        group_name = acc.name      ;* callers entered group name, no changes to group_name case 
+        gosub create.group
+        if not(group_success) then
+          stop
+        end     
+      end case
+      
+      *      
+*     make the accountfolders and copy files    
+*     Note --> if there is a failure in make.account the program terminates
+*     We could end up with groups created and no acctual account
+*
       gosub make.account
+      
 
  * 20240225 mab set file ownership for account parent dir
       set.owner.path = pathname
@@ -531,7 +572,7 @@ set.owner:
         gid='sdusers'
    end case
    chown_parm = uid:@VM:gid:@VM:set.owner.path
-   * print 'set.owner: ':chown_parm
+   * crt 'set.owner: ':chown_parm
    result = ospath(chown_parm,OS$CHOWN)
    if result <= 0 then
      st = set.owner.path:' err: ':status()
@@ -559,7 +600,7 @@ create.group:  *
  group_success = @TRUE 
 *
 * does group already exist in /etc/group?
-*	   
+*      
    if not(is_group(group_name)) then 
 *
 * no, attempt to create it
@@ -569,13 +610,13 @@ create.group:  *
       end else
         OS.EXECUTE "sudo groupadd -U root,sdsys ": group_name
       end
-	  group_stat = OS.ERROR()
-	  if group_stat = 0 then
-		crt 'group - ':group_name:' created'
-	  end else
-	    crt 'unable to create group - ':group_name:' status - ':group_stat
-		group_success = @FALSE
-	  end
+      group_stat = OS.ERROR()
+      if group_stat = 0 then
+        crt 'group - ':group_name:' created'
+      end else
+        crt 'unable to create group - ':group_name:' status - ':group_stat
+        group_success = @FALSE
+      end
    end
 return
 
