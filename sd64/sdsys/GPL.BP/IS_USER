@@ -28,7 +28,7 @@
 *    is username a valid linux user (found in /etc/passwd)
 *
 *    This function sets the STATUS() value to 0 if successful, 1 if the
-*    specified group does not exist.
+*    specified user does not exist.
 *
 * END-DESCRIPTION
 *

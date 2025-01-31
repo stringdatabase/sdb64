@@ -62,6 +62,7 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 * rev 0.9.0 *
 deffun is_group(group) calling '!is_group'
 deffun is_user(uname) calling '!is_user'
+deffun create_user(uname) calling '!create_user'
    prompt ''
 
 * rev 0.9.0 create-account requires admin priv, are we admin?
@@ -102,13 +103,29 @@ deffun is_user(uname) calling '!is_user'
      if token.type = PARSER$END then stop
      * Is the user a valid os user?
      if not(is_user(acc.uname)) then
-       stop sysmsg(6074)  ;*    Invalid user name
+       * no, are we configured to auto create os user?
+       If config('CREATUSR') then
+       * yes, attempt to create os user
+         if not(create_user(acc.uname)) then
+           * create user failed
+           @system.return.code = ER$NOT.CREATED
+           crt 'Create User Failed, OS Error: ':STATUS()
+           stop 
+         end
+         
+       end else
+       * no, error out
+         @system.return.code = -ER$ARGS
+         stop sysmsg(6074)  ;*    Invalid user name 
+       end
      end
      * is user reserved?
      if upcase(acc.uname) = 'SDSYS' then
+       @system.return.code = -ER$ARGS
        stop sysmsg(6052) ;* User name is invalid
      end 
      if upcase(acc.uname) = 'SDUSERS' then
+       @system.return.code = -ER$ARGS
        stop sysmsg(6052) ;* User name is invalid
      end 
      
@@ -127,6 +144,7 @@ deffun is_user(uname) calling '!is_user'
      if token.type = PARSER$END then stop
      pathname := @ds:acc.name
      if upcase(acc.name) = 'SDUSERS' then
+       @system.return.code = -ER$ARGS
        stop sysmsg(2202) ;* Account name is invalid
      end        
 
@@ -146,6 +164,7 @@ deffun is_user(uname) calling '!is_user'
 *   invalid command arg
 * rev 0.9.0 
     crt 'Command Syntax: CREATE.ACCOUNT USER | GROUP <user name | group name>  {NO.QUERY}'
+    @system.return.code = -ER$ARGS
     stop 
    end case
 
@@ -224,6 +243,7 @@ deffun is_user(uname) calling '!is_user'
 
    * Check parent directory exists
 
+
    if index(pathname, @ds, 1) then
       parent.dir = field(pathname, @ds, 1, dcount(pathname, @ds) - 1)
       if parent.dir # '' and not(parent.dir matches "1A':") then
@@ -237,26 +257,13 @@ deffun is_user(uname) calling '!is_user'
    pathname = ospath(pathname, OS$FULLPATH)
 
    * Check if account directory exists
+   * rev 0.9.0 we no longer support conversion of existing directoris to sd accounts
+   * too many unknows with whether this is a non sd type account (Scarlett or other)
 
    if ospath(pathname, OS$EXISTS) then
-      * Check for presence of a VOC file
-      openpath pathname:@ds:'VOC' to voc.f then
-         if not(no.query) then
-            display sysmsg(6009) ;* Directory already contains a VOC file
-            loop
-               display sysmsg(6010) :  ;* Add to ACCOUNTS register (Y/N)?
-               input yn
-               yn = upcase(yn)
-               if yn = 'N' then
-                  @system.return.code = -ER$STOPPED
-                  stop sysmsg(6011) ;* Account not created
-               end
-            until yn = 'Y'
-            repeat
-         end
-      end else
-         gosub make.account
-      end
+      crt 'Cannot Create a New SD Account in an Existing Directory'
+      @system.return.code = -ER$NOT.CREATED
+      stop
    end else
       if not(no.query) then
          loop
@@ -306,6 +313,7 @@ deffun is_user(uname) calling '!is_user'
             crt acc.uname: ' added to sdusers'
           end else
             crt 'unable to add user ': acc.uname : ' to sdusers, status: ':stat
+            @system.return.code = -ER$FAILED
             stop
           end
         end 
@@ -405,6 +413,8 @@ make.account:
 *  I am only converting the ones in newvoc I know about, if any get added you will get error
 * "Unable change ownership of directory error <fn>"
 *  And need to revised this Kludge. A routine to handle all cases could be written, but I am not doing it, sorry
+* $define K$MAP.DIR.IDS     51       ;* Enable/disable dir file id mapping - but not sure this will work here,
+*  we are dealing with file actions outside of sd (chown).
          Begin Case
            case id = '%'
              fnid = '%P'
