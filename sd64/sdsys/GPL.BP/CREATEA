@@ -63,6 +63,8 @@ deffun is_grp_member(user,group) calling '!is_grp_member'
 deffun is_group(group) calling '!is_group'
 deffun is_user(uname) calling '!is_user'
 deffun create_user(uname) calling '!create_user'
+deffun set_passwd(uname)  calling '!set_passwd'
+
    prompt ''
 
 * rev 0.9.0 create-account requires admin priv, are we admin?
@@ -101,24 +103,52 @@ deffun create_user(uname) calling '!create_user'
      if pathname = '' then pathname = '/home/sd/user_accounts'
      call @parser(PARSER$GET.TOKEN, token.type, acc.uname, keyword)
      if token.type = PARSER$END then stop
+     * any other args? (specifically no.query)
+     * rem we may abort in this routine
+     gosub more.args
+     
      * Is the user a valid os user?
-     if not(is_user(acc.uname)) then
-       * no, are we configured to auto create os user?
+     * We first check user name as entered, then force to lower case and re check
+     begin case
+     
+     case is_user(acc.uname)
+       null ;* user name as entered is valid
+  
+     case is_user(downcase(acc.uname))
+       * lower is a valid user, use it
+       acc.uname = downcase(acc.uname)
+ 
+     case no.query
+       * we don't have a valid user name and option no query specified, this will not work!
+         @system.return.code = -ER$ARGS
+         stop sysmsg(6074)  ;*    Invalid user name 
+       
+     case 1
+       * not a valid os user, are we configured to auto create os user?
        If config('CREATUSR') then
        * yes, attempt to create os user
+       * sd convention is os user names are lowercase, if you don't want this, pre create the os user
+         acc.uname = downcase(acc.uname)
          if not(create_user(acc.uname)) then
            * create user failed
            @system.return.code = ER$NOT.CREATED
-           crt 'Create User Failed, OS Error: ':STATUS()
-           stop 
+           stop sysmsg(10006,STATUS()) ;* Create User Failed, OS Error: %1
+         end else
+           crt sysmsg(10007,acc.uname)  ;* 'User ':acc.uname:' Created' 
+           * user created set passowrd
+           if not(set_passwd(acc.uname)) then
+           *  password failed
+              crt sysmsg(10008) ;* 'Warning, user created but password not set'
+           end
          end
          
        end else
-       * no, error out
+       * not configured to create user, error out
          @system.return.code = -ER$ARGS
          stop sysmsg(6074)  ;*    Invalid user name 
        end
-     end
+     end case
+     
      * is user reserved?
      if upcase(acc.uname) = 'SDSYS' then
        @system.return.code = -ER$ARGS
@@ -147,18 +177,27 @@ deffun create_user(uname) calling '!create_user'
        @system.return.code = -ER$ARGS
        stop sysmsg(2202) ;* Account name is invalid
      end        
-
+     * any other args? (specifically no.query)
+     * rem we may abort in this routine
+     gosub more.args
        
 *
    case upcase(acc.type) = 'OTHER'  
-* process as original 
-       call @parser(PARSER$GET.TOKEN, token.type, acc.name, keyword)
-       if token.type = PARSER$END then
-         display sysmsg(6001) :  ;* Account name:
-         input acc.name
-         acc.name = upcase(trim(acc.name))
-         if acc.name = '' then stop
-       end
+*  CREATE.ACCOUNT OTHER <acc name> <path> {NO.QUERY} 
+     * get account name
+     call @parser(PARSER$GET.TOKEN, token.type, acc.name, keyword)
+     if token.type = PARSER$END then stop
+     if upcase(acc.name) = 'SDUSERS' then
+       @system.return.code = -ER$ARGS
+       stop sysmsg(2202) ;* Account name is invalid
+     end 
+     * Get pathname
+     call @parser(parser$get.token, token.type, pathname, keyword)
+     if token.type = PARSER$END then stop
+     pathname = trim(pathname)
+     * any other args? (specifically no.query)
+     * rem we may abort in this routine
+     gosub more.args
 *
    case 1
 *   invalid command arg
@@ -185,52 +224,12 @@ deffun create_user(uname) calling '!create_user'
       stop sysmsg(6003) ;* Account name is invalid
    end
 
-   * Get and process pathname
-   if acc.type = "OTHER" then
-      call @parser(parser$get.token, token.type, pathname, keyword)
-      if token.type = PARSER$END then
-         dflt.dir = ''
-         openpath @sdsys:@ds:'VOC' to sdsys.voc then
-            read voc.rec from sdsys.voc, '$ACCOUNT.ROOT.DIR' then
-               if upcase(voc.rec[1,1]) = 'X' then
-                  dflt.dir = voc.rec<2>
-                  if dflt.dir[1] # @ds then dflt.dir := @ds
-                  dflt.dir := acc.name
-               end
-            end
-            close sdsys.voc
-         end
-
-         if dflt.dir # '' then
-            display sysmsg(6034, dflt.dir) :  ;* Pathname:
-         end else
-            display sysmsg(6004) :  ;* Pathname:
-         end
-         input pathname
-         if pathname = '' then pathname = dflt.dir
-         pathname = trim(pathname)
-      end
-   end
-
    * Validate pathname
 
    if not(ospath(pathname, OS$PATHNAME)) then
       stop sysmsg(6005) ;* Invalid account pathname
    end
 
-   * Check for further command arguments
-
-   loop
-      call @parser(parser$get.token, token.type, token, keyword)
-   until token.type = PARSER$END
-      begin case
-         case keyword = KW$NO.QUERY
-            no.query = @true
-
-         case 1
-            stop sysmsg(2018, token) ;* Unexpected token (xx)
-      end case
-   repeat
 
    * Check if already exists in ACCOUNTS file
 
@@ -261,9 +260,8 @@ deffun create_user(uname) calling '!create_user'
    * too many unknows with whether this is a non sd type account (Scarlett or other)
 
    if ospath(pathname, OS$EXISTS) then
-      crt 'Cannot Create a New SD Account in an Existing Directory'
       @system.return.code = -ER$NOT.CREATED
-      stop
+      stop sysmsg(10009) ;* 'Cannot Create a New SD Account in an Existing Directory'
    end else
       if not(no.query) then
          loop
@@ -293,9 +291,9 @@ deffun create_user(uname) calling '!create_user'
         OS.EXECUTE "sudo chmod g+s ":pathname 
         stat = OS.ERROR()
         if stat = 0 then
-          crt 'setgid bit set on: ':pathname 
+          crt sysmsg(10010,pathname)  ;* setgid bit set on: %s 
         end else
-          crt 'Warning unable to setgid bit on: ':pathname:' status - ':stat
+          crt sysmsg(10011,stat) ;* 'Warning unable to setgid bit on Group Folder, status: %d
         end
       end
 
@@ -310,11 +308,10 @@ deffun create_user(uname) calling '!create_user'
           os.execute "sudo usermod -aG sdusers ":acc.uname
           stat = OS.ERROR()
           if stat = 0 then
-            crt acc.uname: ' added to sdusers'
+            crt sysmsg(10013,acc.uname)   ;* %s added to sdusers'
           end else
-            crt 'unable to add user ': acc.uname : ' to sdusers, status: ':stat
             @system.return.code = -ER$FAILED
-            stop
+            stop sysmsg(10012,acc.uname,stat) ;* Unable to add user %s to sdusers, status: %d
           end
         end 
       
@@ -505,7 +502,22 @@ make.account:
 
 
    return
+   
+* ======================================================================
+   * Check for further command arguments
+more.args:
+   loop
+      call @parser(parser$get.token, token.type, token, keyword)
+   until token.type = PARSER$END
+      begin case
+         case keyword = KW$NO.QUERY
+            no.query = @true
 
+         case 1
+            stop sysmsg(2018, token) ;* Unexpected token (xx)
+      end case
+   repeat   
+return
 * ======================================================================
 
 create.dir.file:
@@ -622,9 +634,9 @@ create.group:  *
       end
       group_stat = OS.ERROR()
       if group_stat = 0 then
-        crt 'group - ':group_name:' created'
+        crt sysmsg(10014,group_name)   ;* Group -  %s created
       end else
-        crt 'unable to create group - ':group_name:' status - ':group_stat
+        crt sysmsg(10015,group_name,group_stat)   ;* Unable to create group: %s status: %d
         group_success = @FALSE
       end
    end
