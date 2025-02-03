@@ -108,9 +108,23 @@ deffun set_passwd(uname)  calling '!set_passwd'
      gosub more.args
      
      * Is the user a valid os user?
-     * We first check user name as entered, then force to lower case and re check
+     * Check reserved names then
+     * Check user name as entered, then force to lower case and re check
      begin case
      
+     * is user reserved?
+     case upcase(acc.uname) = 'ROOT' 
+       @system.return.code = -ER$ARGS
+       stop sysmsg(6052) ;* User name is invalid
+     
+     case upcase(acc.uname) = 'SDSYS' 
+       @system.return.code = -ER$ARGS
+       stop sysmsg(6052) ;* User name is invalid
+      
+     case upcase(acc.uname) = 'SDUSERS' 
+       @system.return.code = -ER$ARGS
+       stop sysmsg(6052) ;* User name is invalid
+          
      case is_user(acc.uname)
        null ;* user name as entered is valid
   
@@ -149,15 +163,6 @@ deffun set_passwd(uname)  calling '!set_passwd'
        end
      end case
      
-     * is user reserved?
-     if upcase(acc.uname) = 'SDSYS' then
-       @system.return.code = -ER$ARGS
-       stop sysmsg(6052) ;* User name is invalid
-     end 
-     if upcase(acc.uname) = 'SDUSERS' then
-       @system.return.code = -ER$ARGS
-       stop sysmsg(6052) ;* User name is invalid
-     end 
      
      * save uid and gid for set.owner of USER account
      uid = acc.uname  
@@ -291,9 +296,9 @@ deffun set_passwd(uname)  calling '!set_passwd'
         OS.EXECUTE "sudo chmod g+s ":pathname 
         stat = OS.ERROR()
         if stat = 0 then
-          crt sysmsg(10010,pathname)  ;* setgid bit set on: %s 
+          crt sysmsg(10010,pathname)  ;* setgid bit set on: %1 
         end else
-          crt sysmsg(10011,stat) ;* 'Warning unable to setgid bit on Group Folder, status: %d
+          crt sysmsg(10011,stat) ;* 'Warning unable to setgid bit on Group Folder, status: %1
         end
       end
 
@@ -308,10 +313,10 @@ deffun set_passwd(uname)  calling '!set_passwd'
           os.execute "sudo usermod -aG sdusers ":acc.uname
           stat = OS.ERROR()
           if stat = 0 then
-            crt sysmsg(10013,acc.uname)   ;* %s added to sdusers'
+            crt sysmsg(10013,acc.uname)   ;* %1 added to sdusers'
           end else
             @system.return.code = -ER$FAILED
-            stop sysmsg(10012,acc.uname,stat) ;* Unable to add user %s to sdusers, status: %d
+            stop sysmsg(10012,acc.uname,stat) ;* Unable to add user %1 to sdusers, status: %2
           end
         end 
       
@@ -634,9 +639,9 @@ create.group:  *
       end
       group_stat = OS.ERROR()
       if group_stat = 0 then
-        crt sysmsg(10014,group_name)   ;* Group -  %s created
+        crt sysmsg(10014,group_name)   ;* Group -  %1 created
       end else
-        crt sysmsg(10015,group_name,group_stat)   ;* Unable to create group: %s status: %d
+        crt sysmsg(10015,group_name,group_stat)   ;* Unable to create group: %1 status: %2
         group_success = @FALSE
       end
    end
