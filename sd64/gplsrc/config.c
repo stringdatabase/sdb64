@@ -18,6 +18,7 @@
  *
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * rev 0.9.0 Jan 25 mab add CREATUSR - allow create.account to create os user
  * START-DESCRIPTION:
  *
  * Handles parsing of the configuration file.
@@ -94,6 +95,7 @@ struct CONFIG* read_config(char* errmsg) {
   /* !!CONFIG!! */
 
   pcfg.codepage = 0;      /* CODEPAGE: Console code page */
+  pcfg.create_user = 1;   /* allow create.account to create os user */
   pcfg.dumpdir[0] = '\0'; /* DUMPDIR:  Directory for process dump files */
   pcfg.exclrem = 0;       /* EXCLREM:  Exclude remote files in ACCOUNT.SAVE? */
   pcfg.filerule = 0;      /* FILERULE: File name rules (special forms) */
@@ -168,6 +170,8 @@ struct CONFIG* read_config(char* errmsg) {
         cfg->cmdstack = n;
       else if (sscanf(rec, "CODEPAGE=%d", &n) == 1)
         pcfg.codepage = n;
+      else if (sscanf(rec, "CREATUSR=%d", &n) == 1)
+        pcfg.create_user = (n != 0);
       else if (sscanf(rec, "DEADLOCK=%d", &n) == 1)
         cfg->deadlock = (n != 0);
       else if (sscanf(rec, "DEBUG=%d", &n) == 1)

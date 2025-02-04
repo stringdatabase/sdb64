@@ -185,9 +185,9 @@ $include err.h
    OS.EXECUTE "sudo groupdel ": group_name 
    stat = OS.ERROR()
    if stat = 0 then
-	  crt 'group - ':group_name:' Deleted'
+	  crt sysmsg(10025,group_name) ;* group: %1 Deleted
    end else
-	  crt 'Warning unable to delete group: ':group_name: ' error: ':stat
+	  crt sysmsg(10026,group_name, stat) ;* Warning unable to delete group: %1 error: %2
    end
 
    @system.return.code = 0

@@ -34,7 +34,7 @@
 *    CREATE.ACCOUNT USER <user acct name>  {NO.QUERY}  - account created in  /home/sd/user_accounts/<user acct name>  owner:group set to <username>:"sdu_"+<username>
 *                                                 <username> must be found in sdusers group!
 *    CREATE.ACCOUNT GROUP <grp acct name>  {NO.QUERY}  - account created in  /home/sd/group_accounts/<grp acct name> owner:group set to sdsys:group_name
-*                                                        Note - users will need to be added to group with sudo usermod -aG group_name username
+*                                                        Note - users will need to be added to group with MODIFY.ACCOUNT ADD group_name username
 *    CREATE.ACCOUNT OTHER acc.name pathname {NO.QUERY} - account created in pathname, maintained for backwards compatiblilty. This will require manual editing
 *                                                        of the accounts record to specify linux group the account belongs to.
 *
@@ -61,6 +61,9 @@ $include err.h
 deffun is_grp_member(user,group) calling '!is_grp_member'
 * rev 0.9.0 *
 deffun is_group(group) calling '!is_group'
+deffun is_user(uname) calling '!is_user'
+deffun create_user(uname) calling '!create_user'
+deffun set_passwd(uname)  calling '!set_passwd'
 
    prompt ''
 
@@ -100,52 +103,112 @@ deffun is_group(group) calling '!is_group'
      if pathname = '' then pathname = '/home/sd/user_accounts'
      call @parser(PARSER$GET.TOKEN, token.type, acc.uname, keyword)
      if token.type = PARSER$END then stop
-     * is this user a member or sdusers?
-     if not(is_grp_member(acc.uname,'sdusers')) then
-       stop sysmsg(5009) ;* This user is not registered for String Database (sd) use
-     end
-
+     * any other args? (specifically no.query)
+     * rem we may abort in this routine
+     gosub more.args
+     
+     * Is the user a valid os user?
+     * Check reserved names then
+     * Check user name as entered, then force to lower case and re check
+     begin case
+     
+     * is user reserved?
+     case upcase(acc.uname) = 'ROOT' 
+       @system.return.code = -ER$ARGS
+       stop sysmsg(6052) ;* User name is invalid
+     
+     case upcase(acc.uname) = 'SDSYS' 
+       @system.return.code = -ER$ARGS
+       stop sysmsg(6052) ;* User name is invalid
+      
+     case upcase(acc.uname) = 'SDUSERS' 
+       @system.return.code = -ER$ARGS
+       stop sysmsg(6052) ;* User name is invalid
+          
+     case is_user(acc.uname)
+       null ;* user name as entered is valid
+  
+     case is_user(downcase(acc.uname))
+       * lower is a valid user, use it
+       acc.uname = downcase(acc.uname)
+ 
+     case no.query
+       * we don't have a valid user name and option no query specified, this will not work!
+         @system.return.code = -ER$ARGS
+         stop sysmsg(6074)  ;*    Invalid user name 
+       
+     case 1
+       * not a valid os user, are we configured to auto create os user?
+       If config('CREATUSR') then
+       * yes, attempt to create os user
+       * sd convention is os user names are lowercase, if you don't want this, pre create the os user
+         acc.uname = downcase(acc.uname)
+         if not(create_user(acc.uname)) then
+           * create user failed
+           @system.return.code = ER$NOT.CREATED
+           stop sysmsg(10006,STATUS()) ;* Create User Failed, OS Error: %1
+         end else
+           crt sysmsg(10007,acc.uname)  ;* 'User ':acc.uname:' Created' 
+           * user created set passowrd
+           if not(set_passwd(acc.uname)) then
+           *  password failed
+              crt sysmsg(10008) ;* 'Warning, user created but password not set'
+           end
+         end
+         
+       end else
+       * not configured to create user, error out
+         @system.return.code = -ER$ARGS
+         stop sysmsg(6074)  ;*    Invalid user name 
+       end
+     end case
+     
+     
      * save uid and gid for set.owner of USER account
      uid = acc.uname  
      gid = "sdu_":acc.uname
      pathname := @ds:acc.uname
      acc.name = acc.uname
-     * rev 0.9.0 *	   
-	 group_name = gid       
-	 gosub create.group
-     if not(group_success) then
-       stop
-     end
-*   
+     
+
    case upcase(acc.type) = 'GROUP' 
 *    CREATE.ACCOUNT GROUP <grp acct name>  {NO.QUERY}     
-       pathname = CONFIG('GRPDIR')
-       if pathname = '' then pathname = '/home/sd/group_accounts'
-       call @parser(PARSER$GET.TOKEN, token.type, acc.name, keyword)
-       if token.type = PARSER$END then stop
-       pathname := @ds:acc.name
-* rev 0.9.0 *	   
-	   group_name = acc.name      ;* callers entered group name, no changes to group_name case 
-	   gosub create.group
-       if not(group_success) then
-         stop
-       end
-	   
+     pathname = CONFIG('GRPDIR')
+     if pathname = '' then pathname = '/home/sd/group_accounts'
+     call @parser(PARSER$GET.TOKEN, token.type, acc.name, keyword)
+     if token.type = PARSER$END then stop
+     pathname := @ds:acc.name
+     if upcase(acc.name) = 'SDUSERS' then
+       @system.return.code = -ER$ARGS
+       stop sysmsg(2202) ;* Account name is invalid
+     end        
+     * any other args? (specifically no.query)
+     * rem we may abort in this routine
+     gosub more.args
+       
 *
    case upcase(acc.type) = 'OTHER'  
-* process as original 
-       call @parser(PARSER$GET.TOKEN, token.type, acc.name, keyword)
-       if token.type = PARSER$END then
-         display sysmsg(6001) :  ;* Account name:
-         input acc.name
-         acc.name = upcase(trim(acc.name))
-         if acc.name = '' then stop
-       end
+*  CREATE.ACCOUNT OTHER <acc name> <path> {NO.QUERY} 
+     * get account name
+     call @parser(PARSER$GET.TOKEN, token.type, acc.name, keyword)
+     if token.type = PARSER$END then stop
+     if upcase(acc.name) = 'SDUSERS' then
+       @system.return.code = -ER$ARGS
+       stop sysmsg(2202) ;* Account name is invalid
+     end 
+     * Get pathname
+     call @parser(parser$get.token, token.type, pathname, keyword)
+     if token.type = PARSER$END then stop
+     pathname = trim(pathname)
+     * any other args? (specifically no.query)
+     * rem we may abort in this routine
+     gosub more.args
 *
    case 1
 *   invalid command arg
 * rev 0.9.0 
     crt 'Command Syntax: CREATE.ACCOUNT USER | GROUP <user name | group name>  {NO.QUERY}'
+    @system.return.code = -ER$ARGS
     stop 
    end case
 
@@ -166,52 +229,12 @@ deffun is_group(group) calling '!is_group'
       stop sysmsg(6003) ;* Account name is invalid
    end
 
-   * Get and process pathname
-   if acc.type = "OTHER" then
-      call @parser(parser$get.token, token.type, pathname, keyword)
-      if token.type = PARSER$END then
-         dflt.dir = ''
-         openpath @sdsys:@ds:'VOC' to sdsys.voc then
-            read voc.rec from sdsys.voc, '$ACCOUNT.ROOT.DIR' then
-               if upcase(voc.rec[1,1]) = 'X' then
-                  dflt.dir = voc.rec<2>
-                  if dflt.dir[1] # @ds then dflt.dir := @ds
-                  dflt.dir := acc.name
-               end
-            end
-            close sdsys.voc
-         end
-
-         if dflt.dir # '' then
-            display sysmsg(6034, dflt.dir) :  ;* Pathname:
-         end else
-            display sysmsg(6004) :  ;* Pathname:
-         end
-         input pathname
-         if pathname = '' then pathname = dflt.dir
-         pathname = trim(pathname)
-      end
-   end
-
    * Validate pathname
 
    if not(ospath(pathname, OS$PATHNAME)) then
       stop sysmsg(6005) ;* Invalid account pathname
    end
 
-   * Check for further command arguments
-
-   loop
-      call @parser(parser$get.token, token.type, token, keyword)
-   until token.type = PARSER$END
-      begin case
-         case keyword = KW$NO.QUERY
-            no.query = @true
-
-         case 1
-            stop sysmsg(2018, token) ;* Unexpected token (xx)
-      end case
-   repeat
 
    * Check if already exists in ACCOUNTS file
 
@@ -223,6 +246,7 @@ deffun is_group(group) calling '!is_group'
    end
 
    * Check parent directory exists
+
 
    if index(pathname, @ds, 1) then
       parent.dir = field(pathname, @ds, 1, dcount(pathname, @ds) - 1)
@@ -237,26 +261,12 @@ deffun is_group(group) calling '!is_group'
    pathname = ospath(pathname, OS$FULLPATH)
 
    * Check if account directory exists
+   * rev 0.9.0 we no longer support conversion of existing directoris to sd accounts
+   * too many unknows with whether this is a non sd type account (Scarlett or other)
 
    if ospath(pathname, OS$EXISTS) then
-      * Check for presence of a VOC file
-      openpath pathname:@ds:'VOC' to voc.f then
-         if not(no.query) then
-            display sysmsg(6009) ;* Directory already contains a VOC file
-            loop
-               display sysmsg(6010) :  ;* Add to ACCOUNTS register (Y/N)?
-               input yn
-               yn = upcase(yn)
-               if yn = 'N' then
-                  @system.return.code = -ER$STOPPED
-                  stop sysmsg(6011) ;* Account not created
-               end
-            until yn = 'Y'
-            repeat
-         end
-      end else
-         gosub make.account
-      end
+      @system.return.code = -ER$NOT.CREATED
+      stop sysmsg(10009) ;* 'Cannot Create a New SD Account in an Existing Directory'
    end else
       if not(no.query) then
          loop
@@ -284,16 +294,57 @@ deffun is_group(group) calling '!is_group'
 *
       if upcase(acc.type) = "GROUP"  or  upcase(acc.type) = "USER" then
         OS.EXECUTE "sudo chmod g+s ":pathname 
-		stat = OS.ERROR()
-		if stat = 0 then
-		  crt 'setgid bit set on: ':pathname 
-		end else
-		  crt 'Warning unable to setgid bit on: ':pathname:' status - ':stat
-	    end
+        stat = OS.ERROR()
+        if stat = 0 then
+          crt sysmsg(10010,pathname)  ;* setgid bit set on: %1 
+        end else
+          crt sysmsg(10011,stat) ;* 'Warning unable to setgid bit on Group Folder, status: %1
+        end
       end
-*       
 
+      
+     * rev 0.9.0  create group for the account *   
+      begin case
+      case upcase(acc.type) = "USER" 
+
+     *  is this user a member or sdusers?
+        if not(is_grp_member(acc.uname,'sdusers')) then
+         * not a member, add them
+          os.execute "sudo usermod -aG sdusers ":acc.uname
+          stat = OS.ERROR()
+          if stat = 0 then
+            crt sysmsg(10013,acc.uname)   ;* %1 added to sdusers'
+          end else
+            @system.return.code = -ER$FAILED
+            stop sysmsg(10012,acc.uname,stat) ;* Unable to add user %1 to sdusers, status: %2
+          end
+        end 
+      
+       
+      *
+      * create user's sd group      
+        group_name = "sdu_":acc.uname      
+        gosub create.group  
+        if not(group_success) then
+          stop
+        end
+      case upcase(acc.type) = "GROUP" 
+      *
+      * create account's sd group          
+        group_name = acc.name      ;* callers entered group name, no changes to group_name case 
+        gosub create.group
+        if not(group_success) then
+          stop
+        end     
+      end case
+      
+      *      
+*     make the accountfolders and copy files    
+*     Note --> if there is a failure in make.account the program terminates
+*     We could end up with groups created and no acctual account
+*
       gosub make.account
+      
 
  * 20240225 mab set file ownership for account parent dir
       set.owner.path = pathname
@@ -364,6 +415,8 @@ make.account:
 *  I am only converting the ones in newvoc I know about, if any get added you will get error
 * "Unable change ownership of directory error <fn>"
 *  And need to revised this Kludge. A routine to handle all cases could be written, but I am not doing it, sorry
+* $define K$MAP.DIR.IDS     51       ;* Enable/disable dir file id mapping - but not sure this will work here,
+*  we are dealing with file actions outside of sd (chown).
          Begin Case
            case id = '%'
              fnid = '%P'
@@ -454,7 +507,22 @@ make.account:
 
 
    return
+   
+* ======================================================================
+   * Check for further command arguments
+more.args:
+   loop
+      call @parser(parser$get.token, token.type, token, keyword)
+   until token.type = PARSER$END
+      begin case
+         case keyword = KW$NO.QUERY
+            no.query = @true
 
+         case 1
+            stop sysmsg(2018, token) ;* Unexpected token (xx)
+      end case
+   repeat   
+return
 * ======================================================================
 
 create.dir.file:
@@ -531,7 +599,7 @@ set.owner:
         gid='sdusers'
    end case
    chown_parm = uid:@VM:gid:@VM:set.owner.path
-   * print 'set.owner: ':chown_parm
+   * crt 'set.owner: ':chown_parm
    result = ospath(chown_parm,OS$CHOWN)
    if result <= 0 then
      st = set.owner.path:' err: ':status()
@@ -559,7 +627,7 @@ create.group:  *
  group_success = @TRUE 
 *
 * does group already exist in /etc/group?
-*	   
+*      
    if not(is_group(group_name)) then 
 *
 * no, attempt to create it
@@ -569,13 +637,13 @@ create.group:  *
       end else
         OS.EXECUTE "sudo groupadd -U root,sdsys ": group_name
       end
-	  group_stat = OS.ERROR()
-	  if group_stat = 0 then
-		crt 'group - ':group_name:' created'
-	  end else
-	    crt 'unable to create group - ':group_name:' status - ':group_stat
-		group_success = @FALSE
-	  end
+      group_stat = OS.ERROR()
+      if group_stat = 0 then
+        crt sysmsg(10014,group_name)   ;* Group -  %1 created
+      end else
+        crt sysmsg(10015,group_name,group_stat)   ;* Unable to create group: %1 status: %2
+        group_success = @FALSE
+      end
    end
 return
 

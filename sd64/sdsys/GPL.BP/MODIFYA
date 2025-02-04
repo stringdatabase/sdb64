@@ -68,6 +68,9 @@ deffun is_group(group) calling '!is_group'
    end
    *
    acc.name = upcase(acc.name)   ;* account names are always upper case
+   if acc.name = 'SDSYS' then
+      stop sysmsg(2202) ;* Account name is invalid
+   end   
    *
    read acc.rec from acc.f, acc.name else      
       stop sysmsg(6003) ;* Account name is invalid
@@ -83,8 +86,7 @@ deffun is_group(group) calling '!is_group'
       *   Get next token, user name
          call @parser(PARSER$GET.TOKEN, token.type, user.name, keyword) 
          if token.type = PARSER$END then
-            crt ' Missing User Name '
-            stop
+            stop sysmsg(10016)  ;* Missing User Name
          end
          
          if (upcase(action) = 'ADD') then
@@ -94,18 +96,19 @@ deffun is_group(group) calling '!is_group'
             * this user looks legit, add to group
             * first check to see if user is already a member of the group
                if is_grp_member(user.name,group.name) THEN
-                  crt user.name:' is already a member of ':group.name
+                  crt sysmsg(10017,user.name,group.name)  ;* %1 is already a member of group %2
                end else
                   os.execute "sudo usermod -aG ":group.name:" ":user.name
                   stat = OS.ERROR()
                   if stat = 0 then
-                     crt user.name : ' added to group ': group.name
+                     crt sysmsg(10018,user.name,group.name)  ;* %1 added to group %2
                   end else
-                     crt 'unable to add user ': user.name : ' to group ' :  group.name :' status:  ':stat
+                     crt sysmsg(10019,user.name,group.name,stat) ;* Unable to add user %1 to group %s status: %2
                   end
                end 
             end else
-               crt user.name: ' is not a member of sdsys, not allowed'
+               crt user.name
+               crt sysmsg(10020,user.name) ;* %1 is not a member of sdusers, not allowed
             end 
          
          end else
@@ -114,12 +117,12 @@ deffun is_group(group) calling '!is_group'
                os.execute "sudo deluser ":user.name:" ":group.name
                stat = OS.ERROR()
                   if stat = 0 then
-                     crt user.name : ' removed from group ': group.name
+                     crt sysmsg(10021,user.name,group.name) ;*  %1 removed from group %2
                   end else
-                     crt 'unable to remove user ':user.name: ' from group ' :group.name:' status:  ':stat
+                     crt sysmsg(10022,user.name,group.name,stat) ;* Unable to remove user %1 from group %s status: %2
                   end
             end else
-               crt user.name: ' is not a member of  ' : group.name
+               crt sysmsg(10023,user.name,group.name) ;* %1 is not a member of  %2
             end 
           
          end
@@ -130,6 +133,6 @@ deffun is_group(group) calling '!is_group'
       end 
    
    end else
-     crt group.name : ' is not a valid Linux Group'
+     crt sysmsg(10024,group.name) ;* %1 is not a valid Linux Group
    end
    END
