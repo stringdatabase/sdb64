@@ -23,6 +23,7 @@
 *           on sd directory creation, we set the setgid bit
 *           sd user's sd group is named sdu_<username>
 *           add %t  ~ to mapping sub 
+*           add ability to create os user
 * 20240330 mab rev 064 list of valid users required in ACCOUNTS<2>
 * 20240309 mab create file BP for new accounts
 * 20240219 mab dflt user and group parent directory for accounts
@@ -150,9 +151,12 @@ deffun set_passwd(uname)  calling '!set_passwd'
          end else
            crt sysmsg(10007,acc.uname)  ;* 'User ':acc.uname:' Created' 
            * user created set passowrd
+PW.TRY.AGAIN:           
            if not(set_passwd(acc.uname)) then
            *  password failed
-              crt sysmsg(10008) ;* 'Warning, user created but password not set'
+              crt sysmsg(10008): ;* 'Warning, user created but password not set, Retry (Y/N)'
+              input yn
+              if upcase(yn) = 'Y' then goto PW.TRY.AGAIN
            end
          end
          
@@ -268,19 +272,7 @@ deffun set_passwd(uname)  calling '!set_passwd'
       @system.return.code = -ER$NOT.CREATED
       stop sysmsg(10009) ;* 'Cannot Create a New SD Account in an Existing Directory'
    end else
-      if not(no.query) then
-         loop
-            display sysmsg(6012) :  ;* Create new directory for account (Y/N)?
-            input yn
-            yn = upcase(yn)
-            if yn = 'N' then
-               @system.return.code = -ER$STOPPED
-               stop sysmsg(6011) ;* Account not created
-            end
-         until yn = 'Y'
-         repeat
-      end
-
+   * create the new account directory  
       create.file pathname directory on error
          @system.return.code = -ER$NOT.CREATED
          stop sysmsg(6013) ;* Unable to create account directory
