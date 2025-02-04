@@ -18,6 +18,7 @@
  *
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * rev 0.9.0 Jan 25 mab add CREATUSR allow create.account to create os user
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -65,6 +66,8 @@ void op_config() {
     result.data.value = sysseg->cmdstack;
   else if (!strcmp(param, "CODEPAGE"))
     result.data.value = pcfg.codepage;
+  else if (!strcmp(param, "CREATUSR"))
+    result.data.value = pcfg.create_user;  
   else if (!strcmp(param, "DEADLOCK"))
     result.data.value = sysseg->deadlock;
   else if (!strcmp(param, "DEBUG"))
@@ -219,6 +222,7 @@ void op_pconfig() {
   if (!strcmp(param, "CODEPAGE")) {
     GetInt(descr);
     pcfg.codepage = descr->data.value;
+    
   } else if (!strcmp(param, "DUMPDIR")) {
     k_get_string(descr);
     if ((str = descr->data.str.saddr) == NULL)

@@ -18,6 +18,7 @@
  * 
  * START-HISTORY
  * 31 Dec 23 SD launch - prior history suppressed
+ * rev 0.9.0 Jan 25 mab add create_user
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -64,6 +65,7 @@ struct PCFG  {
 /* 20240219 mab mods to handle AF_UNIX sockets, security mode */ 
   int16_t api_login;                    /* REQUIRE API LOGIN  APILOGIN 0 = UserName and Password are NOT validated, run as peer user. 1 = UserName and Password validated */
   unsigned int codepage;                /* CODEPAGE: Set console codepage */
+  bool create_user;                     /* allow create account to create os user */
   char dumpdir[MAX_PATHNAME_LEN+1];     /* DUMPDIR:  Directory for process dump files */
   bool exclrem;                         /* EXCLREM:  Exclude remote files from ACCOUNT.SAVE? */
   int16_t filerule;                     /* FILERULE: Rules for special filename formats */
