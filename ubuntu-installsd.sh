@@ -29,7 +29,7 @@ echo
 echo "For this install script to work you must have sudo installed"
 echo "and be a member of the sudo group."
 echo
-echo "Installer tested on Debian 12.8, Ubuntu 24.04 and Mint 22."
+echo "Installer tested on Ubuntu 24.04 Desktop & Server and Mint 22."
 echo
 read -p "Continue? (y/N) " yn
 case $yn in
