@@ -14,10 +14,10 @@
 * along with this program; if not, write to the Free Software Foundation,
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
-PROGRAM SDEDIT
+PROGRAM MICRO
 
 $internal
-$catalog $SDEDIT
+$catalog $MICRO
 
 *************************************************************
 * Main Program                                              *
@@ -25,12 +25,10 @@ $catalog $SDEDIT
 
 True			= @true
 False			= @false
-LF				= char(10)
 
 * flag variables
 CompiledDict	= False
 DeleteError		= False
-DynamicFile		= False
 FilesOpened		= False
 RecordSaved		= False
 WriteError		= False
@@ -54,19 +52,10 @@ end
 
 if trim(InFileName) = "" then
 	ErrorText = "No File Name Specified"
-	goto EndProgram
+	goto End_Program
 end
 	
 TempFileName	= "$HOLD"
-
-begin case
-	case trim(InfileName) = "" and InRecordName = ""
-		gosub GetInFileName
-		gosub GetInRecordName
-	case trim(InRecordName) = ""
-		gosub GetInrecordName
-end case
-
 
 if DictText = "DICT" then
 	TempRecordName	= "DICT." : InRecordName : ".editing"
@@ -140,38 +129,39 @@ compile_record_query:
         if DictText <> "DICT" then
 		    prompt ""
 		    response = ""
-		    loop
-			    crt @(0,8) : @(-3) : "Compile " : InfileName : " " : InRecordName
-			    crt @(3,9) : "<Y>es, <N>o : " :
-			    input @(17,9), Response,1 :
-			    Response = upcase(Response)
-		    until index("YN",Response,1) > 0 repeat
-		    if Response = "Y" then
-		    	crt @(0,12) :  @(-3):
-			    execute "BASIC " : InFileName : " " : InRecordName
-			    crt
-			    loop
-				    crt @(0,20) : @(-3) : "Catalog? <L>ocal, <P>rivate, <G>lobal, <N>o : " :
-				    input @(46,20), Response,1 :
-				    Response = Upcase(Response)
-			    until index("LPGN",Response,1) > 0 repeat
-			    crt @(0,22) : @(-3) :
-			    begin case
-				    case Response = "L"
-					    execute "CATALOG " : InFileName : " " : InRecordName : " LOCAL"
-				    case Response = "P"
-					    execute "CATALOG " : InFileName : " " : InRecordName 
-				    case Response = "G"
-					    execute "CATALOG " : InFileName : " " : InRecordName : " GLOBAL"
-				    case Response = "N"
-					    crt InfileName : " " : InRecordName : " Not Cataloged"
-			    end case
-			    crt
+		    if InfileName[-2,2] = "BP" then
+ 		       loop
+ 			       crt @(0,8) : @(-3) : "Compile " : InfileName : " " : InRecordName
+			       crt @(3,9) : "<Y>es, <N>o : " :
+			       input @(17,9), Response,1 :
+			       Response = upcase(Response)
+		       until index("YN",Response,1) > 0 repeat
+		       if Response = "Y" then
+		           crt @(0,12) :  @(-3):
+			       execute "BASIC " : InFileName : " " : InRecordName
+			       crt
+			       loop
+				       crt @(0,20) : @(-3) : "Catalog? <L>ocal, <P>rivate, <G>lobal, <N>o : " :
+				       input @(46,20), Response,1 :
+				       Response = Upcase(Response)
+			       until index("LPGN",Response,1) > 0 repeat
+			       crt @(0,22) : @(-3) :
+			       begin case
+				       case Response = "L"
+					       execute "CATALOG " : InFileName : " " : InRecordName : " LOCAL"
+				       case Response = "P"
+					       execute "CATALOG " : InFileName : " " : InRecordName 
+				       case Response = "G"
+					      execute "CATALOG " : InFileName : " " : InRecordName : " GLOBAL"
+				       case Response = "N"
+					      crt InfileName : " " : InRecordName : " Not Cataloged"
+			       end case
+			       crt
+			   end
 		    end
         end
 	end			
 return
-
 
 open_files:
 	open DictText,InFileName to InputFile THEN
@@ -181,11 +171,6 @@ open_files:
 			ErrorText = "File Error: " : TempFileName : " could not be opened."	
 			goto End_Program	
 		end	
-		if fileinfo(InputFile,3) = 3 then
-			DynamicFile = True
-		end else
-			DynamicFile = False
-		end
 	end else
 		ErrorText = "File Error: " : DictText : " " : InFileName : " could not be opened."
 		goto End_Program
