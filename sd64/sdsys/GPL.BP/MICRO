@@ -33,7 +33,7 @@ FilesOpened		= False
 RecordSaved		= False
 WriteError		= False
 
-Cmd				= convert(" ",@FM,trim(@COMMAND," ","C"))
+Cmd			= convert(" ",@FM,trim(@COMMAND," ","C"))
 Editor			= "micro"
 ErrorText		= ""
 InputRecord		= ""
@@ -41,13 +41,13 @@ Response		= ""
 TempRecord 		= ""
 
 if trim(cmd<2>," ","B") = "DICT" then
-	InFileName		= cmd<3>
+	InFileName	= cmd<3>
 	InRecordName	= cmd<4>
-	DictText		= "DICT"
+	DictText	= "DICT"
 end else
-	InFileName		= cmd<2>
+	InFileName	= cmd<2>
 	InRecordName	= cmd<3>
-	DictText		= ""
+	DictText	= ""
 end 
 
 if trim(InFileName) = "" then
@@ -203,7 +203,7 @@ process_record:
 		Read TempRecord from TempFile,TempRecordName then
 			*null
 		end else
-			ErrorText =  "Record was not saved: Micro =  <Ctrl+s>, Nano = <Ctrl+o>."
+			ErrorText =  "Record was not saved: Micro =  <Ctrl+s>"
 			goto End_Program
 		end
 	end else
