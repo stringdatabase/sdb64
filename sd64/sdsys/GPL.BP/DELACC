@@ -20,6 +20,7 @@
 * START-HISTORY:
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * rev 0.9.0 delete-account requires admin priv, are we admin?
+*           on user account, delete os user if configured
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -39,7 +40,8 @@ $include keys.h
 $include int$keys.h
 $include parser.h
 $include err.h
-
+* REV 0.9.0
+deffun is_group(group) calling '!is_group'
    prompt ''
 
    parser = "!PARSER"
@@ -181,15 +183,37 @@ $include err.h
 
    delete acc.f, acc.name
    
-   * rev 0.9.0 remove group.
-   OS.EXECUTE "sudo groupdel ": group_name 
-   stat = OS.ERROR()
-   if stat = 0 then
-	  crt sysmsg(10025,group_name) ;* group: %1 Deleted
-   end else
-	  crt sysmsg(10026,group_name, stat) ;* Warning unable to delete group: %1 error: %2
+   * rev 0.9.0 remove group. os user?
+   if is_group(group_name) then 
+      OS.EXECUTE "sudo groupdel ": group_name 
+      stat = OS.ERROR()
+      if stat = 0 then
+         crt sysmsg(10025,group_name) ;* group: %1 Deleted
+      end else
+         crt sysmsg(10026,group_name, stat) ;* Warning unable to delete group: %1 error: %2
+      end
    end
-
+   
+   * delete os user? (if configured to do so)
+   If config('CREATUSR') then
+      * is this a user account ?
+      FINDSTR 'sdu_' in group_name setting yn then
+         * remove sdu_ prefix
+         username = change(group_name,'sdu_','')
+         crt sysmsg(10027,username): ;* Delete OS user %1 (Y/N)?
+         input yn
+         if upcase(yn) = 'Y' then
+            OS.EXECUTE "sudo deluser ":username 
+            stat = OS.ERROR()
+            if stat = 0 then
+               crt sysmsg(10028,username) ;* OS User: %1 Deleted
+            end else
+               crt sysmsg(10029,username, stat) ;* Warning unable to delete OS User: %1 error: %2
+            end
+         end
+      end
+   end
+   
    @system.return.code = 0
    return
 
