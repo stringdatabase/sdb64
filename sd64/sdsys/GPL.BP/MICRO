@@ -33,7 +33,7 @@ FilesOpened		= False
 RecordSaved		= False
 WriteError		= False
 
-Cmd			= convert(" ",@FM,trim(@COMMAND," ","C"))
+Cmd				= convert(" ",@FM,trim(@COMMAND," ","C"))
 Editor			= "micro"
 ErrorText		= ""
 InputRecord		= ""
