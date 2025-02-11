@@ -118,7 +118,7 @@ sudo cp sd.conf /etc/sd.conf
 sudo chmod 644 /etc/sd.conf
 sudo chmod -R 755 /usr/local/sdsys
 sudo chmod 775 /usr/local/sdsys/errlog
-
+sudo chmod -R 775 /usr/local/sdsys/prt
 
 #	Add $tuser to sdusers group
 sudo usermod -aG sdusers $tuser
