@@ -1,6 +1,6 @@
 #!/bin/bash
 # 	SD bash install script
-# 	(c) 2023 Donald Montaine & Mark Buller
+# 	(c) 2023-2025 Donald Montaine & Mark Buller
 #	This software is released under the Blue Oak Model License
 #	a copy can be found on the web here: https://blueoakcouncil.org/license/1.0.0
 #
