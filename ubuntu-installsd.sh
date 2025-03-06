@@ -1,9 +1,10 @@
 #!/bin/bash
-# 	SD bash install script
-# 	(c) 2023-2025 Donald Montaine and Mark Buller
-#	This software is released under the Blue Oak Model License
-#	a copy can be found on the web here: https://blueoakcouncil.org/license/1.0.0
-#
+#   SD bash install script
+#   (c) 2023-2025 Donald Montaine and Mark Buller
+#   This software is released under the Blue Oak Model License
+#   a copy can be found on the web here: https://blueoakcouncil.org/license/1.0.0
+#   
+#   rev 0.9.1 Mar 25 mab - add optional install of TAPE / RESTORE subsystem
 #   rev 0.9.0 Jan 25 mab - tighten up permissions
 #                        - build with embedded python
 #                        - sdsys's pri group now sdusers - note require sudo groupdel sdsys in deletesd.sh
@@ -13,10 +14,10 @@
         exit
     fi
     if [ -f  "/usr/local/sdsys/bin/sd" ]; then
-		echo "A version of sd is already installed"
-		echo "Uninstall it before running this script"
-		exit
-	fi
+        echo "A version of sd is already installed"
+        echo "Uninstall it before running this script"
+        exit
+    fi
 #
 tgroup=sdusers
 tuser=$USER
@@ -33,9 +34,9 @@ echo "Installer tested on Ubuntu 24.04 Desktop & Server and Mint 22."
 echo
 read -p "Continue? (y/N) " yn
 case $yn in
-	[yY] ) echo;;
-	[nN] ) exit;;
-	* ) exit ;;
+    [yY] ) echo;;
+    [nN] ) exit;;
+    * ) exit ;;
 esac
 echo
 echo If requested, enter your account password:
@@ -91,6 +92,17 @@ sudo touch /usr/local/sdsys/gcat/\$CPROC
 # create errlog
 sudo touch /usr/local/sdsys/errlog
 
+# install TAPE and RESTORE system?
+read -p "Install TAPE and RESTORE subsystem (y/N) " yn
+case $yn in
+    [yY] ) 
+        echo "copy TAPE and RESTORE programs to GPL.BP"
+        sudo cp tape/GPL.BP/* /usr/local/sdsys/GPL.BP 
+        echo "copy TAPE and RESTORE verbs to VOC"
+        sudo cp -R tape/VOC/* /usr/local/sdsys/VOC
+        echo ;;  
+esac
+
 # copy install template
 sudo cp -R bin /usr/local/sdsys
 sudo cp -R gplsrc /usr/local/sdsys
@@ -120,7 +132,7 @@ sudo chmod -R 755 /usr/local/sdsys
 sudo chmod 775 /usr/local/sdsys/errlog
 sudo chmod -R 775 /usr/local/sdsys/prt
 
-#	Add $tuser to sdusers group
+#   Add $tuser to sdusers group
 sudo usermod -aG sdusers $tuser
 
 # directories for sd accounts
@@ -145,17 +157,17 @@ if [ -d  "$SYSTEMDPATH" ]; then
     if [ -f "$SYSTEMDPATH/sd.service" ]; then
         echo "SD systemd service is already installed."
     else
-		echo "Installing sd.service for systemd."
+        echo "Installing sd.service for systemd."
 
-		sudo cp usr/lib/systemd/system/* $SYSTEMDPATH
+        sudo cp usr/lib/systemd/system/* $SYSTEMDPATH
 
-		sudo chown root:root $SYSTEMDPATH/sd.service
-		sudo chown root:root $SYSTEMDPATH/sdclient.socket
-		sudo chown root:root $SYSTEMDPATH/sdclient@.service
+        sudo chown root:root $SYSTEMDPATH/sd.service
+        sudo chown root:root $SYSTEMDPATH/sdclient.socket
+        sudo chown root:root $SYSTEMDPATH/sdclient@.service
 
-		sudo chmod 644 $SYSTEMDPATH/sd.service
-		sudo chmod 644 $SYSTEMDPATH/sdclient.socket
-		sudo chmod 644 $SYSTEMDPATH/sdclient@.service
+        sudo chmod 644 $SYSTEMDPATH/sd.service
+        sudo chmod 644 $SYSTEMDPATH/sdclient.socket
+        sudo chmod 644 $SYSTEMDPATH/sdclient@.service
     fi
 fi
 
@@ -170,7 +182,7 @@ fi
 
 cd /usr/local/sdsys
 
-#	Start SD server
+#   Start SD server
 echo "Starting SD server."
 sudo bin/sd -start
 echo
@@ -211,9 +223,9 @@ sudo chmod -R 755 /usr/local/sdsys/gcat
 #  create a user account for the current user
 echo
 echo
-if [ ! -d /home/sd/user_accounts/$tuser ]; then	
-	echo "Creating a user account for" $tuser
-	sudo bin/sd create-account USER $tuser no.query
+if [ ! -d /home/sd/user_accounts/$tuser ]; then 
+    echo "Creating a user account for" $tuser
+    sudo bin/sd create-account USER $tuser no.query
 fi
 
 echo
@@ -274,8 +286,8 @@ echo -----------------------------------------------------
 echo
 read -p "Restart computer now? (y/N) " yn
 case $yn in
-	[yY] ) sudo reboot;;
-	[nN] ) echo;;
-	* ) echo ;;
+    [yY] ) sudo reboot;;
+    [nN] ) echo;;
+    * ) echo ;;
 esac
 exit
