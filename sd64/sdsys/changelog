@@ -1,7 +1,10 @@
 Version 0.9-1
 
 -------------
-(mab) Add TAPE and ACCOUNT.RESTORE subsystem as optionally installed software.
+(mab) Add PROC back to GPL.BP. Users have requested it and CPROC will abort if it finds a 
+        paragraph of type "PQ"
+        
+      Add TAPE and ACCOUNT.RESTORE subsystem as optionally installed software.
 
       Rework revision methodology.  Original release introduced two revision tracks,
        one for the VM another for the SD mods to commands, ideas on user / accounts etc.
