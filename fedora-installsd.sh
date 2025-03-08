@@ -1,28 +1,29 @@
 #!/bin/bash
-# 	SD bash install script
-# 	(c) 2023-2025 Donald Montaine & Mark Buller
-#	This software is released under the Blue Oak Model License
-#	a copy can be found on the web here: https://blueoakcouncil.org/license/1.0.0
+# SD bash install script
+# (c) 2023-2025 Donald Montaine & Mark Buller
+# This software is released under the Blue Oak Model License
+# a copy can be found on the web here: https://blueoakcouncil.org/license/1.0.0
 #
+#   rev 0.9.1 Mar 25 mab - add optional install of TAPE / RESTORE subsystem
 #   rev 0.9.0 Jan 25 mab - tighten up permissions
 #                        - build with embedded python
 #                        - sdsys's pri group now sdusers - note require sudo groupdel sdsys in deletesd.sh
-#                        - comment define statement in file sdsys/GPL.BP/define_install.h and recompile CPROC at end of install. 
-    if [[ $EUID -eq 0 ]]; then
-        echo "This script must NOT be run as root" 1>&2
-        exit
-    fi
-    if [ -f  "/usr/local/sdsys/bin/sd" ]; then
-		echo "A version of sd is already installed"
-		echo "Uninstall it before running this script"
-		exit
-	fi
+#                        - comment define statement in file sdsys/GPL.BP/define_install.h and recompile CPROC at end of install.
+if [[ $EUID -eq 0 ]]; then
+   echo "This script must NOT be run as root" 1>&2
+   exit
+fi
+if [ -f  "/usr/local/sdsys/bin/sd" ]; then
+   echo "A version of sd is already installed"
+   echo "Uninstall it before running this script"
+   exit
+fi
 #
 tgroup=sdusers
 tuser=$USER
 cwd=$(pwd)
 #
-clear 
+clear
 echo SD installer for Fedora
 echo -----------------------
 echo
@@ -33,13 +34,14 @@ echo "Installer tested on Fedora 41."
 echo
 read -p "Continue? (y/N) " yn
 case $yn in
-	[yY] ) echo;;
-	[nN] ) exit;;
-	* ) exit ;;
+   [yY] ) echo;;
+   [nN] ) exit;;
+   * ) exit ;;
 esac
 echo
 echo If requested, enter your account password:
 sudo date
+clear
 echo
 echo Installing required packages
 echo
@@ -49,30 +51,29 @@ sudo dnf -y install make automake gcc gcc-c++ kernel-devel micro lynx libbsd-dev
 python3 --version
 if [ $? -eq 0 ]; then
 # got it, what version and where are the include files?
-  PY_HDRS=$(python3-config --includes)
+   PY_HDRS=$(python3-config --includes)
 # remove the first "-I"
 #  and get the first path (for some reason its output twice?
-  PY_HDRS_ARR=(${PY_HDRS#-I})
+   PY_HDRS_ARR=(${PY_HDRS#-I})
 #
-  echo "path to include file: " ${PY_HDRS_ARR[0]}
+   echo "path to include file: " ${PY_HDRS_ARR[0]}
 # now create the includ file we will use
-  echo "#include <"${PY_HDRS_ARR[0]}"/Python.h>" > sd64/gplsrc/sdext_python_inc.h
-  
+   echo "#include <"${PY_HDRS_ARR[0]}"/Python.h>" > sd64/gplsrc/sdext_python_inc.h
+ 
 else
-  echo "Python missing, cannot build"
-  exit
+   echo "Python missing, cannot build"
+   exit
 fi
-
 
 cd $cwd/sd64
 
-sudo make 
+sudo make
 # rev 0.9.0 if make fails, abort install
 if [ $? -eq 0 ]; then
-  echo "Successful Build"
+   echo "Successful Build"
 else
-  echo "Build Failed"
-  exit
+   echo "Build Failed"
+   exit
 fi
 
 # Create sd system user and group
@@ -90,6 +91,17 @@ sudo cp -R sdsys /usr/local
 sudo touch /usr/local/sdsys/gcat/\$CPROC
 # create errlog
 sudo touch /usr/local/sdsys/errlog
+
+# install TAPE and RESTORE system?
+read -p "Install TAPE and RESTORE subsystem (y/N) " yn
+case $yn in
+   [yY] )
+      echo "copy TAPE and RESTORE programs to GPL.BP"
+      sudo cp tape/GPL.BP/* /usr/local/sdsys/GPL.BP
+      echo "copy TAPE and RESTORE verbs to VOC"
+      sudo cp -R tape/VOC/* /usr/local/sdsys/VOC
+      echo ;;  
+esac
 
 # copy install template
 sudo cp -R bin /usr/local/sdsys
@@ -120,7 +132,7 @@ sudo chmod -R 755 /usr/local/sdsys
 sudo chmod 775 /usr/local/sdsys/errlog
 sudo chmod -R 775 /usr/local/sdsys/prt
 
-#	Add $tuser to sdusers group
+# Add $tuser to sdusers group
 sudo usermod -aG sdusers $tuser
 
 # directories for sd accounts
@@ -142,35 +154,35 @@ sudo ln -s /usr/local/sdsys/bin/sd /usr/local/bin/sd
 SYSTEMDPATH=/usr/lib/systemd/system
 
 if [ -d  "$SYSTEMDPATH" ]; then
-    if [ -f "$SYSTEMDPATH/sd.service" ]; then
-        echo "SD systemd service is already installed."
-    else
-	echo "Installing sd.service for systemd."
+   if [ -f "$SYSTEMDPATH/sd.service" ]; then
+      echo "SD systemd service is already installed."
+   else
+      echo "Installing sd.service for systemd."
 
-	sudo cp usr/lib/systemd/system/* $SYSTEMDPATH
+      sudo cp usr/lib/systemd/system/* $SYSTEMDPATH
 
-	sudo chown root:root $SYSTEMDPATH/sd.service
-	sudo chown root:root $SYSTEMDPATH/sdclient.socket
-	sudo chown root:root $SYSTEMDPATH/sdclient@.service
+      sudo chown root:root $SYSTEMDPATH/sd.service
+      sudo chown root:root $SYSTEMDPATH/sdclient.socket
+      sudo chown root:root $SYSTEMDPATH/sdclient@.service
 
-	sudo chmod 644 $SYSTEMDPATH/sd.service
-	sudo chmod 644 $SYSTEMDPATH/sdclient.socket
-	sudo chmod 644 $SYSTEMDPATH/sdclient@.service
-    fi
+      sudo chmod 644 $SYSTEMDPATH/sd.service
+      sudo chmod 644 $SYSTEMDPATH/sdclient.socket
+      sudo chmod 644 $SYSTEMDPATH/sdclient@.service
+   fi
 fi
 
 # Copy saved directories if they exist
 if [ -d /home/sd/ACCOUNTS ]; then
-	  echo Moved existing ACCOUNTS directory
-	  sudo rm -fr /usr/local/sdsys/ACCOUNTS
-	  sudo mv /home/sd/ACCOUNTS /usr/local/sdsys
+   echo Moved existing ACCOUNTS directory
+   sudo rm -fr /usr/local/sdsys/ACCOUNTS
+   sudo mv /home/sd/ACCOUNTS /usr/local/sdsys
 else
-  echo Saved Accounts Directory Does Not Exist
+   echo Saved Accounts Directory Does Not Exist
 fi
 
 cd /usr/local/sdsys
 
-#	Start SD server
+# Start SD server
 echo "Starting SD server."
 sudo bin/sd -start
 echo
@@ -211,9 +223,9 @@ sudo chmod -R 755 /usr/local/sdsys/gcat
 #  create a user account for the current user
 echo
 echo
-if [ ! -d /home/sd/user_accounts/$tuser ]; then	
-	echo "Creating a user account for" $tuser
-	sudo bin/sd create-account USER $tuser no.query
+if [ ! -d /home/sd/user_accounts/$tuser ]; then
+   echo "Creating a user account for" $tuser
+   sudo bin/sd create-account USER $tuser no.query
 fi
 
 echo
@@ -267,15 +279,15 @@ echo
 echo "After rebooting, open a terminal and enter 'sd' "
 echo "to connect to your sd home directory."
 echo
-echo "To completely delete SD, run the" 
+echo "To completely delete SD, run the"
 echo "deletesd.sh bash script provided."
 echo
 echo -----------------------------------------------------
 echo
 read -p "Restart computer now? (y/N) " yn
 case $yn in
-	[yY] ) sudo reboot;;
-	[nN] ) echo;;
-	* ) echo ;;
+   [yY] ) sudo reboot;;
+   [nN] ) echo;;
+   * ) echo ;;
 esac
 exit
