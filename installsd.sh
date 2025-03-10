@@ -10,15 +10,24 @@
 #                        - build with embedded python
 #                        - sdsys's pri group now sdusers - note require sudo groupdel sdsys in deletesd.sh
 #                        - comment define statement in file sdsys/GPL.BP/define_install.h and recompile CPROC at end of install, 
-    if [[ $EUID -eq 0 ]]; then
-        echo "This script must NOT be run as root" 1>&2
-        exit
-    fi
-    if [ -f  "/usr/local/sdsys/bin/sd" ]; then
-        echo "A version of sd is already installed"
-        echo "Uninstall it before running this script"
-        exit
-    fi
+#
+# in the install dir?
+if test -f "installsd.sh"; then
+  echo 
+else
+  echo "Not in install directory, (sdb64), this is not going to work"
+  exit
+fi 
+# 
+if [[ $EUID -eq 0 ]]; then
+  echo "This script must NOT be run as root" 1>&2
+  exit
+fi
+if [ -f  "/usr/local/sdsys/bin/sd" ]; then
+  echo "A version of sd is already installed"
+  echo "Uninstall it before running this script"
+  exit
+fi
 #
 tgroup=sdusers
 tuser=$USER
@@ -81,6 +90,7 @@ if [ $? -eq 0 ]; then
 # remove the first "-I"
 #  and get the first path (for some reason its output twice?
   HDRS_STR="${PY_HDRS%% *}"
+  HDRS_STR="${HDRS_STR#-I}"
 #
   echo "path to include file: " $HDRS_STR
 # now create the includ file we will use
