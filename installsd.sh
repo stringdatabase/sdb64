@@ -25,7 +25,7 @@ tuser=$USER
 cwd=$(pwd)
 #
 clear 
-echo SD installer for Ubuntu
+echo SD installer
 echo -----------------------
 echo
 echo "For this install script to work you must have sudo installed"
@@ -68,7 +68,7 @@ if [ $is_ubuntu -eq 1 ]; then
   sudo apt-get install build-essential micro lynx libbsd-dev libsodium-dev openssh-server python3-dev
 fi
 #
-if [ is_fedora -eq 1 ]; then
+if [ $is_fedora -eq 1 ]; then
   echo Installing required packages with dnf
   sudo dnf -y install make automake gcc gcc-c++ kernel-devel micro lynx libbsd-devel libsodium-devel openssh-server python3-devel
 fi 
@@ -85,6 +85,7 @@ if [ $? -eq 0 ]; then
   echo "path to include file: " $HDRS_STR
 # now create the includ file we will use
   echo "#include <"$HDRS_STR"/Python.h>" > sd64/gplsrc/sdext_python_inc.h
+  
   
 else
   echo "Python missing, cannot build"
