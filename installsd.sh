@@ -4,8 +4,8 @@
 #   This software is released under the Blue Oak Model License
 #   a copy can be found on the web here: https://blueoakcouncil.org/license/1.0.0
 #   
-#   rev 0.9-1 Mar 25 mab - generic install
-#   rev 0.9.1 Mar 25 mab - add optional install of TAPE / RESTORE subsystem
+#   rev 0.9-1 Mar 25 mab - create generic install script and make corrections needed for Raspberry install
+#   rev 0.9-1 Mar 25 mab - add optional install of TAPE / RESTORE subsystem
 #   rev 0.9.0 Jan 25 mab - tighten up permissions
 #                        - build with embedded python
 #                        - sdsys's pri group now sdusers - note require sudo groupdel sdsys in deletesd.sh
@@ -93,7 +93,7 @@ if [ $? -eq 0 ]; then
   HDRS_STR="${HDRS_STR#-I}"
 #
   echo "path to include file: " $HDRS_STR
-# now create the includ file we will use
+# now create the include file we will use
   echo "#include <"$HDRS_STR"/Python.h>" > sd64/gplsrc/sdext_python_inc.h
   
   
