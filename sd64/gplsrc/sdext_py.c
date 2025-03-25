@@ -19,6 +19,7 @@
  * to do- add STATUS() = 0 successful call, or  STATUS() = 1 unsuccessful call
  * 
  * START-HISTORY:
+ * rev 0.9-2 Mar 25 mab add sdext_pyobj direct control of python dictionary object
  * rev 0.9.0 Jan 25 mab use install script created file sdext_python_inc.h to tell us where to find python headers
  * 11 Aug 2024 mab add PyErr_Print() to file and string script execution failure
  * 15 Jul 2024 MAB add SDME_PY.C 
@@ -63,20 +64,29 @@
 #include "sdext_python_inc.h"  /* NOTE! this file is created by the install script !!! */
 #include "keys.h"
 
+int PyDictCrte(char* dictname);
+int PyDictDel(char* dictname );
+int PyDictValSetS(char* dictname, char* key, char* value);
+int PyDictValGetS(char* dictname, char* key);
+
+PyObject* lookup_dict_item(PyObject* dict, const char* key);
+void obj_to_str(PyObject* pval);
+
 
 /* python objects for embedded python, these need to hang around between calls! */
-PyObject *pval, *psval, *pbval, *prun;
-PyObject *pdict; 
 
+PyObject *global_dict, *main_module;  /* global PyObjects that must hang around between calls */
 
-void sdext_py(int key, char* Arg){
+void sdext_py(int key, char* Arg, char* Arg2, char* Arg3 ){
 
-  char *pyResult; 
   FILE *pyfd;         /* file descriptor for python script file */
   char *pyscriptname; /* script name from pyfd */
-  char pyFilePath[PATH_MAX+1] init("");   /* max length a file path can be, defined in linux/limits.h */
+  char pyFilePath[PATH_MAX+1] = "";   /* max length a file path can be, defined in linux/limits.h */
   
   int myResult;
+
+  PyObject *pval, *prun;
+
   char shutdown[] = "shutdown";
   char nullresult[] = "";
   
@@ -94,19 +104,26 @@ void sdext_py(int key, char* Arg){
         from Programming Python 4th edition, Basic Embedding Techniques,
         Running Strings in Dictionaries       */
         if (Py_IsInitialized()) {     /* did initialization succeed? */
-          pdict = PyDict_New(); /* return a new empty dictionary, or NULL on failure, New reference. */
-          if (pdict == NULL){
-            myResult = SD_PyEr_Dict;  /* could not create the dict object??*/
+          // 1. Get the main module 
+          main_module = PyImport_ImportModule("__main__");  
+          if (main_module == NULL) {
+            PyErr_Print();
+            myResult = SD_PyErr_MainMod;  /* could get main module bad news! */
           }else{
-            myResult =  PyDict_SetItemString(pdict, "__builtins__", PyEval_GetBuiltins());
-            if (myResult < 0){
-              myResult =  SD_PyEr_Builtin;  /* failed to set __builtins__ link to the built-in scope */
-            }
+          // 2. Get the main (global) dictionary
+            global_dict = PyModule_GetDict(main_module);
+            if (global_dict == NULL) {
+              PyErr_Print();
+              myResult = SD_PyErr_GlobDict;  /* could get __main__ dictionary bad news! */
+            } 
+
           }
+
+
         }else{
           myResult =  SD_PyEr_NotInit; /* initialization failed */
         }
-      
+     
       } 
       process.status = myResult;
       InitDescr(e_stack, INTEGER);
@@ -114,6 +131,17 @@ void sdext_py(int key, char* Arg){
       break;
 
     case SD_PyFinal: /* Finalize the python interpreter   */
+
+    /* Note to whoever,  Do not:  */
+    /* Py_XDECREF(main_module)     */
+    /* Py_XDECREF(global_dict)     */
+    /* When running with a debug python build you will see:
+    perform clean up and finalize
+    ../Include/object.h:798: _Py_NegativeRefcount: Assertion failed: object has negative ref count
+    <object at 0x76c303536450 is freed>
+    Fatal Python error: _PyObject_AssertFailed: _PyObject_AssertFailed
+    Python runtime state: finalizing (tstate=0x000076c304921e18)
+    */
                   
       if (Py_IsInitialized()) {  /* only finalize if previously initialized */
         myResult = Py_FinalizeEx();
@@ -141,13 +169,13 @@ void sdext_py(int key, char* Arg){
     case SD_PyRunStr:   /* Take the string in Arg passed from op_sdme_ext (from SDME.EXT Arg value) and run in python interpreter  */
                          
       if (Py_IsInitialized()) {
-        prun = PyRun_String(Arg, Py_file_input, pdict, pdict);    /* run statements */
+        prun = PyRun_String(Arg, Py_file_input, global_dict, global_dict);    /* run statements */
         if (prun == NULL){
         /* exception */
           myResult = SD_PyEr_Excpt;
           PyErr_Print();
         } else {
-          Py_DECREF(prun);
+          Py_XDECREF(prun);
         }
       }else{
         myResult = SD_PyEr_NotInit;  
@@ -168,13 +196,13 @@ void sdext_py(int key, char* Arg){
           myResult = SD_PyEr_NOF;  /* failed to open file, could look at global variable errno ?*/
         }else{
           pyscriptname = basename(pyFilePath);  /* rem The basename() function may modify the string pointed to by path */
-          prun = PyRun_File(pyfd,pyscriptname,Py_file_input, pdict, pdict);    /* run statements */
+          prun = PyRun_File(pyfd,pyscriptname,Py_file_input, global_dict, global_dict);    /* run statements */
           if (prun == NULL){
           /* exception */
             myResult = SD_PyEr_Excpt;
             PyErr_Print();
           } else {
-             Py_DECREF(prun);
+             Py_XDECREF(prun);
           }
           fclose(pyfd);
         }  
@@ -198,63 +226,387 @@ void sdext_py(int key, char* Arg){
        
       /* access the python dictionary entry for the object we are after */
       
-     if (!Py_IsInitialized()) {
+      if (!Py_IsInitialized()) {
       /* we dont have a running python interpreter */
         process.status = SD_PyEr_NotInit;
         k_put_c_string(nullresult, e_stack);   /* sets descr as type string and place the python value into it */
         e_stack++;
         break;
       }
-      pval =  PyMapping_GetItemString(pdict, Arg);             /* get my result string */
-      if (pval == NULL) {
-        PyErr_Clear();  /* we most likely had a key error, once set Py_Run will not work, clear it*/  
-      /* fetch of dictionary value failed for some reason */
-        process.status = SD_PyEr_Key;
-        k_put_c_string(nullresult, e_stack);   /* sets descr as type string and place the python value into it */
-        e_stack++;
-        break;
-      } 
-      
-      /* fetch of dictionary value succeeded, so what do we have here? */
-      if (PyBytes_Check(pval)) {
-        /* bytes object hopefully we encoded using latin, otherwise we will have issues with @FM @VM @SVM */
-        pyResult = PyBytes_AsString(pval);   /* get the c string */
-        
-      }else{
-        /* not a byte object */
-        /* for now all non byte objects are converted to string then encoded as Latin, more work to be done here  */
-        psval =  PyObject_Str(pval);              /* convert result object to string representation */
-        if (psval == NULL) {
-                                                  /* error converting python object to string */
-          process.status = SD_PyEr_ObToStr;
-          k_put_c_string(nullresult, e_stack);    /* sets descr as type string and place the python value into it */
-          Py_DECREF(pval);
-          e_stack++;
-          break;      
-        }
-        /* encode our string object to bytes */
-        pbval =  PyUnicode_AsLatin1String(psval); /* encode to bytes using Latin1 */
-        if (pbval == NULL) {
-                                                 /* error encoding unicode python string to to Latin */
-          myResult = SD_PyErr_UniToStr;
-          process.status = SD_PyErr_UniToStr;
-          k_put_c_string(nullresult, e_stack);   /* sets descr as type string and place the python value into it */
-          Py_DECREF(pval);
-          Py_DECREF(psval);
-          e_stack++;
-          break;
-        }
- 
-        pyResult = PyBytes_AsString(pbval);        /* finally get the c string */
-        Py_DECREF(psval);
-        Py_DECREF(pbval);
-      }
-      k_put_c_string(pyResult, e_stack);   /* sets descr as type string and place the python value into it */
-      Py_DECREF(pval);
+      pval =  PyMapping_GetItemString(global_dict, Arg);             /* get my result object */
+      /* convet to string, note obj_to_str handles any errors   from PyMapping_GetItemString */
+      obj_to_str(pval);
       e_stack++;
-      break;  
+      break;
+  }
+
+  return;
+}
+
+/***************************************************************************************************************************/
+/*  Python Objects Extension             
+* 
+* Some Notes:
+* From Python Documentation https://docs.python.org/3/contents.html
+* Notes on Reference Counting:
+* A safe approach is to always use the generic operations (functions whose name begins with PyObject_, PyNumber_, PySequence_ or PyMapping_). 
+* These operations always create a new strong reference (i.e. increment the reference count) of the object they return.
+* This leaves the caller with the responsibility to call Py_XDECREF() when they are done with the result; this soon becomes second nature.     
+* So we favor Py_Mapping_ to Py_Dict_ function calls
+*/
+/***************************************************************************************************************************/
+void sdext_pyobj(int key, char* Arg, char* Arg2, char* Arg3 ){
+  int myResult;
+
+  switch (key) {
+
+    case SD_PyDictCrte: 
+      // Arg is name of dictionary to create
+      myResult = PyDictCrte(Arg );
+      process.status = myResult;
+      InitDescr(e_stack, INTEGER);
+      (e_stack++)->data.value = (int32_t)myResult;
+      break;
+
+    case SD_PyDictDel: 
+      // Arg is name of dictionary to Delete
+      myResult = PyDictDel(Arg);
+      process.status = myResult;
+      InitDescr(e_stack, INTEGER);
+      (e_stack++)->data.value = (int32_t)myResult;
+      break;
+
+
+    case SD_PyDictVset:
+    // Arg is name of dictionary 
+    // Arg2 is key
+    // Arg3 is value to set
+      myResult = PyDictValSetS(Arg, Arg2, Arg3 );
+      process.status = myResult;
+      InitDescr(e_stack, INTEGER);
+      (e_stack++)->data.value = (int32_t)myResult;
+      break;
+
+    case SD_PyDictVget:
+    // Arg is name of dictionary 
+    // Arg2 is key
+    // value will be placed in data descriptor by PyDictValGet
+    /* rem value ends up as string and must be returned to sd with
+       k_put_c_string(pyResult, e_stack);*/
+      myResult = PyDictValGetS(Arg, Arg2);    
+      process.status = myResult;
+      e_stack++;
+      break;
+
 
   }
 
   return;
+}
+
+/***************************************************************************************************************************/
+/*  Create Dictionary                                                                                              */
+/***************************************************************************************************************************/
+int PyDictCrte(char* dictname ){
+  /* create new dictionary for use by SD */
+  /* Arg is name of dictionary           */
+ 
+  int myResult;
+  PyObject* dict_lookup;
+  PyObject* new_dict;     /* new dictionary we are creating */
+
+  myResult = 0;
+
+  /* does dicionary (or object with this name) already exist? */ 
+  dict_lookup = lookup_dict_item(global_dict, dictname);
+  if (dict_lookup == NULL) {
+  /* does not exist, create it */
+    new_dict = PyDict_New();
+    if (new_dict == NULL) {
+       // not created
+      PyErr_Print();
+      return SD_PyEr_Dict ;
+    } else {
+      // created, add it to the main_module name space
+      myResult = PyDict_SetItemString(global_dict, dictname, new_dict);
+      if (myResult != 0){
+        // failed to add to global dictionary namespace !?
+        myResult =  SD_PyErr_NamSpcErr;
+      }
+      // free up ref  (global dict holds a ref to the new_dict, we should be safe to do this)
+      Py_XDECREF(new_dict);
+    }
+
+  } else {
+    // exists, this is an error
+    myResult = SD_PyErr_DictExsts; 
+    Py_XDECREF(dict_lookup);
+
+  }
+
+    return myResult;
+  }
+
+
+/***************************************************************************************************************************/
+/*  Delete Dictionary                                                                                              */
+/***************************************************************************************************************************/
+int PyDictDel(char* dictname ){
+  /* delete dictionary for use by SD */
+   
+  PyObject* dict_lookup, *key;
+  
+  /* does dicionary (or object with this name) exist? */ 
+  dict_lookup = lookup_dict_item(global_dict, dictname);
+  if (dict_lookup == NULL) {
+    // does not exist!
+    return SD_PyErr_ObjNOF;
+  } else {
+    
+    // Is this object a dictionary?
+    if (PyDict_Check(dict_lookup)) {
+      // yes it is a dictionary
+      // build key
+      key = PyUnicode_DecodeLatin1(dictname, (Py_ssize_t) strlen(dictname), "strict");
+      if (key == NULL){
+        PyErr_Print();
+        Py_XDECREF(dict_lookup);
+        return SD_PyErr_EnLatin;
+      }
+
+      if (PyDict_Contains(global_dict, key)) {
+        if (PyDict_DelItemString(global_dict, dictname) != 0) {
+          // failure, dict object not found?
+          PyErr_Print();
+          Py_XDECREF(dict_lookup);
+          Py_XDECREF(key);
+          return SD_PyEr_Key;
+        } else {
+        
+        // Removal of object from global dict successful.
+        // In theory at this point there are no more references to the dictionary object we created,
+        // the interpreter will handle freeing the memory because the reference count is zero
+        Py_XDECREF(dict_lookup);
+        Py_XDECREF(key);
+        return 0;  
+
+        }
+      } else {
+        // key not in global dict
+        Py_XDECREF(dict_lookup);
+        Py_XDECREF(key);
+        return SD_PyEr_Key;
+      }  
+
+
+
+    } else {
+      // object was not a dictionary
+      Py_XDECREF(dict_lookup);
+      return SD_PyErr_NotDict;
+    }
+
+  }
+
+}
+
+
+
+
+
+/***************************************************************************************************************************/
+/*  Set Dictionary String Value for key                                                                                               */
+/***************************************************************************************************************************/  
+
+int PyDictValSetS(char* dictname, char* key, char* value){
+  /* set a dictionary key's value */  
+  /**/
+
+  int myResult;
+  PyObject* dict_lookup;
+
+  myResult = 0;
+
+  /* does dicionary (or object with this name) exist? */ 
+  dict_lookup = lookup_dict_item(global_dict, dictname);
+  if (dict_lookup == NULL) {
+    // does not exist!
+    return SD_PyErr_ObjNOF;
+  } else {
+    
+    // Is this object a dictionary?
+    if (PyDict_Check(dict_lookup)) {
+      // yes it is a dictionary
+
+      // Create key and value objects
+      //PyObject *Pykey = PyUnicode_FromString(key);
+      //PyObject *Pyvalue = PyUnicode_FromString(value);
+
+      PyObject *Pykey = PyUnicode_DecodeLatin1(key, (Py_ssize_t) strlen(key), "strict");
+      if (Pykey == NULL){
+        PyErr_Print();
+        Py_XDECREF(dict_lookup);
+        return SD_PyErr_EnLatin;
+      }
+
+      PyObject *Pyvalue = PyUnicode_DecodeLatin1(value, (Py_ssize_t) strlen(value), "strict");
+      if (Pyvalue == NULL){
+        PyErr_Print();
+        Py_XDECREF(dict_lookup);
+        return SD_PyErr_EnLatin;
+      }  
+
+      // Add the key-value pair to the dictionary
+      if (PyDict_SetItem(dict_lookup, Pykey, Pyvalue) != 0) {
+        // Failed to set dictionary key / value
+        myResult = SD_PyErr_DictSet;
+      }
+      // Clean up
+      Py_XDECREF(Pykey);
+      Py_XDECREF(Pyvalue);
+
+    } else {
+      // object was not a dictionary, report error
+      myResult = SD_PyErr_NotDict;
+    }
+
+    Py_XDECREF(dict_lookup);
+  }
+
+  return myResult;
+}
+
+/***************************************************************************************************************************/
+/*  Get Value as String for dictionary item key                                                                                      */
+/* rem, value ends up in SD descriptor so we really only return a status code                                              */
+/***************************************************************************************************************************/
+
+int PyDictValGetS(char* dictname, char* key){
+  /* get a dictionary key's value */  
+  int myResult;
+  PyObject* dict_lookup;
+
+  myResult = 0;
+
+  /* does dicionary (or object with this name) exist? */ 
+  dict_lookup = lookup_dict_item(global_dict, dictname);
+  if (dict_lookup == NULL) {
+    // does not exist!
+    return SD_PyErr_ObjNOF;
+  } else {
+    
+    // Is this object a dictionary?
+    if (PyDict_Check(dict_lookup)) {
+      // yes it is a dictionary
+
+      PyObject* value = PyMapping_GetItemString(dict_lookup, key);
+
+      //  key is not found ??
+      if (value == NULL) {
+        PyErr_Print(); // Print Python exception, if any
+        myResult = SD_PyEr_Key;
+      } else {
+        // got our value, but we need to convert to latin string before return to sd
+        obj_to_str(value);
+      }
+
+    } else {
+      // object was not a dictionary, report error
+      myResult = SD_PyErr_NotDict;
+    }
+
+    Py_XDECREF(dict_lookup);
+  }
+
+  return myResult;
+}
+
+/***************************************************************************************************************************/
+/*  convert python object to string                                                                                        */
+/*  this routine is responsible for ref count of passed python object pval                                                 */
+/***************************************************************************************************************************/
+
+void obj_to_str(PyObject* pval){
+  /* pval is reference to obj
+     this routine is responsible for ref count !!!*/
+  PyObject *psval, *pbval;   
+  char *pyResult;
+  char nullresult[] = "";
+
+  if (pval == NULL) {
+    /* we most likely had a key error, clear it*/  
+    PyErr_Clear();  
+    /* most likely fetch of dictionary value was key error  */
+    process.status = SD_PyEr_Key;
+    k_put_c_string(nullresult, e_stack);   /* sets descr as type string and place the python value into it */
+   
+  } else {
+  
+    /* fetch of dictionary value succeeded, so what do we have here? */
+    if (PyBytes_Check(pval)) {
+        
+      /* bytes object hopefully we encoded using latin, otherwise we will have issues with @FM @VM @SVM */
+      pyResult = PyBytes_AsString(pval);   /* get the c string */
+      k_put_c_string(pyResult, e_stack);   /* sets descr as type string and place the python value into it */
+      
+    }else{
+        
+      /* not a byte object */
+      /* for now all non byte objects are converted to string then encoded as Latin, more work to be done here  */
+      psval =  PyObject_Str(pval);              /* convert result object to string representation */
+      
+      if (psval == NULL) {
+                                                /* error converting python object to string */
+        process.status = SD_PyEr_ObToStr;
+        k_put_c_string(nullresult, e_stack);    /* sets descr as type string and place the python value into it */
+        Py_XDECREF(pval);
+        return;      
+      }
+      
+      /* encode our string object to bytes */
+      pbval =  PyUnicode_AsLatin1String(psval); /* encode to bytes using Latin1 */
+      
+      if (pbval == NULL) {
+                                              /* error encoding unicode python string to to Latin */
+        process.status = SD_PyErr_UniToStr;
+        k_put_c_string(nullresult, e_stack);   /* sets descr as type string and place the python value into it */
+        Py_XDECREF(pval);
+        Py_XDECREF(psval);
+        return;
+      }
+
+      pyResult = PyBytes_AsString(pbval);  /* finally get the c string */
+      k_put_c_string(pyResult, e_stack);   /* sets descr as type string and place the python value into it */
+      Py_XDECREF(psval);
+      Py_XDECREF(pbval);
+    }
+
+    Py_XDECREF(pval);
+
+  }
+
+  return;
+
+}
+
+
+
+/******************************************************************************************/
+/* get dict value (python object) based on passed string key                              */
+/* Rem this creates a strong ref and the caller is responsible to dec the ref count !!!!! */
+/******************************************************************************************/
+PyObject* lookup_dict_item(PyObject* dict, const char* key) {
+  // Look up item using PyMapping_GetItemString
+  // I repeat, this creates a strong ref and the caller is responsible to dec the ref count !!!!!
+
+  PyObject* value = PyMapping_GetItemString(dict, key);
+  
+  // Handle the case where the key is not found
+  if (value == NULL) {
+      PyErr_Clear(); // Clear the exception set by PyMapping_GetItemString
+      return NULL;
+  }
+  
+  // Return the found value
+  return value;
 }

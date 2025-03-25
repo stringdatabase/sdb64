@@ -22,6 +22,7 @@
  * 08 Aug 24 mab SDEXT keys for salt and key from password
  * 09 Aug 24 mab embedded python SDEXT keys
  * rev 0.9.0 Jan 25 mab SD_EUID_SET SD_EUID_RESTORE
+ * rev 0.9-2 Mar 25 mab add sdext_pyobj direct control of python dictionary object
  * 
  * END-HISTORY
  *
@@ -359,4 +360,8 @@
 #define  SD_PyRunFile     2011  /* Take the file and path defined in qmBasic variable VAL and run in python interpreter   */
 #define  SD_PyGetAtt      2100  /* Return the (string) value of python attribute defined in qmBasic variable VAL   */
 
+#define  SD_PyDictCrte    2200  /* Creaete new dictionary for sd */
+#define  SD_PyDictDel     2201  /* Del  dictionary for sd */
+#define  SD_PyDictVset    2202  /* set dictionary key : value    */
+#define  SD_PyDictVget    2203  /* get value of dictionary item key  */
 /* END-CODE */

@@ -21,6 +21,7 @@
  * 01 Jul 24 mab define max string size error ER_MAX_STRING 
  * 30 Jul 24 mab add error codes for SD_ENCRYPT_SODIUM
  * rev 0.9.0 Jan 25 mab sdext_eguid_set error codes
+ * rev 0.9-2 Mar 25 mab add sdext_pyobj direct control of python dictionary object
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -311,4 +312,12 @@
 #define SD_PyEr_ObToStr    -12008    /* failed to convert python object to string */
 #define SD_PyErr_UniToStr  -12009    /* error encoding unicode python string to to Latin */
 
+#define SD_PyErr_MainMod   -12010    /* cannot import __main__ */
+#define SD_PyErr_GlobDict  -12011    /* could get __main__ dictionary  */
+#define SD_PyErr_DictExsts -12012    /* dictionary already exists  */
+#define SD_PyErr_NamSpcErr -12013    /* Failed to add to namespace  */
+#define SD_PyErr_ObjNOF    -12014    /* requested object does not exist  */
+#define SD_PyErr_DictSet   -12015    /* failed to set dictionary key / value */
+#define SD_PyErr_NotDict   -12016    /* Object not a dictionary  */
+#define SD_PyErr_EnLatin   -12017    /* error encoding latin string to unicode      */
 /* END-CODE */
