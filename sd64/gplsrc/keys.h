@@ -361,7 +361,7 @@
 #define  SD_PyGetAtt      2100  /* Return the (string) value of python attribute defined in qmBasic variable VAL   */
 
 #define  SD_PyDictCrte    2200  /* Creaete new dictionary for sd */
-#define  SD_PyDictDel     2201  /* Del  dictionary for sd */
+#define  SD_PyDictClr     2201  /* Clear  dictionary Keys and Values, (Name remains in global dictionary) for sd */
 #define  SD_PyDictVset    2202  /* set dictionary key : value    */
 #define  SD_PyDictVget    2203  /* get value of dictionary item key  */
 /* END-CODE */

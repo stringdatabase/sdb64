@@ -1,6 +1,6 @@
 /* SDEXT_PY.C
  * python integration for SD via SDEXT (op_sdext.c) BASIC function
- * Copyright (c)2024 The SD Developers, All Rights Reserved
+ * Copyright (c)2025 The SD Developers, All Rights Reserved
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -65,7 +65,7 @@
 #include "keys.h"
 
 int PyDictCrte(char* dictname);
-int PyDictDel(char* dictname );
+int PyDictClr(char* dictname );
 int PyDictValSetS(char* dictname, char* key, char* value);
 int PyDictValGetS(char* dictname, char* key);
 
@@ -104,13 +104,13 @@ void sdext_py(int key, char* Arg, char* Arg2, char* Arg3 ){
         from Programming Python 4th edition, Basic Embedding Techniques,
         Running Strings in Dictionaries       */
         if (Py_IsInitialized()) {     /* did initialization succeed? */
-          // 1. Get the main module 
-          main_module = PyImport_ImportModule("__main__");  
+          // 1. Get the main module rem Borrowed reference
+          main_module = PyImport_AddModule("__main__");  
           if (main_module == NULL) {
             PyErr_Print();
             myResult = SD_PyErr_MainMod;  /* could get main module bad news! */
           }else{
-          // 2. Get the main (global) dictionary
+          // 2. Get the main (global) dictionary rem Borrowed reference
             global_dict = PyModule_GetDict(main_module);
             if (global_dict == NULL) {
               PyErr_Print();
@@ -131,17 +131,7 @@ void sdext_py(int key, char* Arg, char* Arg2, char* Arg3 ){
       break;
 
     case SD_PyFinal: /* Finalize the python interpreter   */
-
-    /* Note to whoever,  Do not:  */
-    /* Py_XDECREF(main_module)     */
-    /* Py_XDECREF(global_dict)     */
-    /* When running with a debug python build you will see:
-    perform clean up and finalize
-    ../Include/object.h:798: _Py_NegativeRefcount: Assertion failed: object has negative ref count
-    <object at 0x76c303536450 is freed>
-    Fatal Python error: _PyObject_AssertFailed: _PyObject_AssertFailed
-    Python runtime state: finalizing (tstate=0x000076c304921e18)
-    */
+      /* rem  global_dict, main_module are Borrowed Reference  */
                   
       if (Py_IsInitialized()) {  /* only finalize if previously initialized */
         myResult = Py_FinalizeEx();
@@ -247,62 +237,14 @@ void sdext_py(int key, char* Arg, char* Arg2, char* Arg3 ){
 /*  Python Objects Extension             
 * 
 * Some Notes:
-* From Python Documentation https://docs.python.org/3/contents.html
-* Notes on Reference Counting:
+* From Python Documentation https://docs.python.org/3/c-api/index.html
+* Reference Counts:
 * A safe approach is to always use the generic operations (functions whose name begins with PyObject_, PyNumber_, PySequence_ or PyMapping_). 
 * These operations always create a new strong reference (i.e. increment the reference count) of the object they return.
 * This leaves the caller with the responsibility to call Py_XDECREF() when they are done with the result; this soon becomes second nature.     
 * So we favor Py_Mapping_ to Py_Dict_ function calls
 */
 /***************************************************************************************************************************/
-void sdext_pyobj(int key, char* Arg, char* Arg2, char* Arg3 ){
-  int myResult;
-
-  switch (key) {
-
-    case SD_PyDictCrte: 
-      // Arg is name of dictionary to create
-      myResult = PyDictCrte(Arg );
-      process.status = myResult;
-      InitDescr(e_stack, INTEGER);
-      (e_stack++)->data.value = (int32_t)myResult;
-      break;
-
-    case SD_PyDictDel: 
-      // Arg is name of dictionary to Delete
-      myResult = PyDictDel(Arg);
-      process.status = myResult;
-      InitDescr(e_stack, INTEGER);
-      (e_stack++)->data.value = (int32_t)myResult;
-      break;
-
-
-    case SD_PyDictVset:
-    // Arg is name of dictionary 
-    // Arg2 is key
-    // Arg3 is value to set
-      myResult = PyDictValSetS(Arg, Arg2, Arg3 );
-      process.status = myResult;
-      InitDescr(e_stack, INTEGER);
-      (e_stack++)->data.value = (int32_t)myResult;
-      break;
-
-    case SD_PyDictVget:
-    // Arg is name of dictionary 
-    // Arg2 is key
-    // value will be placed in data descriptor by PyDictValGet
-    /* rem value ends up as string and must be returned to sd with
-       k_put_c_string(pyResult, e_stack);*/
-      myResult = PyDictValGetS(Arg, Arg2);    
-      process.status = myResult;
-      e_stack++;
-      break;
-
-
-  }
-
-  return;
-}
 
 /***************************************************************************************************************************/
 /*  Create Dictionary                                                                                              */
@@ -349,12 +291,14 @@ int PyDictCrte(char* dictname ){
 
 
 /***************************************************************************************************************************/
-/*  Delete Dictionary                                                                                              */
+/*  Clear Dictionary                                                                                              */
 /***************************************************************************************************************************/
-int PyDictDel(char* dictname ){
-  /* delete dictionary for use by SD */
+int PyDictClr(char* dictname ){
+  /* clear  dictionary key values, name remains in globals directory! */
+  /* Note this appears to work the best with no memory listed as      */
+  /* still reachable: 0 bytes in 0 blocks  using Valgrind             */
    
-  PyObject* dict_lookup, *key;
+  PyObject* dict_lookup;
   
   /* does dicionary (or object with this name) exist? */ 
   dict_lookup = lookup_dict_item(global_dict, dictname);
@@ -365,41 +309,10 @@ int PyDictDel(char* dictname ){
     
     // Is this object a dictionary?
     if (PyDict_Check(dict_lookup)) {
-      // yes it is a dictionary
-      // build key
-      key = PyUnicode_DecodeLatin1(dictname, (Py_ssize_t) strlen(dictname), "strict");
-      if (key == NULL){
-        PyErr_Print();
-        Py_XDECREF(dict_lookup);
-        return SD_PyErr_EnLatin;
-      }
-
-      if (PyDict_Contains(global_dict, key)) {
-        if (PyDict_DelItemString(global_dict, dictname) != 0) {
-          // failure, dict object not found?
-          PyErr_Print();
-          Py_XDECREF(dict_lookup);
-          Py_XDECREF(key);
-          return SD_PyEr_Key;
-        } else {
-        
-        // Removal of object from global dict successful.
-        // In theory at this point there are no more references to the dictionary object we created,
-        // the interpreter will handle freeing the memory because the reference count is zero
-        Py_XDECREF(dict_lookup);
-        Py_XDECREF(key);
-        return 0;  
-
-        }
-      } else {
-        // key not in global dict
-        Py_XDECREF(dict_lookup);
-        Py_XDECREF(key);
-        return SD_PyEr_Key;
-      }  
-
-
-
+      // yes it is a dictionary, clear it's key : values
+      PyDict_Clear(dict_lookup);
+      Py_XDECREF(dict_lookup);
+      return 0;  
     } else {
       // object was not a dictionary
       Py_XDECREF(dict_lookup);
@@ -438,31 +351,23 @@ int PyDictValSetS(char* dictname, char* key, char* value){
     if (PyDict_Check(dict_lookup)) {
       // yes it is a dictionary
 
-      // Create key and value objects
-      //PyObject *Pykey = PyUnicode_FromString(key);
-      //PyObject *Pyvalue = PyUnicode_FromString(value);
-
-      PyObject *Pykey = PyUnicode_DecodeLatin1(key, (Py_ssize_t) strlen(key), "strict");
-      if (Pykey == NULL){
-        PyErr_Print();
-        Py_XDECREF(dict_lookup);
-        return SD_PyErr_EnLatin;
-      }
-
       PyObject *Pyvalue = PyUnicode_DecodeLatin1(value, (Py_ssize_t) strlen(value), "strict");
       if (Pyvalue == NULL){
         PyErr_Print();
+        //Py_XDECREF(Pykey);
         Py_XDECREF(dict_lookup);
         return SD_PyErr_EnLatin;
       }  
 
       // Add the key-value pair to the dictionary
-      if (PyDict_SetItem(dict_lookup, Pykey, Pyvalue) != 0) {
+      
+      //if (PyDict_SetItem(dict_lookup, Pykey, Pyvalue) != 0) {
+      if (PyMapping_SetItemString(dict_lookup, key, Pyvalue) != 0) {
         // Failed to set dictionary key / value
         myResult = SD_PyErr_DictSet;
       }
       // Clean up
-      Py_XDECREF(Pykey);
+      //Py_XDECREF(Pykey);
       Py_XDECREF(Pyvalue);
 
     } else {
@@ -497,18 +402,29 @@ int PyDictValGetS(char* dictname, char* key){
     
     // Is this object a dictionary?
     if (PyDict_Check(dict_lookup)) {
-      // yes it is a dictionary
+      // yes it is a dictionary.
+      // if key not found with PyMapping_GetItemString there seems to be 
+      // a large amount of memory reported as: 
+      // still reachable: xxxxx bytes in yyyy blocks  using Valgrind
+      // theoretically this is memory waiting to be released as part of python finalize
+      // but lets not take the chance.        
+      // Create key and check it it exists in dict
+      PyObject *Pykey = PyUnicode_DecodeLatin1(key, (Py_ssize_t) strlen(key), "strict");;
 
-      PyObject* value = PyMapping_GetItemString(dict_lookup, key);
-
-      //  key is not found ??
-      if (value == NULL) {
-        PyErr_Print(); // Print Python exception, if any
-        myResult = SD_PyEr_Key;
-      } else {
-        // got our value, but we need to convert to latin string before return to sd
-        obj_to_str(value);
+      if (Pykey == NULL){
+          PyErr_Print();
+          Py_XDECREF(dict_lookup);
+          return SD_PyErr_EnLatin;
       }
+      if (PyDict_Contains(dict_lookup, Pykey)) {
+        PyObject* value = PyMapping_GetItemString(dict_lookup, key);
+        obj_to_str(value);
+      } else {
+      //  key is not found ??
+      //  PyErr_Print(); // Print Python exception, if any
+        myResult = SD_PyEr_Key;
+      } 
+      Py_XDECREF(Pykey);
 
     } else {
       // object was not a dictionary, report error
@@ -588,7 +504,6 @@ void obj_to_str(PyObject* pval){
   return;
 
 }
-
 
 
 /******************************************************************************************/
