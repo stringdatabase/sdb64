@@ -392,11 +392,13 @@ int PyDictValGetS(char* dictname, char* key){
   PyObject* dict_lookup;
 
   myResult = 0;
+  char nullresult[] = "";
 
   /* does dicionary (or object with this name) exist? */ 
   dict_lookup = lookup_dict_item(global_dict, dictname);
   if (dict_lookup == NULL) {
     // does not exist!
+    k_put_c_string(nullresult, e_stack);   /* return empty string */
     return SD_PyErr_ObjNOF;
   } else {
     
@@ -414,6 +416,7 @@ int PyDictValGetS(char* dictname, char* key){
       if (Pykey == NULL){
           PyErr_Print();
           Py_XDECREF(dict_lookup);
+          k_put_c_string(nullresult, e_stack);   /* return empty string */
           return SD_PyErr_EnLatin;
       }
       if (PyDict_Contains(dict_lookup, Pykey)) {
@@ -422,12 +425,14 @@ int PyDictValGetS(char* dictname, char* key){
       } else {
       //  key is not found ??
       //  PyErr_Print(); // Print Python exception, if any
+        k_put_c_string(nullresult, e_stack);   /* return empty string */
         myResult = SD_PyEr_Key;
       } 
       Py_XDECREF(Pykey);
 
     } else {
       // object was not a dictionary, report error
+      k_put_c_string(nullresult, e_stack);   /* return empty string */
       myResult = SD_PyErr_NotDict;
     }
 

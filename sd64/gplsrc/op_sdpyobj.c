@@ -51,8 +51,8 @@ extern int PyDictValSetS(char* dictname, char* key, char* value);
 extern int PyDictValGetS(char* dictname, char* key);
 
 Private void sdme_err_rsp(int errnbr);
-Private void getarg(char* arg);
-Private void freeArg(char* Arg);
+Private char* getarg();
+Private char* freeArg(char* Arg);
 
 /* ======================================================================
    op_sdpyobj()   op code for BASIC function SD_PYOBJ   
@@ -100,9 +100,9 @@ void op_sdpyobj() {
   key = (int16_t)(descr->data.value);
   k_pop(1);   /* after pop() e_stack - 1 points to descr which holds ARG1  */
 
-  getarg(Arg1); /* get string Arg from descr and dismiss() */
-  getarg(Arg2);
-  getarg(Arg3);
+  Arg1 = getarg(); /* get string Arg from descr and dismiss() */
+  Arg2 = getarg();
+  Arg3 = getarg();
   /* rem e_stack now points to descr for return value */
 
   if (!Py_IsInitialized()) {  /* functions only avaialble if python already initialized */
@@ -158,20 +158,23 @@ void op_sdpyobj() {
   }
   
   /* release our arg Buffers  */
-  freeArg(Arg1);
-  freeArg(Arg2);
-  freeArg(Arg3);
+  Arg1 = freeArg(Arg1);
+  Arg2 = freeArg(Arg2);
+  Arg3 = freeArg(Arg3);
 
   return;
 }
 
 
-Private void getarg(char* arg){
+Private char* getarg(){
 /* get args from stack  */
   DESCRIPTOR* descr;
   STRING_CHUNK* str;
   int32_t myval_len;
   int32_t mybuf_sz;
+  char* arg;
+
+  arg = NULL;
 
   /* Get val string */
   descr = e_stack - 1;
@@ -211,15 +214,15 @@ Private void getarg(char* arg){
                  /* Using pop would not free the sting blocks                  */
                  /* After dismiss() e_stack  points to next descr on stack,    */
                  /* either the descr for next Arg or the one to receive RTNVAL */
-  return;
+  return arg;
 }
 
-Private void freeArg(char* Arg){
+Private char* freeArg(char* Arg){
     if (Arg != NULL){
         free(Arg);    
-        Arg = NULL;
     } 
-}
+    return NULL;
+  }
 
 /* generic error return with null response, setting process.status */
 Private void sdme_err_rsp(int errNbr){

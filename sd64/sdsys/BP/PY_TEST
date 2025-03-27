@@ -15,7 +15,9 @@ program py_test
 * along with this program; if not, write to the Free Software Foundation,
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
+$include SDPYFUNC.H
 crt 'embedded python test, hit <enter> to start':
+
 input ok
 crt str('=',50)
 *
@@ -81,7 +83,39 @@ crt 'status = ':status()
 crt "dummy:"
 crt rtn_string
 *
+
+*
 crt str('=',50)
+crt 'attempt to create python dictionary my_dict'
+rtn_status = PY_CREATEDICT("my_dict")
+crt 'rtn_status = ':rtn_status
+crt 'status()   = ':status()
+*
+crt str('=',50)
+crt 'add key "k2" value "this is my second value" dictionary my_dict'
+rtn_status = PY_DICTVALSETS("my_dict","k2","this is my second value")
+crt 'rtn_status = ':rtn_status
+crt 'status()   = ':status()
+crt 'Now display contents via PY_RUNSTRING'
+call !PY_RUNSTRING("print(my_dict)",rtn)
+crt
+*
+crt str('=',50)
+crt 'attempt get value for key "k1" dictionary my_dict'
+rtn_string = PY_DICTVALGETS("my_dict","k1")
+crt 'rtn_string = ':rtn_string
+crt 'status()   = ':status()
+*
+crt str('=',50)
+crt 'attempt to clear python dictionary my_dict'
+rtn_status = PY_CLEARDICT("my_dict")
+crt 'rtn_status = ':rtn_status
+crt 'status()   = ':status()
+crt 'Now display contents via PY_RUNSTRING'
+call !PY_RUNSTRING("print(my_dict)",rtn)
+crt
+crt str('=',50)
+
 *
 * don't finalize, we will check when sd closes
 999: crt 'complete'
