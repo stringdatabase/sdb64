@@ -39,7 +39,9 @@
 
 #include <linux/limits.h>
 
+
 #include "sd.h"
+#include "sdext_python_inc.h"  /* NOTE! this file is created by the install script !!! */
 #include "keys.h"
 
 /* defined in sdext_py.c */
@@ -103,6 +105,12 @@ void op_sdpyobj() {
   getarg(Arg3);
   /* rem e_stack now points to descr for return value */
 
+  if (!Py_IsInitialized()) {  /* functions only avaialble if python already initialized */
+    sdme_err_rsp(SD_PyEr_NotInit);
+    return;
+  }
+
+
   /* look for sd_pyobj function key */
   switch (key) {
 	case SD_PyDictCrte: 
@@ -137,7 +145,7 @@ void op_sdpyobj() {
     // Arg2 is key
     // value will be placed in data descriptor by PyDictValGet
     /* rem value ends up as string and must be returned to sd with
-       k_put_c_string(pyResult, e_stack);*/
+       k_put_c_string(pyResult, e_stack) in PyDictValGetS;*/
       myResult = PyDictValGetS(Arg1, Arg2);    
       process.status = myResult;
       e_stack++;
