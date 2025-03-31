@@ -25,7 +25,7 @@
 * END-DESCRIPTION
 *
 * START-CODE
-
+deffun PY_IS_INITIALIZED() calling '!PY_IS_INITIALIZED'
 deffun PY_CREATEDICT(dictname) calling '!PY_CREATEDICT'
 deffun PY_CLEARDICT(dictname) calling '!PY_CLEARDICT'
 deffun PY_DICTVALGETS(dictname,key) calling '!PY_DICTVALGETS'

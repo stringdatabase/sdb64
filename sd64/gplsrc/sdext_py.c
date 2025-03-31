@@ -69,6 +69,9 @@ int PyDictClr(char* dictname );
 int PyDictValSetS(char* dictname, char* key, char* value);
 int PyDictValGetS(char* dictname, char* key);
 
+int PyStrSet(char* strname, char* strvalue );
+int PyStrGet(char* strname );
+
 PyObject* lookup_dict_item(PyObject* dict, const char* key);
 void obj_to_str(PyObject* pval);
 
@@ -270,7 +273,7 @@ int PyDictCrte(char* dictname ){
       return SD_PyEr_Dict ;
     } else {
       // created, add it to the main_module name space
-      myResult = PyDict_SetItemString(global_dict, dictname, new_dict);
+      myResult = PyMapping_SetItemString(global_dict, dictname, new_dict);
       if (myResult != 0){
         // failed to add to global dictionary namespace !?
         myResult =  SD_PyErr_NamSpcErr;
@@ -411,7 +414,7 @@ int PyDictValGetS(char* dictname, char* key){
       // theoretically this is memory waiting to be released as part of python finalize
       // but lets not take the chance.        
       // Create key and check it it exists in dict
-      PyObject *Pykey = PyUnicode_DecodeLatin1(key, (Py_ssize_t) strlen(key), "strict");;
+      PyObject *Pykey = PyUnicode_DecodeLatin1(key, (Py_ssize_t) strlen(key), "strict");
 
       if (Pykey == NULL){
           PyErr_Print();
@@ -441,6 +444,60 @@ int PyDictValGetS(char* dictname, char* key){
 
   return myResult;
 }
+
+/***************************************************************************************************************************/
+/*  Create and or set String                                                                                               */
+/***************************************************************************************************************************/
+int PyStrSet(char* strname, char* strvalue ){
+  /* Create and or set String  for use by SD */
+  
+  int myResult;
+  PyObject* dict_lookup;
+  PyObject* new_string;     /* new string we are creating */
+
+  myResult = 0;
+
+  /* create string object */
+  new_string = PyUnicode_DecodeLatin1(strvalue, (Py_ssize_t) strlen(strvalue), "strict");
+  if (new_string  == NULL) {
+    // not created
+   PyErr_Print();
+   return SD_PyErr_EnLatin ;
+ }
+
+  /* does string object (or object with this name) already exist? */ 
+  dict_lookup = lookup_dict_item(global_dict, strname);
+  if (dict_lookup == NULL) {
+  /* does not exist, add to global dict */
+      myResult = PyMapping_SetItemString(global_dict, strname, new_string);
+      if (myResult != 0){
+        // failed to add to global dictionary namespace !?
+        myResult =  SD_PyErr_NamSpcErr;
+      }
+
+  } else {
+    // exists, is it a string object?
+    if (PyUnicode_Check(dict_lookup)){
+      // yes, update it
+      myResult = PyMapping_SetItemString(global_dict, strname, new_string);
+      if (myResult != 0){
+        // failed to add to global dictionary namespace !?
+        myResult =  SD_PyErr_NamSpcErr;
+      }
+
+    } else {
+      // not a string
+      myResult = SD_PyErr_NotStr; 
+    }
+    Py_XDECREF(dict_lookup);
+  }
+  // free up ref  (global dict holds a ref to the new_string, we should be safe to do this)
+  Py_XDECREF(new_string);
+
+  return myResult;
+  }
+
+
 
 /***************************************************************************************************************************/
 /*  convert python object to string                                                                                        */

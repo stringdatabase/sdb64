@@ -320,4 +320,5 @@
 #define SD_PyErr_DictSet   -12015    /* failed to set dictionary key / value */
 #define SD_PyErr_NotDict   -12016    /* Object not a dictionary  */
 #define SD_PyErr_EnLatin   -12017    /* error encoding latin string to unicode      */
+#define SD_PyErr_NotStr    -12018    /* Object not a String (unicode)  */
 /* END-CODE */
