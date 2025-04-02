@@ -318,7 +318,9 @@
 #define SD_PyErr_NamSpcErr -12013    /* Failed to add to namespace  */
 #define SD_PyErr_ObjNOF    -12014    /* requested object does not exist  */
 #define SD_PyErr_DictSet   -12015    /* failed to set dictionary key / value */
-#define SD_PyErr_NotDict   -12016    /* Object not a dictionary  */
-#define SD_PyErr_EnLatin   -12017    /* error encoding latin string to unicode      */
-#define SD_PyErr_NotStr    -12018    /* Object not a String (unicode)  */
+#define SD_PyErr_DictDel   -12016    /* failed to Delete dictionary key / value */
+#define SD_PyErr_NotDict   -12017    /* Object not a dictionary  */
+#define SD_PyErr_EnLatin   -12018    /* error encoding latin string to unicode      */
+#define SD_PyErr_NotStr    -12019    /* Object not a String (unicode)  */
+#define SD_PyErr_DelObj    -12020    /* Failed to remove Object from global dictionary */
 /* END-CODE */

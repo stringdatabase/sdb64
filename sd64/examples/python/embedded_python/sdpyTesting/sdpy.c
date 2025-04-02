@@ -64,7 +64,12 @@ extern int PyDictCrte(char* dictname);
 extern int PyDictClr(char* dictname );
 extern int PyDictValSetS(char* dictname, char* key, char* value);
 extern int PyDictValGetS(char* dictname, char* key);
+extern int PyDictDel(char* dictname, char* key);
 
+extern int PyStrSet(char* strname, char* strvalue );
+extern int PyStrGet(char* strname );
+
+extern int PyDelObj(char* objname);
 
 /*************************************************************   Remove Main for production! */
 

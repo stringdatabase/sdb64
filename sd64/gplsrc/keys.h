@@ -363,8 +363,12 @@
 #define  SD_PyDictCrte    2200  /* Creaete new dictionary for sd */
 #define  SD_PyDictClr     2201  /* Clear  dictionary Keys and Values, (Name remains in global dictionary) for sd */
 #define  SD_PyDictVset    2202  /* set dictionary key : value    */
-#define  SD_PyDictVget    2203  /* get value of dictionary item key  */
+#define  SD_PyDictVget    2203  /* get value of dictionary item key   */
+#define  SD_PyDictIDel    2204  /* delete item (key / value) from dictionary */
+
 
 #define SD_PYStrSet       2210  /* create and or set string */
-#define SD_PYStrGet       2210  /* Get string */
+#define SD_PYStrGet       2211  /* Get string */
+
+#define SD_PYDelObj       2215  /* Delete Python Object */
 /* END-CODE */

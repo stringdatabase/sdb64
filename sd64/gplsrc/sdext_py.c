@@ -68,9 +68,12 @@ int PyDictCrte(char* dictname);
 int PyDictClr(char* dictname );
 int PyDictValSetS(char* dictname, char* key, char* value);
 int PyDictValGetS(char* dictname, char* key);
+int PyDictDel(char* dictname, char* key);
 
 int PyStrSet(char* strname, char* strvalue );
 int PyStrGet(char* strname );
+
+int PyDelObj(char* objname);
 
 PyObject* lookup_dict_item(PyObject* dict, const char* key);
 void obj_to_str(PyObject* pval);
@@ -326,10 +329,6 @@ int PyDictClr(char* dictname ){
 
 }
 
-
-
-
-
 /***************************************************************************************************************************/
 /*  Set Dictionary String Value for key                                                                                               */
 /***************************************************************************************************************************/  
@@ -444,6 +443,57 @@ int PyDictValGetS(char* dictname, char* key){
 
   return myResult;
 }
+/***************************************************************************************************************************/
+/*  Delete Dictionary key  (and value)                                                                                              */
+/***************************************************************************************************************************/  
+
+int PyDictDel(char* dictname, char* key){
+  /* delete dictionary key */  
+
+  int myResult;
+  PyObject* dict_lookup;
+
+  myResult = 0;
+
+  /* does dicionary (or object with this name) exist? */ 
+  dict_lookup = lookup_dict_item(global_dict, dictname);
+  if (dict_lookup == NULL) {
+    // does not exist!
+    return SD_PyErr_ObjNOF;
+  } else {
+    
+    // Is this object a dictionary?
+    if (PyDict_Check(dict_lookup)) {
+      // yes it is a dictionary
+
+      PyObject *PyKey = PyUnicode_DecodeLatin1(key, (Py_ssize_t) strlen(key), "strict");
+      if (PyKey == NULL){
+        PyErr_Print();
+        Py_XDECREF(dict_lookup);
+        return SD_PyErr_EnLatin;
+      }  
+
+      // Remove key-value pair from the dictionary
+      
+      if (PyMapping_DelItem(dict_lookup, PyKey) != 0) {
+        // Failed to delete dictionary key / value
+        myResult = SD_PyErr_DictDel;
+      }
+      // Clean up
+      Py_XDECREF(PyKey);
+
+    } else {
+      // object was not a dictionary, report error
+      myResult = SD_PyErr_NotDict;
+    }
+
+    Py_XDECREF(dict_lookup);
+  }
+
+  return myResult;
+}
+
+
 
 /***************************************************************************************************************************/
 /*  Create and or set String                                                                                               */
@@ -496,6 +546,86 @@ int PyStrSet(char* strname, char* strvalue ){
 
   return myResult;
   }
+
+/***************************************************************************************************************************/
+/* Get String                                                                                                              */
+/* rem, value ends up in SD descriptor so we really only return a status code                                              */
+/***************************************************************************************************************************/
+
+int PyStrGet(char* strname ){
+  /* get a dictionary key's value */  
+  int myResult;
+  PyObject* dict_lookup;
+
+  myResult = 0;
+  char nullresult[] = "";
+
+  /* does string (or object with this name) exist? */ 
+  dict_lookup = lookup_dict_item(global_dict, strname);
+  if (dict_lookup == NULL) {
+    // does not exist!
+    k_put_c_string(nullresult, e_stack);   /* return empty string */
+    return SD_PyErr_ObjNOF;
+  } else {
+    
+    // exists, is it a unicode object?
+    if (PyUnicode_Check(dict_lookup)){
+        // yes, access and convert to string
+        PyObject* value = PyMapping_GetItemString(dict_lookup, strname);
+        obj_to_str(value);
+    } else {
+      // object was not a unicode object, report error
+      k_put_c_string(nullresult, e_stack);   /* return empty string */
+      myResult = SD_PyErr_NotStr;
+    }
+
+    Py_XDECREF(dict_lookup);
+  }
+
+  return myResult;
+}
+
+/***************************************************************************************************************************/
+/*  Delete Python Object (Remove from global dictionary)                                                                                             */
+/***************************************************************************************************************************/  
+
+int PyDelObj(char* objname){
+  /* delete Python Object */  
+
+  int myResult;
+  PyObject* dict_lookup;
+
+  myResult = 0;
+
+  /* does the object with this name exist? */ 
+  dict_lookup = lookup_dict_item(global_dict, objname);
+  if (dict_lookup == NULL) {
+    // does not exist!
+    return SD_PyErr_ObjNOF;
+  } else {
+  
+    PyObject *PyObj = PyUnicode_DecodeLatin1(objname, (Py_ssize_t) strlen(objname), "strict");
+    if (PyObj == NULL){
+      PyErr_Print();
+      Py_XDECREF(dict_lookup);
+      return SD_PyErr_EnLatin;
+    }  
+
+    // Remove from global dictionary
+    // This should remove all references to the object, resulting in its deletion
+    // via python garbage collection
+    
+    if (PyMapping_DelItem(global_dict, PyObj) != 0) {
+      // Failed to remove object reference in global dictionary
+      myResult = SD_PyErr_DelObj;
+    }
+    // Clean up
+    Py_XDECREF(PyObj);
+    Py_XDECREF(dict_lookup);
+  }
+
+  return myResult;
+}
 
 
 
