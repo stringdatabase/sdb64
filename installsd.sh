@@ -4,6 +4,7 @@
 #   This software is released under the Blue Oak Model License
 #   a copy can be found on the web here: https://blueoakcouncil.org/license/1.0.0
 #   
+#   rev 0.9-1 Apr 25 mab - replace lsb_release with /etc/os-release - not installed by default on Fedora
 #   rev 0.9-1 Mar 25 mab - create generic install script and make corrections needed for Raspberry install
 #   rev 0.9-1 Mar 25 mab - add optional install of TAPE / RESTORE subsystem
 #   rev 0.9.0 Jan 25 mab - tighten up permissions
@@ -52,7 +53,7 @@ esac
 is_ubuntu=0
 is_fedora=0
 
-distro=$(lsb_release -is)
+distro=$(awk -F= '$1=="NAME" {gsub("\"","", $2); print $2 ;}' /etc/os-release)
 #
 case $distro in
       "Ubuntu" ) echo "Distro is: Ubuntu"
