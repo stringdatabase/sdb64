@@ -571,7 +571,7 @@ int PyStrGet(char* strname ){
     // exists, is it a unicode object?
     if (PyUnicode_Check(dict_lookup)){
         // yes, access and convert to string
-        PyObject* value = PyMapping_GetItemString(dict_lookup, strname);
+        PyObject* value = PyMapping_GetItemString(global_dict, strname);
         obj_to_str(value);
     } else {
       // object was not a unicode object, report error
