@@ -4,8 +4,9 @@
 #   This software is released under the Blue Oak Model License
 #   a copy can be found on the web here: https://blueoakcouncil.org/license/1.0.0
 #   
-#   rev 0.9-1 Mar 25 mab - generic install
-#   rev 0.9.1 Mar 25 mab - add optional install of TAPE / RESTORE subsystem
+#   rev 0.9-1 Apr 25 mab - replace lsb_release with /etc/os-release - not installed by default on Fedora
+#   rev 0.9-1 Mar 25 mab - create generic install script and make corrections needed for Raspberry install
+#   rev 0.9-1 Mar 25 mab - add optional install of TAPE / RESTORE subsystem
 #   rev 0.9.0 Jan 25 mab - tighten up permissions
 #                        - build with embedded python
 #                        - sdsys's pri group now sdusers - note require sudo groupdel sdsys in deletesd.sh
@@ -48,31 +49,54 @@ case $yn in
     [nN] ) exit;;
     * ) exit ;;
 esac
-# 
-is_ubuntu=0
-is_fedora=0
 
-distro=$(lsb_release -is)
-#
-case $distro in
-      "Ubuntu" ) echo "Distro is: Ubuntu"
-                 is_ubuntu=1;;
-      "Fedora" ) echo "Distro is: Fedora"
-                 is_fedora=1;;
-      "Raspbian" ) echo "Distro is: Raspbian"
-                 is_ubuntu=1;;
-      * ) echo "Distro is: " $distro
-          echo "Defaulting to Ubuntu, YMMV"
-          is_ubuntu=1;;
-esac 
 echo
 echo If requested, enter your account password:
 sudo date
 clear
 echo
+
+# 
+# the install script only works for debian / fedora or distros based on debian / fedora
+is_debian=0
+is_fedora=0
+
+id=$(awk -F= '$1=="ID" {gsub("\"","", $2); print $2 ;}' /etc/os-release)
+#
+id_like=$(awk -F= '$1=="ID_LIKE" {gsub("\"","", $2); print $2 ;}' /etc/os-release)
+#
+distro=$(awk -F= '$1=="NAME" {gsub("\"","", $2); print $2 ;}' /etc/os-release)
+
+if [[ -z "$id_like" ]]; then
+# must be debian or fedora 
+  case $id in
+      "debian" ) echo "Distro is: Debian"
+                 is_debian=1;;
+      "fedora" ) echo "Distro is: Fedora"
+                 is_fedora=1;;
+      * ) echo "Distro is: " $distro
+          echo "Defaulting to Debian YMMV"
+          is_debian=1;;
+  esac 
+
+else  
+# a derivative of debian or fedora
+  case $id_like in
+      "debian" ) echo "Distro is: "$distro
+                 echo "Treat  as: Debian"
+                 is_debian=1;;
+      "fedora" ) echo "Distro is: "$distro
+                 echo "Treat  as: Fedora"
+                 is_fedora=1;;
+      * ) echo "Distro is: " $distro
+          echo "Defaulting to Debian YMMV"
+          is_debian=1;;
+  esac
+fi
+
 #
 # package installer is based on distro, clucky but easy to read
-if [ $is_ubuntu -eq 1 ]; then
+if [ $is_debian -eq 1 ]; then
   echo Installing required packages with apt-get
   sudo apt-get install build-essential micro lynx libbsd-dev libsodium-dev openssh-server python3-dev
 fi
@@ -93,7 +117,7 @@ if [ $? -eq 0 ]; then
   HDRS_STR="${HDRS_STR#-I}"
 #
   echo "path to include file: " $HDRS_STR
-# now create the includ file we will use
+# now create the include file we will use
   echo "#include <"$HDRS_STR"/Python.h>" > sd64/gplsrc/sdext_python_inc.h
   
   
