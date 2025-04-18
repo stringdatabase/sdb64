@@ -6,7 +6,7 @@ SD developers after the fork from ScarletDME.  While it shares many of the same 
 it was forked to explore some new ideas as to what a modern multivalue database should contain.
 
 SD is 64 bit only and runs only on Linux.  Releases are tested on the most current release
-of Debian, Ubuntu, Mint and Fedora.  SD should run on any distribution based on Debian 12, 
+of Debian, Ubuntu, Mint and Fedora.  SD should run on any distribution based on Debian 12,
 Ubuntu 24.04 or Fedora 41.  The installer has also installed the database successfully on Ubuntu running
 under the Windows Subsystem for Linux, and Ubuntu on the Raspberry Pi 5.
 
