@@ -10,8 +10,8 @@ of Debian, Ubuntu, Mint and Fedora.  SD should run on any distribution based on 
 Ubuntu 24.04 or Fedora 41.  The installer has also installed the database successfully on Ubuntu running
 under the Windows Subsystem for Linux, and Ubuntu on the Raspberry Pi 5.
 
-SD should cohabit peacefully with existing openQM and ScarletDME installations as
-it is installed to a different location and uses memory offsets not used by OpenQM or ScarletDME.
+SD should cohabit peacefully with existing openQM and ScarletDME installations as it
+creates and uses a System V shared memory segment that will not conflict with OpenQM or ScarletDME.
 
 The current version of the SD repository contains no binary bits.  All features are available
 for auditing.  Binary files are only created during the install.
