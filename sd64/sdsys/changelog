@@ -23,9 +23,9 @@ Version 0.9-1
       Correct the "HELP" command in ED(itor), now displays all of HELP if no additional command text given.
         Remove call to kernel(K$HELP,'') not avail on SD.
 		
-	  Makefile - prep for gcc-15, need to add -std=gnu17 to compile flags see  https://gcc.gnu.org/gcc-15/porting_to.html
+      Makefile - prep for gcc-15, need to add -std=gnu17 to compile flags see  https://gcc.gnu.org/gcc-15/porting_to.html
 	  
-	  Create generic install script - installsd.sh. This should work for all debian / fedora based distros
+      Create generic install script - installsd.sh. This should work for all debian / fedora based distros
 
 
 
