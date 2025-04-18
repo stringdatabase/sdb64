@@ -6,17 +6,17 @@ SD developers after the fork from ScarletDME.  While it shares many of the same 
 it was forked to explore some new ideas as to what a modern multivalue database should contain.
 
 SD is 64 bit only and runs only on Linux.  Releases are tested on the most current release
-of Debian, Ubuntu and Mint.  SD should run on any distribution based on Debian 12 
-or Ubuntu 24.04.  The installer has also installed the database successfully on Ubuntu running
+of Debian, Ubuntu, Mint and Fedora.  SD should run on any distribution based on Debian 12, 
+Ubuntu 24.04 or Fedora 41.  The installer has also installed the database successfully on Ubuntu running
 under the Windows Subsystem for Linux, and Ubuntu on the Raspberry Pi 5.
 
-SD should cohabit peacefully with existing openQM and ScarletDME installations as
-it is installed to a different location and uses memory offsets not used by OpenQM or ScarletDME.
+SD should cohabit peacefully with existing openQM and ScarletDME installations as it
+creates and uses a System V shared memory segment that will not conflict with OpenQM or ScarletDME.
 
-The current version of the SD repository contains no binary bits.  Al features are available
+The current version of the SD repository contains no binary bits.  All features are available
 for auditing.  Binary files are only created during the install.
 
-To install on your Debian or Ubuntu based system, just clone the repository to the target computer
-and then run the ubuntu-installsd.sh install script found in the sdb64 directory.
+To install on one of the supported systems, just clone (or download the zip file) of the repository to 
+the target computer and then run the appropriate install script found in the sdb64 directory.
 
 See the sd64/sdsys/changelog file for changes in each version release.
