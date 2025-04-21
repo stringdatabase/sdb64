@@ -1,5 +1,6 @@
 program py_test
-* Copyright (c)2024 The SD Developers, All Rights Reserved
+* Test embedded python functions 
+* Copyright (c)2025 The SD Developers, All Rights Reserved
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -22,9 +23,14 @@ input ok
 crt str('=',50)
 *
 crt 'attempt init'
-call !PY_INITIALIZE(rtn)
-crt 'status = ':status()
+rtn_stat = PY_INITIALIZE()
+crt 'rtn_stat = ':rtn_stat
+crt 'status()   = ':status()
 crt str('=',50)
+if rtn_stat # 0 then 
+  crt 'python init failure, about'
+  stop
+end
 *
 crt 'script text:'
 lf = char(10)
@@ -50,13 +56,14 @@ next i
 crt str('=',50)
 *
 crt 'attempt to run script:'
-call !PY_RUNSTRING(script,rtn)
-crt 'status = ':status()
-if rtn <> 0 then goto 999
+rtn_stat = PY_RUNSTRING(script)
+crt 'rtn_stat = ':rtn_stat
+crt 'status()   = ':status()
+if rtn_stat <> 0 then goto 999
 crt str('=',50)
 *
 crt 'attempt to access python object: result'
-call !PY_GETATTR("result",rtn_string,error)
+rtn_string = PY_GETATTR("result")
 crt 'status = ':status()
 crt "result:"
 crt rtn_string
@@ -66,10 +73,9 @@ for i = 1 to fldcnt
 next i
 *
 
-
 crt str('=',50)
 crt 'attempt to access python object: countdown'
-call !PY_GETATTR("countdown",rtn_string,error)
+rtn_string = PY_GETATTR("countdown")
 crt 'status = ':status()
 crt "countdown:"
 crt rtn_string
@@ -78,7 +84,7 @@ crt rtn_string
 
 crt str('=',50)
 crt 'attempt to access nonexistent python object: dummy'
-call !PY_GETATTR("dummy",rtn_string,error)
+rtn_string = PY_GETATTR("dummy")
 crt 'status = ':status()
 crt "dummy:"
 crt rtn_string
@@ -92,12 +98,25 @@ crt 'rtn_status = ':rtn_status
 crt 'status()   = ':status()
 *
 crt str('=',50)
+crt 'add key "k1" value "first value" dictionary my_dict'
+rtn_status = PY_DICTVALSETS("my_dict","k1","first value")
+crt 'rtn_status = ':rtn_status
+crt 'status()   = ':status()
+*
+crt str('=',50)
 crt 'add key "k2" value "this is my second value" dictionary my_dict'
 rtn_status = PY_DICTVALSETS("my_dict","k2","this is my second value")
 crt 'rtn_status = ':rtn_status
 crt 'status()   = ':status()
+*
+crt str('=',50)
+crt 'add key "k3" value "third value" dictionary my_dict'
+rtn_status = PY_DICTVALSETS("my_dict","k3","third value")
+crt 'rtn_status = ':rtn_status
+crt 'status()   = ':status()
+*
 crt 'Now display contents via PY_RUNSTRING'
-call !PY_RUNSTRING("print(my_dict)",rtn)
+rtn_stat = PY_RUNSTRING("print(my_dict)")
 crt
 *
 crt str('=',50)
@@ -107,15 +126,39 @@ crt 'rtn_string = ':rtn_string
 crt 'status()   = ':status()
 *
 crt str('=',50)
+crt 'attempt delete key "k2" dictionary my_dict'
+rtn_string = PY_DICTIDEL("my_dict","k2")
+crt 'rtn_string = ':rtn_string
+crt 'status()   = ':status()
+*
+crt 'Now display contents via PY_RUNSTRING'
+rtn_stat = PY_RUNSTRING("print(my_dict)")
+crt
+*
+crt str('=',50)
 crt 'attempt to clear python dictionary my_dict'
 rtn_status = PY_CLEARDICT("my_dict")
 crt 'rtn_status = ':rtn_status
 crt 'status()   = ':status()
 crt 'Now display contents via PY_RUNSTRING'
-call !PY_RUNSTRING("print(my_dict)",rtn)
+rtn_stat = PY_RUNSTRING("print(my_dict)")
 crt
+*
 crt str('=',50)
-
+crt 'attempt to create python string "my_str" as "this is my string object"'
+rtn_status = PY_STRSET("my_str","this is my string object" )
+crt 'rtn_status = ':rtn_status
+crt 'status()   = ':status()
+*
+crt 'Now display contents via PY_RUNSTRING'
+rtn_stat = PY_RUNSTRING("print(my_str)")
+crt
+*
+crt str('=',50)
+crt 'attempt to access python string "my_str" '
+rtn_string = PY_STRGET("my_str")
+crt 'rtn_string = ':rtn_string
+crt 'status()   = ':status()
 *
 * don't finalize, we will check when sd closes
 999: crt 'complete'

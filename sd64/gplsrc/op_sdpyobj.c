@@ -49,6 +49,12 @@ extern int PyDictCrte(char* dictname);
 extern int PyDictClr(char* dictname );
 extern int PyDictValSetS(char* dictname, char* key, char* value);
 extern int PyDictValGetS(char* dictname, char* key);
+extern int PyDictDel(char* dictname, char* key);
+
+extern int PyStrSet(char* strname, char* strvalue );
+extern int PyStrGet(char* strname );
+
+extern int PyDelObj(char* objname);
 
 Private void sdme_err_rsp(int errnbr);
 Private char* getarg();
@@ -113,8 +119,12 @@ void op_sdpyobj() {
 
   /* look for sd_pyobj function key */
   switch (key) {
+
+  /********************* dictionary objects **********************/   
+
 	case SD_PyDictCrte: 
-      // Arg is name of dictionary to create
+      /* Creaete new dictionary for sd */
+      // Arg1 is name of dictionary to create
       myResult = PyDictCrte(Arg1);
       process.status = myResult;
       InitDescr(e_stack, INTEGER);
@@ -122,7 +132,8 @@ void op_sdpyobj() {
       break;
 
     case SD_PyDictClr: 
-      // Arg is name of dictionary to Clear
+      /* Clear  dictionary Keys and Values, (Name remains in global dictionary) for sd */
+      // Arg1 is name of dictionary to Clear
       myResult = PyDictClr(Arg1);
       process.status = myResult;
       InitDescr(e_stack, INTEGER);
@@ -131,9 +142,10 @@ void op_sdpyobj() {
 
 
     case SD_PyDictVset:
-    // Arg is name of dictionary 
-    // Arg2 is key
-    // Arg3 is value to set
+      /* set dictionary key : value    */
+      // Arg1 is name of dictionary object
+      // Arg2 is key
+      // Arg3 is value to set
       myResult = PyDictValSetS(Arg1, Arg2, Arg3 );
       process.status = myResult;
       InitDescr(e_stack, INTEGER);
@@ -141,15 +153,73 @@ void op_sdpyobj() {
       break;
 
     case SD_PyDictVget:
-    // Arg is name of dictionary 
-    // Arg2 is key
-    // value will be placed in data descriptor by PyDictValGet
-    /* rem value ends up as string and must be returned to sd with
-       k_put_c_string(pyResult, e_stack) in PyDictValGetS;*/
+      /* get value of dictionary item key   */
+      // Arg1 is name of dictionary object
+      // Arg2 is key
+      // value will be placed in data descriptor by PyDictValGet
+      /* rem value ends up as string and must be returned to sd with
+         k_put_c_string(pyResult, e_stack) in PyDictValGetS;*/
       myResult = PyDictValGetS(Arg1, Arg2);    
       process.status = myResult;
       e_stack++;
       break;
+
+    case SD_PyDictIDel:
+      /* delete item (key / value) from dictionary */
+      // Arg1 is name of dictionary object
+      // Arg2 is key 
+      // key / value is deleted from dictionary
+      myResult = PyDictDel(Arg1, Arg2);  
+      process.status = myResult;  
+      InitDescr(e_stack, INTEGER);
+      (e_stack++)->data.value = (int32_t)myResult;
+      break;
+
+    /********************* string (unicode) objects **********************/    
+
+    case SD_PYStrSet:
+      /* create and or set string */
+      // Arg1 is name of string object
+      // Arg2 is string value 
+
+      myResult = PyStrSet(Arg1, Arg2);    
+      process.status = myResult;
+      InitDescr(e_stack, INTEGER);
+      (e_stack++)->data.value = (int32_t)myResult;
+      break;
+
+    case SD_PYStrGet:
+      /* get value of string   */
+      // Arg1 is name of string object
+      // value will be placed in data descriptor by PyStrGet
+      /* rem value ends up as string and must be returned to sd with
+         k_put_c_string(pyResult, e_stack) in PyStrGet;*/
+      myResult = PyStrGet(Arg1);    
+      process.status = myResult;
+      e_stack++;
+      break;      
+
+
+    /********************* other functions **********************/   
+    case SD_PYDelObj:
+    /* delete python object */
+    // Arg1 is name object
+    // What this function does is removes the object from the global dictionary.
+    // This should remove all references to the object, resulting in its deletion
+    // via python garbage collection
+    // Using valgrind to test for memory leaks results in chunks for memory being marked as
+    //   "still reachable"
+    // I have not been able to determine if this is indeed a memory leak or simply something that is
+    // a result of how python garbage collection works however I have read:
+    //  still reachable means your program is probably ok -- it didn't free some memory it could have. 
+    //  This is quite common and often reasonable.
+    //  Don't use --show-reachable=yes if you don't want to see these reports.
+
+    myResult = PyDelObj(Arg1);    
+    process.status = myResult;
+    e_stack++;
+    break;
+
   
     default:
       /* unknown key */
