@@ -69,6 +69,9 @@ int PyDictClr(char* dictname );
 int PyDictValSetS(char* dictname, char* key, char* value);
 int PyDictValGetS(char* dictname, char* key);
 int PyDictDel(char* dictname, char* key);
+int PyDictKeysS(char* dictname);
+
+PyObject* List_To_String(PyObject* list);
 
 int PyStrSet(char* strname, char* strvalue );
 int PyStrGet(char* strname );
@@ -493,7 +496,52 @@ int PyDictDel(char* dictname, char* key){
   return myResult;
 }
 
+/***************************************************************************************************************************/
+/*  Get dictionary keys as string                                                                                          */
+/* rem, value ends up in SD descriptor so we really only return a status code                                              */
+/***************************************************************************************************************************/
 
+int PyDictKeysS(char* dictname){
+  /* get a dictionary's keys in field marked list */  
+  int myResult;
+  PyObject* dict_lookup;
+  PyObject* keys_list; 
+  PyObject* keys_str;
+
+  myResult = 0;
+  char nullresult[] = "";
+
+  /* does dicionary (or object with this name) exist? */ 
+  dict_lookup = lookup_dict_item(global_dict, dictname);
+  if (dict_lookup == NULL) {
+    // does not exist!
+    k_put_c_string(nullresult, e_stack);   /* return empty string */
+    return SD_PyErr_ObjNOF;
+  } else {
+    
+    // Is this object a dictionary?
+    if (PyDict_Check(dict_lookup)) {
+      // yes it is a dictionary.
+      // get a pyobject list of keys
+      keys_list = PyDict_Keys(dict_lookup);
+      keys_str  = List_To_String(keys_list);
+      obj_to_str(keys_str);
+      Py_XDECREF(keys_list);
+      if (process.status != 0){
+        myResult = process.status;    // pass error number back (set by List_To_String)
+      }  
+      /* rem keys_str ref released by obj_to_str */
+    } else {
+      // object was not a dictionary, report error
+      k_put_c_string(nullresult, e_stack);   /* return empty string */
+      myResult = SD_PyErr_NotDict;
+    }
+    
+    Py_XDECREF(dict_lookup);
+  }
+
+  return myResult;
+}
 
 /***************************************************************************************************************************/
 /*  Create and or set String                                                                                               */
@@ -586,6 +634,47 @@ int PyStrGet(char* strname ){
 }
 
 /***************************************************************************************************************************/
+/* Get List                                                                                                            */
+/* rem, value ends up in SD descriptor so we really only return a status code                                              */
+/***************************************************************************************************************************/
+
+int PyListGet(char* listname ){
+  /* get a dictionary key's value */  
+  int myResult;
+  PyObject* dict_lookup;
+
+  myResult = 0;
+  char nullresult[] = "";
+
+  /* does list (or object with this name) exist? */ 
+  dict_lookup = lookup_dict_item(global_dict, listname);
+  if (dict_lookup == NULL) {
+    // does not exist!
+    k_put_c_string(nullresult, e_stack);   /* return empty string */
+    return SD_PyErr_ObjNOF;
+  } else {
+    
+    // exists, is it a list object?
+    if (PyList_Check(dict_lookup)){
+        // yes, access list items and convert to string
+        PyObject* list_str  = List_To_String(dict_lookup);
+        obj_to_str(list_str);
+        if (process.status != 0){
+          myResult = process.status;    // pass error number back (set by List_To_String)
+        } 
+    } else {
+      // object was not a list object, report error
+      k_put_c_string(nullresult, e_stack);   /* return empty string */
+      myResult = SD_PyErr_NotList;
+    }
+
+    Py_XDECREF(dict_lookup);
+  }
+
+  return myResult;
+}
+
+/***************************************************************************************************************************/
 /*  Delete Python Object (Remove from global dictionary)                                                                                             */
 /***************************************************************************************************************************/  
 
@@ -627,7 +716,92 @@ int PyDelObj(char* objname){
   return myResult;
 }
 
+/***************************************************************************************************************************/
+/*  convert python list object to string  object with separator                                                            */
+/***************************************************************************************************************************/
+PyObject* List_To_String(PyObject* list){
+// returns string object, caller is responsible to dec ref when finished with it!
+//
+    int first_pass;
+    first_pass = 1;
 
+// check for elements in list
+
+    Py_ssize_t list_size = PyList_Size(list);
+    if (list_size == 0) {
+        process.status = SD_PyErr_NoItems;
+        return NULL;
+    }
+    // create an empty string object to hold our result
+    // and tab string for separator 
+    PyObject* result_str = PyUnicode_FromString("");
+    if (!result_str) {
+        process.status = SD_PyErr_CreStr;
+        return NULL;
+    }
+
+    PyObject* tab_str = PyUnicode_FromString("\t");
+    if (!tab_str) {
+      Py_XDECREF(result_str);
+      process.status = SD_PyErr_CreStr;
+      return NULL;    
+    }
+
+    // iterate over all the list items
+    for (Py_ssize_t i = 0; i < list_size; ++i) {
+	    // get list item i
+        PyObject* item = PySequence_GetItem(list, i);
+        if (!item) {
+          Py_XDECREF(tab_str);
+          Py_XDECREF(result_str);
+          process.status = SD_PyErr_LstItem;
+          return NULL;
+        }
+        // create string object from list item 
+        PyObject* item_str = PyObject_Str(item);
+        Py_XDECREF(item);
+        if (!item_str) {
+          Py_XDECREF(tab_str);
+          Py_XDECREF(result_str);
+          process.status = SD_PyErr_CreStr;
+          return NULL;
+        }
+
+        if (!first_pass){   // only add separator after first pass
+          // concatenate together, but we need to add in separator (tab character) first!
+          PyObject* temp_sep = PyUnicode_Concat(result_str, tab_str);
+
+          if (!temp_sep) {
+            Py_XDECREF(tab_str);
+            Py_XDECREF(result_str);
+            process.status = SD_PyErr_ConCat;
+            return NULL;
+          }
+          // release the prior version of result_str and point to new concatinated string object
+          Py_XDECREF(result_str);
+          result_str = temp_sep;
+
+        } 
+        
+        first_pass = 0;
+        PyObject* temp_str = PyUnicode_Concat(result_str, item_str);
+        Py_XDECREF(result_str);
+        Py_XDECREF(item_str);
+
+        if (!temp_str) {
+            Py_XDECREF(tab_str);
+            process.status = SD_PyErr_ConCat;
+            return NULL;
+        }
+
+        result_str = temp_str; /* not sure about this result string is a python object pointer created above
+		                            we Py_XDECREF(result_str) before assignment, so the created object "should" be free
+									              we then point result_str to temp_str, which is returned to caller on loop completion.
+									              (caller's responsibility to dec) */
+    }
+    Py_XDECREF(tab_str);
+    return result_str;
+}
 
 /***************************************************************************************************************************/
 /*  convert python object to string                                                                                        */

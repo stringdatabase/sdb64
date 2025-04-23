@@ -306,5 +306,11 @@ $define SD_PyErr_DictDel   12016    ;* failed to Delete dictionary key / value
 $define SD_PyErr_NotDict   12017    ;* Object not a dictionary  
 $define SD_PyErr_EnLatin   12018    ;* error encoding latin string to unicode 
 $define SD_PyErr_NotStr    12019    ;* Object not a String (unicode)  
-$define SD_PyErr_DelObj    12020    ;* Failed to remove Object from global dictionary     
+$define SD_PyErr_DelObj    12020    ;* Failed to remove Object from global dictionary 
+
+$define SD_PyErr_NoItems   12030    ;* Python Object contains no items (List?) 
+$define SD_PyErr_CreStr    12031    ;* Failed to create Python String Object   
+$define SD_PyErr_ConCat    12032    ;* Failed to concatinate Python String Objects   
+$define SD_PyErr_LstItem   12033    ;* Failed to access List Objects Item  
+$define SD_PyErr_NotList   12034    ;* Object not a list    
 * END-CODE

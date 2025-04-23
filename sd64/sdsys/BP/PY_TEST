@@ -38,6 +38,7 @@ lf = char(10)
  script := 'VMRKM  = chr(253)':lf
  script := 'SVMRK  = chr(252)':lf
  script := 'result = ""':lf
+ script := 'alist = ["item 1", "item 2", "item 3", "item 4"]':lf
  script := 'countdown = {"3" : "Three", "2" : "Two", "1" : "One", "0" : "Ignition!"}':lf
  script := 'for count in countdown:':lf
  script := '  result += count + " " + countdown[count] + FMRK ':lf
@@ -158,6 +159,44 @@ crt str('=',50)
 crt 'attempt to access python string "my_str" '
 rtn_string = PY_STRGET("my_str")
 crt 'rtn_string = ':rtn_string
+crt 'status()   = ':status()
+*
+crt str('=',50)
+crt 'attempt to access non existent python string "my_dmmy" '
+rtn_string = PY_STRGET("my_dmmy")
+crt 'rtn_string = ':rtn_string
+crt 'status()   = ':status()
+
+*
+crt str('=',50)
+tab = char(9)  
+crt 'Display contents of dictionary countdown via PY_RUNSTRING'
+rtn_stat = PY_RUNSTRING("print(countdown)")
+crt
+crt 'attempt to access dictionary countdown keys (convert tabs to field mark and list) '
+rtn_string = PY_DICTGETKEYS("countdown")
+rtn_string = change(rtn_string,tab,@fm)
+icount = dcount(rtn_string,@fm)
+crt
+for i = 1 to icount
+  crt 'rtn_string<':i:'> = ':rtn_string<i>
+next i
+crt 
+crt 'status()   = ':status()
+*
+crt str('=',50)
+crt 'Now display contents of alist via PY_RUNSTRING'
+rtn_stat = PY_RUNSTRING("print(alist)")
+crt
+crt 'attempt to access alist items (convert tabs to field mark and list) '
+rtn_string = PY_LISTGETS("alist")
+rtn_string = change(rtn_string,tab,@fm)
+icount = dcount(rtn_string,@fm)
+crt
+for i = 1 to icount
+  crt 'rtn_string<':i:'> = ':rtn_string<i>
+next i
+crt 
 crt 'status()   = ':status()
 *
 * don't finalize, we will check when sd closes

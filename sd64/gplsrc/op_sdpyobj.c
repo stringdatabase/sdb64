@@ -18,7 +18,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. 
  * 
  * START-HISTORY:
- * rev 0.9-2 Mar 25 mab op_sd_pyobj
+ * rev 0.9-2 Apr 25 mab op_sd_pyobj
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -50,9 +50,12 @@ extern int PyDictClr(char* dictname );
 extern int PyDictValSetS(char* dictname, char* key, char* value);
 extern int PyDictValGetS(char* dictname, char* key);
 extern int PyDictDel(char* dictname, char* key);
+extern int PyDictKeysS(char* dictname);
 
 extern int PyStrSet(char* strname, char* strvalue );
 extern int PyStrGet(char* strname );
+
+extern int PyListGet(char* listname );
 
 extern int PyDelObj(char* objname);
 
@@ -175,6 +178,17 @@ void op_sdpyobj() {
       (e_stack++)->data.value = (int32_t)myResult;
       break;
 
+      case SD_PyDictKeys:
+      /* get dictionary keys as tab separated string list   */
+      // Arg1 is name of dictionary object
+      // value will be placed in data descriptor by PyDictKeysS
+      /* rem value ends up as string and must be returned to sd with
+         k_put_c_string(pyResult, e_stack) in PyDictValGetS;*/
+      myResult = PyDictKeysS(Arg1);    
+      process.status = myResult;
+      e_stack++;
+      break;  
+
     /********************* string (unicode) objects **********************/    
 
     case SD_PYStrSet:
@@ -197,8 +211,20 @@ void op_sdpyobj() {
       myResult = PyStrGet(Arg1);    
       process.status = myResult;
       e_stack++;
-      break;      
+      break;  
 
+    /********************* list objects **********************/  
+
+    case SD_PyGetListS:
+    /* get list items as tab separated string list   */
+    // Arg1 is name of dictionary object
+    // value will be placed in data descriptor by PyListGet
+    /* rem value ends up as string and must be returned to sd with
+       k_put_c_string(pyResult, e_stack) in PyDictValGetS;*/
+    myResult = PyListGet(Arg1);    
+    process.status = myResult;
+    e_stack++;
+    break;  
 
     /********************* other functions **********************/   
     case SD_PYDelObj:
