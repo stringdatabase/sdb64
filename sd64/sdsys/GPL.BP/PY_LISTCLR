@@ -1,5 +1,5 @@
-* PY_LISTGETS
-* Get List items as string list
+* PY_LISTCLR
+* Clear list object
 * Copyright (c)2025 The SD Developers, All Rights Reserved
 *
 * This program is free software; you can redistribute it and/or modify
@@ -21,10 +21,10 @@
 * END-HISTORY
 * START-DESCRIPTION:
 *
-* item_list = PY_LISTGETS(listname)
+* rtn_stat = PY_LISTCLR(listname)
 *
-* listname  - name of python list to access
-* item_list - tab separated list of list items
+* listname  - name of python list to clear
+* rtn_stat  - return status code
 *                   status() - 0 on success, error code as defined in ERR.H
 *
 * END-DESCRIPTION
@@ -34,14 +34,14 @@
 $internal
 $no.symbols
 $no.xref
-function py_listgets(listname)
-$catalog !py_listgets
+function py_listclr(listname)
+$catalog !py_listclr
 
 $include KEYS.H
 $include ERR.H
 *
-item_list = SDPYOBJ("","",listname,SD_PyListGet)
+rtn_stat = SDPYOBJ("","",listname,SD_PyListClr)
 *
-return item_list
+return rtn_stat
 
 end

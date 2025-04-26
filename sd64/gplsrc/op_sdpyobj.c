@@ -51,11 +51,17 @@ extern int PyDictValSetS(char* dictname, char* key, char* value);
 extern int PyDictValGetS(char* dictname, char* key);
 extern int PyDictDel(char* dictname, char* key);
 extern int PyDictKeysS(char* dictname);
+extern int PyDictValuesS(char* dictname);
 
 extern int PyStrSet(char* strname, char* strvalue );
 extern int PyStrGet(char* strname );
 
 extern int PyListGet(char* listname );
+extern int PyListAppd(char* listname, char* objname);
+extern int PyListClr(char* listname);
+
+extern int PyObjLen(char* objname);
+extern int PyObjType(char* objname);
 
 extern int PyDelObj(char* objname);
 
@@ -125,7 +131,7 @@ void op_sdpyobj() {
 
   /********************* dictionary objects **********************/   
 
-	case SD_PyDictCrte: 
+    case SD_PyDictCrte: 
       /* Creaete new dictionary for sd */
       // Arg1 is name of dictionary to create
       myResult = PyDictCrte(Arg1);
@@ -178,16 +184,27 @@ void op_sdpyobj() {
       (e_stack++)->data.value = (int32_t)myResult;
       break;
 
-      case SD_PyDictKeys:
-      /* get dictionary keys as tab separated string list   */
+    case SD_PyDictKeys:
+      /* get dictionary keys as fld mrked separated string list   */
       // Arg1 is name of dictionary object
       // value will be placed in data descriptor by PyDictKeysS
       /* rem value ends up as string and must be returned to sd with
-         k_put_c_string(pyResult, e_stack) in PyDictValGetS;*/
+         k_put_c_string(pyResult, e_stack) in PyDictKeysS;*/
       myResult = PyDictKeysS(Arg1);    
       process.status = myResult;
       e_stack++;
       break;  
+
+    case SD_PyDictValues:
+      /* get dictionary values as fld mrked separated string list   */
+      // Arg1 is name of dictionary object
+      // value will be placed in data descriptor by PyDictValuesS
+      /* rem value ends up as string and must be returned to sd with
+         k_put_c_string(pyResult, e_stack) in PyDictValuesS;*/
+      myResult = PyDictValuesS(Arg1);    
+      process.status = myResult;
+      e_stack++;
+      break;   
 
     /********************* string (unicode) objects **********************/    
 
@@ -215,36 +232,78 @@ void op_sdpyobj() {
 
     /********************* list objects **********************/  
 
-    case SD_PyGetListS:
-    /* get list items as tab separated string list   */
-    // Arg1 is name of dictionary object
-    // value will be placed in data descriptor by PyListGet
-    /* rem value ends up as string and must be returned to sd with
-       k_put_c_string(pyResult, e_stack) in PyDictValGetS;*/
-    myResult = PyListGet(Arg1);    
-    process.status = myResult;
-    e_stack++;
-    break;  
+    case SD_PyListGet:
+      /* get list items as fld mrk separated string list   */
+      // Arg1 is name of List object
+      // value will be placed in data descriptor by PyListGet
+      /* rem value ends up as string and must be returned to sd with
+        k_put_c_string(pyResult, e_stack) in PyListGet;*/
+      myResult = PyListGet(Arg1);    
+      process.status = myResult;
+      e_stack++;
+      break;  
+
+    case SD_PyListAppd:
+      /* Append object to list */
+      // Arg1 is name of list object
+      // Arg2 is name of object to append
+
+      myResult = PyListAppd(Arg1, Arg2);    
+      process.status = myResult;
+      InitDescr(e_stack, INTEGER);
+      (e_stack++)->data.value = (int32_t)myResult;
+      break;  
+
+    case SD_PyListClr:
+      /* Clear list */
+      // Arg1 is name of list object
+ 
+      myResult = PyListClr(Arg1);    
+      process.status = myResult;
+      InitDescr(e_stack, INTEGER);
+      (e_stack++)->data.value = (int32_t)myResult;
+      break;   
 
     /********************* other functions **********************/   
     case SD_PYDelObj:
     /* delete python object */
-    // Arg1 is name object
-    // What this function does is removes the object from the global dictionary.
-    // This should remove all references to the object, resulting in its deletion
-    // via python garbage collection
-    // Using valgrind to test for memory leaks results in chunks for memory being marked as
-    //   "still reachable"
-    // I have not been able to determine if this is indeed a memory leak or simply something that is
-    // a result of how python garbage collection works however I have read:
-    //  still reachable means your program is probably ok -- it didn't free some memory it could have. 
-    //  This is quite common and often reasonable.
-    //  Don't use --show-reachable=yes if you don't want to see these reports.
+      // Arg1 is name object
+      // What this function does is removes the object from the global dictionary.
+      // This should remove all references to the object, resulting in its deletion
+      // via python garbage collection
+      // Using valgrind to test for memory leaks results in chunks for memory being marked as
+      //   "still reachable"
+      // I have not been able to determine if this is indeed a memory leak or simply something that is
+      // a result of how python garbage collection works however I have read:
+      //  still reachable means your program is probably ok -- it didn't free some memory it could have. 
+      //  This is quite common and often reasonable.
+      //  Don't use --show-reachable=yes if you don't want to see these reports.
 
-    myResult = PyDelObj(Arg1);    
-    process.status = myResult;
-    e_stack++;
-    break;
+      myResult = PyDelObj(Arg1);    
+      process.status = myResult;
+      InitDescr(e_stack, INTEGER);
+      (e_stack++)->data.value = (int32_t)myResult;
+      break;
+
+    case SD_PyObjLen:
+      /* Get object lenght (size) */
+      // Arg1 is name object
+
+      myResult = PyObjLen(Arg1);    
+      process.status = myResult;
+      InitDescr(e_stack, INTEGER);
+      (e_stack++)->data.value = (int32_t)myResult;
+      break; 
+
+    case SD_PyObjType:
+      /* Get object lenght (size) */
+      // Arg1 is name object
+
+      myResult = PyObjType(Arg1);    
+      process.status = myResult;
+      InitDescr(e_stack, INTEGER);
+      (e_stack++)->data.value = (int32_t)myResult;
+      break; 
 
   
     default:

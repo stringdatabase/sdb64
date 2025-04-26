@@ -70,13 +70,21 @@ int PyDictValSetS(char* dictname, char* key, char* value);
 int PyDictValGetS(char* dictname, char* key);
 int PyDictDel(char* dictname, char* key);
 int PyDictKeysS(char* dictname);
+int PyDictValuesS(char* dictname);
 
-PyObject* List_To_String(PyObject* list);
+int PyListGet(char* listname);
+int PyListAppd(char* listname, char* objname);
+int PyListClr(char* listname);
 
 int PyStrSet(char* strname, char* strvalue );
 int PyStrGet(char* strname );
 
+int PyObjLen(char* objname);
+int PyObjType(char* objname);
+
 int PyDelObj(char* objname);
+
+PyObject* List_To_String(PyObject* list);
 
 PyObject* lookup_dict_item(PyObject* dict, const char* key);
 void obj_to_str(PyObject* pval);
@@ -247,7 +255,9 @@ void sdext_py(int key, char* Arg, char* Arg2, char* Arg3 ){
 * 
 * Some Notes:
 * From Python Documentation https://docs.python.org/3/c-api/index.html
-* Reference Counts:
+* Introduction
+*  Objects, Types and Reference Counts
+*    Reference Counts:
 * A safe approach is to always use the generic operations (functions whose name begins with PyObject_, PyNumber_, PySequence_ or PyMapping_). 
 * These operations always create a new strong reference (i.e. increment the reference count) of the object they return.
 * This leaves the caller with the responsibility to call Py_XDECREF() when they are done with the result; this soon becomes second nature.     
@@ -543,6 +553,54 @@ int PyDictKeysS(char* dictname){
   return myResult;
 }
 
+
+/***************************************************************************************************************************/
+/* Get dictionary values as string                                                                                          */
+/* rem, value ends up in SD descriptor so we really only return a status code                                              */
+/***************************************************************************************************************************/
+
+int PyDictValuesS(char* dictname){
+  /* get a dictionary's values in field marked list */  
+  int myResult;
+  PyObject* dict_lookup;
+  PyObject* values_list; 
+  PyObject* values_str;
+
+  myResult = 0;
+  char nullresult[] = "";
+
+  /* does dicionary (or object with this name) exist? */ 
+  dict_lookup = lookup_dict_item(global_dict, dictname);
+  if (dict_lookup == NULL) {
+    // does not exist!
+    k_put_c_string(nullresult, e_stack);   /* return empty string */
+    return SD_PyErr_ObjNOF;
+  } else {
+    
+    // Is this object a dictionary?
+    if (PyDict_Check(dict_lookup)) {
+      // yes it is a dictionary.
+      // get a pyobject list of values
+      values_list = PyDict_Values(dict_lookup);
+      values_str  = List_To_String(values_list);
+      obj_to_str(values_str);
+      Py_XDECREF(values_list);
+      if (process.status != 0){
+        myResult = process.status;    // pass error number back (set by List_To_String)
+      }  
+      /* rem keys_str ref released by obj_to_str */
+    } else {
+      // object was not a dictionary, report error
+      k_put_c_string(nullresult, e_stack);   /* return empty string */
+      myResult = SD_PyErr_NotDict;
+    }
+    
+    Py_XDECREF(dict_lookup);
+  }
+
+  return myResult;
+}
+
 /***************************************************************************************************************************/
 /*  Create and or set String                                                                                               */
 /***************************************************************************************************************************/
@@ -639,7 +697,7 @@ int PyStrGet(char* strname ){
 /***************************************************************************************************************************/
 
 int PyListGet(char* listname ){
-  /* get a dictionary key's value */  
+  /* get a list of List objects items */  
   int myResult;
   PyObject* dict_lookup;
 
@@ -671,6 +729,158 @@ int PyListGet(char* listname ){
     Py_XDECREF(dict_lookup);
   }
 
+  return myResult;
+}
+
+/***************************************************************************************************************************/
+/* List append                                                                                                           */
+/* Append  pyobject to list                                          */
+/***************************************************************************************************************************/
+
+int PyListAppd(char* listname, char* objname){
+
+  int myResult;
+  PyObject* list_lookup;
+  PyObject* obj_lookup;
+  myResult = 0;
+
+  /* does listobject (or object with this name) already exist? */ 
+  list_lookup = lookup_dict_item(global_dict, listname);
+  if (list_lookup == NULL) {
+  /* does not exist, report error */
+    return SD_PyErr_ObjNOF;
+  }
+ 
+  /* does object to append exist? */ 
+  obj_lookup = lookup_dict_item(global_dict, objname);
+  if (obj_lookup == NULL) {
+  /* does not exist, report error */
+    Py_XDECREF(list_lookup);
+    return SD_PyErr_ObjNOF;
+  
+  } else {
+    // both exists, is it a list object?
+    if (PyList_Check(list_lookup)){
+      // yes, its a list, append object
+      myResult = PyList_Append(list_lookup,obj_lookup);
+      if (myResult != 0){
+        // failed to append
+        PyErr_Print();
+        myResult =  SD_PyErr_LstAppdEr;
+      }
+
+    } else {
+      // not a list
+      myResult = SD_PyErr_NotList; 
+    }
+
+    Py_XDECREF(list_lookup);
+    Py_XDECREF(obj_lookup);
+  }
+
+
+  return myResult;
+}
+
+/***************************************************************************************************************************/
+/* List Clear                                                                                                              */
+/* Deletes objects in list                                                                                                 */
+/***************************************************************************************************************************/
+
+int PyListClr(char* listname){
+
+  int myResult;
+  PyObject* list_lookup;
+  myResult = 0;
+ 
+  /* does the list object to append exist? */ 
+  list_lookup = lookup_dict_item(global_dict, listname);
+  if (list_lookup == NULL) {
+  /* does not exist, report error */
+    return SD_PyErr_ObjNOF;
+  
+  } else {
+    // exists, is it a list object?
+    if (PyList_Check(list_lookup)){
+      // yes, its a list, clear the  object
+      PySequence_DelSlice(list_lookup, 0, PySequence_Length(list_lookup));
+      if (myResult != 0){
+        // failed to clear
+        PyErr_Print();
+        myResult =  SD_PyErr_LstClrEr;
+      }
+
+    } else {
+      // not a list
+      myResult = SD_PyErr_NotList; 
+    }
+
+    Py_XDECREF(list_lookup);
+  }
+
+  return myResult;
+}
+
+/***************************************************************************************************************************/
+/*  Return Python Object Length (size)                                                                                     */
+/* Note the max size we can return is 32 bit (its what SD can handle as integer)                                           */
+/***************************************************************************************************************************/  
+int PyObjLen(char* objname){
+ 
+  PyObject* obj_lookup;
+  Py_ssize_t obj_lenght;
+  int myResult;
+  myResult = 0;
+
+  /* does object  exist? */ 
+  obj_lookup = lookup_dict_item(global_dict, objname);
+  if (obj_lookup == NULL) {
+  /* does not exist, report error */
+  return SD_PyErr_ObjNOF;
+  }    
+
+  obj_lenght = PyObject_Length(obj_lookup);
+  if (obj_lenght > INT_MAX){
+    myResult = SD_INT_OVERFLW ;
+  }else{
+    myResult = (int) obj_lenght;
+  } 
+ 
+  Py_XDECREF(obj_lookup);
+  return myResult;
+}
+
+
+/***************************************************************************************************************************/
+/*  Return Python Object Type                                                                                             */
+/***************************************************************************************************************************/  
+int PyObjType(char* objname){
+
+  int myResult;
+  PyObject* obj_lookup;
+  myResult = 0;
+
+  /* does object  exist? */ 
+  obj_lookup = lookup_dict_item(global_dict, objname);
+  if (obj_lookup == NULL) {
+   /* does not exist, report error */
+   return SD_PyErr_ObjNOF;
+  }    
+  
+  if (PyUnicode_Check(obj_lookup)) {
+    myResult = SD_Obj_Str;
+
+  } else if (PyDict_Check(obj_lookup)) {
+    myResult = SD_Obj_Dict;
+
+  } else if (PyList_Check(obj_lookup)) {
+    myResult = SD_Obj_List;
+
+  } else {
+    myResult = SD_Obj_Unkn;
+  }
+
+  Py_XDECREF(obj_lookup);
   return myResult;
 }
 
@@ -717,7 +927,7 @@ int PyDelObj(char* objname){
 }
 
 /***************************************************************************************************************************/
-/*  convert python list object to string  object with separator                                                            */
+/*  convert python list object to string  object with @fm separator                                                            */
 /***************************************************************************************************************************/
 PyObject* List_To_String(PyObject* list){
 // returns string object, caller is responsible to dec ref when finished with it!
@@ -740,8 +950,9 @@ PyObject* List_To_String(PyObject* list){
         return NULL;
     }
 
-    PyObject* tab_str = PyUnicode_FromString("\t");
-    if (!tab_str) {
+   // PyObject* tab_str = PyUnicode_FromString("\t");
+    PyObject* sep_str = PyUnicode_FromString("þ"); // field marker character latin (small letter thorn is the character "þ")
+    if (!sep_str) {
       Py_XDECREF(result_str);
       process.status = SD_PyErr_CreStr;
       return NULL;    
@@ -752,7 +963,7 @@ PyObject* List_To_String(PyObject* list){
 	    // get list item i
         PyObject* item = PySequence_GetItem(list, i);
         if (!item) {
-          Py_XDECREF(tab_str);
+          Py_XDECREF(sep_str);
           Py_XDECREF(result_str);
           process.status = SD_PyErr_LstItem;
           return NULL;
@@ -761,18 +972,18 @@ PyObject* List_To_String(PyObject* list){
         PyObject* item_str = PyObject_Str(item);
         Py_XDECREF(item);
         if (!item_str) {
-          Py_XDECREF(tab_str);
+          Py_XDECREF(sep_str);
           Py_XDECREF(result_str);
           process.status = SD_PyErr_CreStr;
           return NULL;
         }
 
         if (!first_pass){   // only add separator after first pass
-          // concatenate together, but we need to add in separator (tab character) first!
-          PyObject* temp_sep = PyUnicode_Concat(result_str, tab_str);
+          // concatenate together, but we need to add in separator first!
+          PyObject* temp_sep = PyUnicode_Concat(result_str, sep_str);
 
           if (!temp_sep) {
-            Py_XDECREF(tab_str);
+            Py_XDECREF(sep_str);
             Py_XDECREF(result_str);
             process.status = SD_PyErr_ConCat;
             return NULL;
@@ -789,7 +1000,7 @@ PyObject* List_To_String(PyObject* list){
         Py_XDECREF(item_str);
 
         if (!temp_str) {
-            Py_XDECREF(tab_str);
+            Py_XDECREF(sep_str);
             process.status = SD_PyErr_ConCat;
             return NULL;
         }
@@ -799,7 +1010,7 @@ PyObject* List_To_String(PyObject* list){
 									              we then point result_str to temp_str, which is returned to caller on loop completion.
 									              (caller's responsibility to dec) */
     }
-    Py_XDECREF(tab_str);
+    Py_XDECREF(sep_str);
     return result_str;
 }
 

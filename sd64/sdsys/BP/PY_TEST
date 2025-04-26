@@ -17,9 +17,13 @@ program py_test
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
 $include SDPYFUNC.H
+$include keys.h
+
+deffun typetxt(inx) LOCAL
+
 crt 'embedded python test, hit <enter> to start':
 
-input ok
+*input ok
 crt str('=',50)
 *
 crt 'attempt init'
@@ -169,13 +173,27 @@ crt 'status()   = ':status()
 
 *
 crt str('=',50)
-tab = char(9)  
 crt 'Display contents of dictionary countdown via PY_RUNSTRING'
 rtn_stat = PY_RUNSTRING("print(countdown)")
 crt
-crt 'attempt to access dictionary countdown keys (convert tabs to field mark and list) '
+crt 'attempt to access dictionary countdown keys '
 rtn_string = PY_DICTGETKEYS("countdown")
-rtn_string = change(rtn_string,tab,@fm)
+*
+icount = dcount(rtn_string,@fm)
+crt
+for i = 1 to icount
+  crt 'rtn_string<':i:'> = ':rtn_string<i>
+next i
+crt 
+crt 'status()   = ':status()
+
+crt str('=',50)
+crt 'Display contents of dictionary countdown via PY_RUNSTRING'
+rtn_stat = PY_RUNSTRING("print(countdown)")
+crt
+crt 'attempt to access dictionary countdown values '
+rtn_string = PY_DICTGETVALUES("countdown")
+*
 icount = dcount(rtn_string,@fm)
 crt
 for i = 1 to icount
@@ -188,9 +206,16 @@ crt str('=',50)
 crt 'Now display contents of alist via PY_RUNSTRING'
 rtn_stat = PY_RUNSTRING("print(alist)")
 crt
-crt 'attempt to access alist items (convert tabs to field mark and list) '
+crt 'attempt to access alist items '
+
 rtn_string = PY_LISTGETS("alist")
-rtn_string = change(rtn_string,tab,@fm)
+
+*ilen = len(rtn_string)
+*for i = 1 to ilen
+*  c = rtn_string[i,1]
+*  crt c: ' = ' : seq(c)
+*next i
+
 icount = dcount(rtn_string,@fm)
 crt
 for i = 1 to icount
@@ -198,7 +223,58 @@ for i = 1 to icount
 next i
 crt 
 crt 'status()   = ':status()
+
+crt str('=',50)
+crt 'Count some objects'
+crt str('-',50)
+crt "countdown"
+rtn_stat = PY_RUNSTRING("print(countdown)")
+crt 
+crt 'Size of countdown ':PY_OBJLEN("countdown")
+crt 'Type: ':typetxt(PY_OBJTYPE("countdown"))
+crt str('-',50)
+crt 'my_str'
+rtn_stat = PY_RUNSTRING("print(my_str)") 
+crt
+crt 'Size of my_str ':PY_OBJLEN("my_str")
+crt 'Type: ':typetxt(PY_OBJTYPE("my_str"))
+crt str('-',50)
+crt 'alist'
+rtn_stat = PY_RUNSTRING("print(alist)") 
+crt
+crt 'Size of my_str ':PY_OBJLEN("alist")
+crt 'Type: ':typetxt(PY_OBJTYPE("alist"))
+
+crt str('=',50)
+crt 'Now re display contents of alist and my_str via PY_RUNSTRING'
+rtn_stat = PY_RUNSTRING("print(alist)")
+crt
+rtn_stat = PY_RUNSTRING("print(my_str)") 
+crt
+crt 'attempt to append my_str to alist items '
+
+rtn_string = PY_LISTAPPD("alist","my_str")
+rtn_stat = PY_RUNSTRING("print(alist)")
+crt
+
 *
 * don't finalize, we will check when sd closes
 999: crt 'complete'
+stop
+
+local function typetxt(id)
+
+  begin case
+  case id = SD_Obj_Unkn ;*   0  /* Unknown python object type */
+    return 'unknown'
+  case id = SD_Obj_Str  ;*   1  /* String (Unicode) python object type */
+    return 'String'
+  case id = SD_Obj_List ;*   2  /* List python object type */
+    return 'List'
+  case id =  SD_Obj_Dict ;*  3  /* Dictionary  python object type */
+    return 'Dict'
+  case 1
+    return 'Unknown index'
+  end case
+end
 end

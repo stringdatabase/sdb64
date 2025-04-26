@@ -352,7 +352,14 @@
 #define SD_EUID_SET     102  /* set current process's euid egid to that of user */
 #define SD_EUID_RESTORE 103  /* set current process's euid egid to what it was on entry to sd */
 
-/* embedded python */
+/* embedded python  */
+/* py  object types */
+#define  SD_Obj_Unkn         0  /* Unknown python object type */
+#define  SD_Obj_Str          1  /* String (Unicode) python object type */
+#define  SD_Obj_List         2  /* List python object type */
+#define  SD_Obj_Dict         3  /* Dictionary  python object type */
+
+
 #define  SD_PyInit        2000  /* initialize the python interpreter   */
 #define  SD_PyFinal       2001  /* Finalize the python interpreter   */
 #define  SD_IsPyInit      2002  /* Is python interpreter initialized   */
@@ -365,12 +372,18 @@
 #define  SD_PyDictVset    2202  /* set dictionary key : value    */
 #define  SD_PyDictVget    2203  /* get value of dictionary item key   */
 #define  SD_PyDictIDel    2204  /* delete item (key / value) from dictionary */
-#define  SD_PyDictKeys    2205  /* get dictionay keys as tab separated string */
+#define  SD_PyDictKeys    2205  /* get dictionay keys as fld mrk  separated string */
+#define  SD_PyDictValues  2206  /* get dictionay values as fld mrk separated string */
 
 #define SD_PYStrSet       2210  /* create and or set string */
 #define SD_PYStrGet       2211  /* Get string */
 
 #define SD_PYDelObj       2215  /* Delete Python Object */
+#define SD_PyObjLen       2216  /* get object length (return SD_INT_OVERFLW  err overflow > 32bits)*/
+#define SD_PyObjType      2217  /* get object type*/
 
-#define SD_PyGetListS    2220  /* get list items as tab separated string */
+//#define SD_PyListCrte     2220  /* create list object */
+#define SD_PyListGet      2221  /* get list items as fld mrk separated string */
+#define SD_PyListAppd     2222  /* append object to list     */
+#define SD_PyListClr      2223  /* clear list object   */
 /* END-CODE */

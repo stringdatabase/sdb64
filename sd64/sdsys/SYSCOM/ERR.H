@@ -278,6 +278,7 @@ $define SD_EDType_Err           10205 ;* Encode Decode type error
 * SDEXT error codes 
 $define SD_EXT_KEY_ERR          10300 ;* unknown key 
 $define SD_EXT_ARG_CNT          10301 ;* incorrect argument count for called function 
+$define SD_INT_OVERFLW          10302 ;* Result will create integer overflow  (> 32 Bit int)
 
 * sdext_eguid_set error codes
 $define SD_EUID_PWD_Err         10400 ;* Couldn't get pwd of user
@@ -312,5 +313,7 @@ $define SD_PyErr_NoItems   12030    ;* Python Object contains no items (List?)
 $define SD_PyErr_CreStr    12031    ;* Failed to create Python String Object   
 $define SD_PyErr_ConCat    12032    ;* Failed to concatinate Python String Objects   
 $define SD_PyErr_LstItem   12033    ;* Failed to access List Objects Item  
-$define SD_PyErr_NotList   12034    ;* Object not a list    
+$define SD_PyErr_NotList   12034    ;* Object not a list  
+$define SD_PyErr_LstAppdEr 12035    ;* List append failed 
+$define SD_PyErr_LstClrEr  12036    ;* list clear failed  
 * END-CODE

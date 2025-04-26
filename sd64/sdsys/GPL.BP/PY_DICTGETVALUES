@@ -1,5 +1,5 @@
-* PY_LISTGETS
-* Get List items as string list
+* PY_DICTGETVALUES
+* Get Dictionary values as string list
 * Copyright (c)2025 The SD Developers, All Rights Reserved
 *
 * This program is free software; you can redistribute it and/or modify
@@ -21,10 +21,10 @@
 * END-HISTORY
 * START-DESCRIPTION:
 *
-* item_list = PY_LISTGETS(listname)
+* key_list = PY_DICTGETVALUES(dictname)
 *
-* listname  - name of python list to access
-* item_list - tab separated list of list items
+* dictname - name of python dictionary to access
+* value_list - @fm separated list of dictionary values
 *                   status() - 0 on success, error code as defined in ERR.H
 *
 * END-DESCRIPTION
@@ -34,14 +34,14 @@
 $internal
 $no.symbols
 $no.xref
-function py_listgets(listname)
-$catalog !py_listgets
+function py_dictgetvalues(dictname)
+$catalog !py_dictgetvalues
 
 $include KEYS.H
 $include ERR.H
 *
-item_list = SDPYOBJ("","",listname,SD_PyListGet)
+value_list = SDPYOBJ("","",dictname,SD_PyDictValues)
 *
-return item_list
+return value_list
 
 end
