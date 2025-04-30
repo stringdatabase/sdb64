@@ -876,6 +876,12 @@ int PyObjType(char* objname){
   } else if (PyList_Check(obj_lookup)) {
     myResult = SD_Obj_List;
 
+  } else if (PyLong_Check(obj_lookup)) {
+    myResult = SD_Obj_Long;
+
+  } else if (PyFloat_Check(obj_lookup)) {
+    myResult = SD_Obj_Float;
+
   } else {
     myResult = SD_Obj_Unkn;
   }

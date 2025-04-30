@@ -1,0 +1,149 @@
+program py_json
+* Test embedded python json module functions 
+* Copyright (c)2025 The SD Developers, All Rights Reserved
+*
+* This program is free software; you can redistribute it and/or modify
+* it under the terms of the GNU General Public License as published by
+* the Free Software Foundation; either version 3, or (at your option)
+* any later version.
+*
+* This program is distributed in the hope that it will be useful,
+* but WITHOUT ANY WARRANTY; without even the implied warranty of
+* MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+* GNU General Public License for more details.
+*
+* You should have received a copy of the GNU General Public License
+* along with this program; if not, write to the Free Software Foundation,
+* Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
+*
+$include SDPYFUNC.H
+$include keys.h
+
+deffun typetxt(inx) LOCAL
+
+
+******************************************************************************************************************
+
+crt 'json embedded python test, hit <enter> to start':
+
+input ok
+crt str('=',50)
+*
+crt 'attempt init'
+rtn_stat = PY_INITIALIZE()
+crt 'rtn_stat = ':rtn_stat
+crt 'status()   = ':status()
+crt str('=',50)
+if rtn_stat # 0 then 
+  crt 'python init failure, about'
+  stop
+end
+*
+* script to load json file
+lf = char(10)
+fn  = "/home/mabull/python_stuff/users_10.json" 
+ script  = 'import json':lf
+   * Opening JSON file
+script  := 'f = open("':fn:'")':lf
+   * returns JSON object as a dictionary
+script  := 'jdata = json.load(f)':lf
+   * close the file
+script  := 'f.close()':lf
+
+
+crt 'attempt to run script:'
+rtn_stat = PY_RUNSTRING(script)
+crt 'rtn_stat = ':rtn_stat
+crt 'status()   = ':status()
+if rtn_stat <> 0 then goto 999
+crt str('=',50)
+*
+gosub dsp_json('jdata')
+*
+goto 999 ;* complete
+
+
+
+******************************************************************************************************************
+
+
+local function typetxt(id)
+
+  begin case
+  case id = SD_Obj_Unkn ;*   0  /* Unknown python object type */
+    return 'unknown'
+  case id = SD_Obj_Str  ;*   1  /* String (Unicode) python object type */
+    return 'String'
+  case id = SD_Obj_List ;*   2  /* List python object type */
+    return 'List'
+  case id =  SD_Obj_Dict ;*  3  /* Dictionary  python object type */
+    return 'Dict'
+  case 1
+    return 'Unknown index'
+  end case
+end
+
+
+******************************************************************************************************************
+local subroutine dsp_json(obj_name)
+private i, keys, key_count, obj_size, elemt_name
+  obj_type = PY_OBJTYPE(obj_name)
+  
+  begin case
+    case obj_type = SD_Obj_List
+    
+      obj_size = PY_OBJLEN(obj_name)
+      for i = 0 to obj_size -1
+        elemt_name = obj_name:'_':i 
+        script = elemt_name :' = ':obj_name:'[':i:']':lf
+        * crt '>>>>>':script
+        rtn_stat = PY_RUNSTRING(script)
+        if rtn_stat <> 0 then
+           crt 'python list error at element: ': i
+           crt rtn_stat
+           abort
+        end
+        gosub dsp_json(elemt_name)
+      next i
+      
+    case obj_type = SD_Obj_Dict
+      keys = PY_DICTGETKEYS(obj_name)
+      key_count = dcount(keys,@fm)
+      for i = 1 to key_count
+        elemt_name = obj_name:'_':i 
+        script = elemt_name :' = ':obj_name:'["':keys<i>:'"]':lf
+        * crt '>>>>>':script
+        rtn_stat = PY_RUNSTRING(script)
+        if rtn_stat <> 0 then
+           crt 'python dict error at element: ':keys<i>
+           abort
+        end
+        crt keys<i> : ': ':
+        gosub dsp_json(elemt_name)
+        
+      next i
+      
+    case obj_type = SD_Obj_Str
+    
+      crt  PY_STRGET(obj_name)
+      
+    case obj_type = SD_Obj_Long
+    
+      crt  PY_GETATTR(obj_name)  
+      
+    case obj_type = SD_Obj_Float
+    
+      crt  PY_GETATTR(obj_name)  
+      
+    case 1
+    
+      crt 'obj type unknow for: ': obj_name
+      
+    end case
+      
+    return    
+end
+
+
+999:  crt 'Complete'
+end

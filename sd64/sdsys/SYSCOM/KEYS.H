@@ -278,6 +278,8 @@
       $define  SD_Obj_Str          1  ;* String (Unicode) python object type 
       $define  SD_Obj_List         2  ;* List python object type 
       $define  SD_Obj_Dict         3  ;* Dictionary  python object type 
+      $define  SD_Obj_Long         4  ;* Long (int)  python object type 
+      $define  SD_Obj_Float        5  ;* Float (floating point)  python object type 
       
       $define SD_PyInit        2000  ;* initialize the python interpreter   
       $define SD_PyFinal       2001  ;* Finalize the python interpreter  
