@@ -18,8 +18,14 @@
 *
 $catalog py_term
 $include SDPYFUNC.H
+$INCLUDE KEYIN.H
+$INCLUDE KEYS.H
 *
-crt 'embedded python terminal, <enter> to exe script, "quit" to stop, "?" to display script:'
+crt 'Embedded python terminal'
+crt 'Valid line edit keys: Bcksp, Ins, Del, Cursor Rght, Cursor Lft'
+crt 'History: Up arrow, Down arrow' 
+crt '"?" to display script'
+crt '"!" to exe script, "quit" to stop'
 *
 lf = char(10)
 *
@@ -33,17 +39,20 @@ end
 prompt ""
 indent = 0
 scrpt = ''
+instr_hist = ''   ;* history string
+
 loop:
 crt '>>>':space(indent):
-input rsp
-rsp = trim(rsp)
+instr_col = indent + 3
+gosub instr_get
+rsp = trim(instr)
 begin case
 
 case upcase(rsp) = "QUIT" 
   goto 999
 
 * execute script line?  
-case rsp = ''
+case rsp = '!'
   if len(scrpt) > 0 then
     gosub exe_script
     indent = 0
@@ -60,8 +69,8 @@ case rsp[1] = ':'
 case rsp = '?'  
   gosub dsp_script
   
-* completion of block?  
-case indent > 0 
+*  complete block?  
+case rsp = ''
   scrpt = scrpt : space(indent) : rsp : lf
   indent -= 2
   
@@ -71,7 +80,159 @@ case 1
 end case
 goto loop
 *
+******************************************************************************************************************
+*
+* instr_get - simple line edit routine
+* instr_col = starting col position
+******************************************************************************************************************
+instr_get:
+instr = ''                       ;* current input string
+nxtkey = @true                   ;* loop flag, get next key?
+ch_idx = 0                       ;* current character index postion 
+col    = 0                       ;* col position of cursor
+insz = 0                         ;* current length of instr
+hsz = dcount(instr_hist,@fm)     ;* current history size
+hidx = hsz                       ;* point to latest entry on entry
+ 
+loop
 
+
+
+  key = keycode()
+  skey = seq(key)
+
+
+  begin case
+
+    case skey = K$RETURN
+
+* if there was input, save to history list
+      if len(instr) > 0 then
+        instr_hist<-1> = instr
+      end
+  
+* reset character index and col pos, add new line
+      ch_idx = 0
+      col  = 0
+      crt ''
+  
+* and return (instr has our input string)
+      exit
+  
+  case skey = K$BACKSPACE
+    if col ge 0 then
+      if ch_idx > 0 then
+        instr = instr[1,ch_idx-1]:instr[ch_idx+1,132]
+        ch_idx -=1
+      end 
+      if ch_idx > 0 then
+        col = ch_idx -1
+      end else
+        col = 0
+      end
+    end
+   
+  case skey = K$UP
+* is there input history?
+    if hsz > 0 then
+      instr = instr_hist<hidx>
+      hidx -= 1
+      if hidx < 1 then hidx = 1
+      ch_idx = 1
+      col  = 0
+    end
+  
+  case skey = K$DOWN
+* is there input history?
+    if hsz > 0 then
+      hidx += 1
+      if hidx > hsz then hidx = hsz
+      instr = instr_hist<hidx>
+      ch_idx = 1
+      col    = 0
+    end
+  
+  case skey = K$RIGHT
+    ch_idx +=1
+    if ch_idx > insz then   ;* moved to end of text string, add next char to end
+      col = insz
+      ch_idx = insz
+    end else
+      col  = ch_idx - 1
+    end
+  
+  case skey = K$LEFT
+    if ch_idx = col and ch_idx > 0 then   ;* string entry, no edit keys have been pressed
+      col = ch_idx - 1
+    end else               ;* 
+      ch_idx -= 1
+      if ch_idx < 1 then ch_idx = 1
+      col  = ch_idx - 1
+    end
+  
+  case skey = K$INSERT
+    begin case  
+      case insz > 0 and ch_idx = 1
+        instr = ' ':instr
+      case ch_idx = insz     ;* at eol, do nothing
+        null
+      case 1
+        instr = instr[1,ch_idx-1]:' ':instr[ch_idx,132]
+    end case
+    
+    
+  case skey = K$DELETE
+    begin case
+      case insz = 1 and ch_idx = 1
+        instr = ''
+        ch_idx = 0
+        col =  0
+      case insz > 0 and ch_idx = 0
+        instr = instr[insz-1]
+        col = 0
+      case 1
+        instr = instr[1,ch_idx-1]:instr[ch_idx+1,132]
+        if ch_idx > insz then 
+          ch_idx = insz
+          col = ch_idx - 1
+          if col < 0 then col = 0
+        end
+    end case
+   
+  case skey lt 32
+    NULL  ;* 'invalid char'
+  
+  case skey gt 126
+    NULL  ;* 'invalid char'
+  
+  case 1
+
+    begin case
+      case insz = 0        ;* new line
+        instr = key
+      case ch_idx = insz and col = insz  ;* at end of line
+        instr = instr:key
+      case 1               ;* overwrite?
+        instr = instr[1,ch_idx-1]:key:instr[ch_idx+1,132]
+    end case
+    ch_idx +=1
+    col += 1
+    
+  
+  end case
+  
+  insz = len(instr)                ;* len of input string so far
+  
+  * test code
+* crt @(0,13):@(IT$CLEOL):'col = ':col:' ch_idx = ':ch_idx : ' insz = ':insz: ' hsz = ':dcount(instr_hist,@fm):
+* crt @(col,20):
+  * end test code
+
+  crt @(instr_col):@(IT$CLEOL):instr:@(col+instr_col):
+  
+while nxtkey repeat
+
+return
 **********************************************************************************
 * exe_script
 * execute script statements in scrpt
