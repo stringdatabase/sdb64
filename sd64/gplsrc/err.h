@@ -21,6 +21,7 @@
  * 01 Jul 24 mab define max string size error ER_MAX_STRING 
  * 30 Jul 24 mab add error codes for SD_ENCRYPT_SODIUM
  * rev 0.9.0 Jan 25 mab sdext_eguid_set error codes
+ * rev 0.9-2 Mar 25 mab add sdext_pyobj direct control of python dictionary object
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -293,6 +294,7 @@
 /* SDEXT error codes */
 #define SD_EXT_KEY_ERR -10300  /* unknown key */
 #define SD_EXT_ARG_CNT -10301  /* incorrect argument count for called function */
+#define SD_INT_OVERFLW -10302  /* Result will create integer overflow  (> 32 Bit int)*/
 
 /* sdext_eguid_set error codes */
 #define SD_EUID_PWD_Err  -10400  /* Couldn't get pwd of user */
@@ -311,4 +313,23 @@
 #define SD_PyEr_ObToStr    -12008    /* failed to convert python object to string */
 #define SD_PyErr_UniToStr  -12009    /* error encoding unicode python string to to Latin */
 
+#define SD_PyErr_MainMod   -12010    /* cannot import __main__ */
+#define SD_PyErr_GlobDict  -12011    /* could get __main__ dictionary  */
+#define SD_PyErr_DictExsts -12012    /* dictionary already exists  */
+#define SD_PyErr_NamSpcErr -12013    /* Failed to add to namespace  */
+#define SD_PyErr_ObjNOF    -12014    /* requested object does not exist  */
+#define SD_PyErr_DictSet   -12015    /* failed to set dictionary key / value */
+#define SD_PyErr_DictDel   -12016    /* failed to Delete dictionary key / value */
+#define SD_PyErr_NotDict   -12017    /* Object not a dictionary  */
+#define SD_PyErr_EnLatin   -12018    /* error encoding latin string to unicode      */
+#define SD_PyErr_NotStr    -12019    /* Object not a String (unicode)  */
+#define SD_PyErr_DelObj    -12020    /* Failed to remove Object from global dictionary */
+
+#define SD_PyErr_NoItems   -12030    /* Python Object contains no items (List?) */
+#define SD_PyErr_CreStr    -12031    /* Failed to create Python String Object   */
+#define SD_PyErr_ConCat    -12032    /* Failed to concatinate Python String Objects   */
+#define SD_PyErr_LstItem   -12033    /* Failed to access List Objects Item  */
+#define SD_PyErr_NotList   -12034    /* Object not a list  */
+#define SD_PyErr_LstAppdEr -12035    /* List append failed */
+#define SD_PyErr_LstClrEr  -12036    /* list clear failed  */
 /* END-CODE */

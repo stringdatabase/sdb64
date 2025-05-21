@@ -1,5 +1,5 @@
-* PY_FINALIZE()
-* finalize the python interpreter Note: most likely not needed, will check when sd shutsdown
+* PY_OBJLEN
+* Return the length of a python object
 * Copyright (c)2025 The SD Developers, All Rights Reserved
 *
 * This program is free software; you can redistribute it and/or modify
@@ -16,17 +16,17 @@
 * along with this program; if not, write to the Free Software Foundation,
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
-
 $internal
 $no.symbols
 $no.xref
-function py_finalize()
-$catalog !py_finalize
+function py_objlen(objname)
+$catalog !py_objlen
 
 $include KEYS.H
 $include ERR.H
 
-rtnstat = SDEXT('',@FALSE,SD_PyFinal)
-return rtnstat
+obj_len = SDPYOBJ("","",objname,SD_PyObjLen)
+*
+return obj_len
 
 end

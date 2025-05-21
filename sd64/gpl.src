@@ -55,6 +55,7 @@ op_logic
 op_misc
 op_mvfun
 op_oconv
+op_sdpyobj
 op_sdext
 op_seqio
 op_sh
