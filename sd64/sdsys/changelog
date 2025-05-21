@@ -1,3 +1,56 @@
+Version 0.9-2
+
+-------------
+(mab) Mods to embedded python:
+      Add python functions:
+        
+      PY_LENGTH(objectname)
+       return python object’s length (size)
+
+      PY_TYPE(objectname)
+       return python object’s type 
+
+      PY_CREATEDICT(dictname)
+       create python dictionary object
+
+      PY_CLEARDICT(dictname) 
+       clear python dictionary object via api call PyDict_Clear().
+
+      PY_DICTVALGETS(dictname,key)
+       get dictionary value for item key, returned as string
+
+      PY_DICTVALSETS(dictname,key,value)
+       set (update) or create dictionary value for key.
+
+      PY_DICTIDEL(dictname,key)
+       delete dictionary key / value 
+
+      PY_DICTGETKEYS(dictname)
+       return list of dictionary keys / value 
+
+      PY_DICTGETVALUES(dictname)
+       return list of dictionary values 
+
+      PY_STRSET(strname,value)
+       set (update) or create string object strname with string value.
+
+      PY_STRGET(strname)
+       get string value of string strname
+
+      PY_LISTGETS(listname)
+       return list of list items
+
+      PY_LISTAPPEND(listname,objectname)
+       append objectname to list listname  
+       
+      Add sample programs to BP:
+      
+      PY_TERM - simple python interpreter terminal 
+      
+      PY_JSON - sample json file parser using python's json module and BASIC functions to access python objects.
+       
+         
+
 Version 0.9-1
 
 -------------

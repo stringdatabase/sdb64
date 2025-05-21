@@ -21,11 +21,7 @@ $include SDPYFUNC.H
 $INCLUDE KEYIN.H
 $INCLUDE KEYS.H
 *
-crt 'Embedded python terminal'
-crt 'Valid line edit keys: Bcksp, Ins, Del, Cursor Rght, Cursor Lft'
-crt 'History: Up arrow, Down arrow' 
-crt '"?" to display script'
-crt '"!" to exe script, "quit" to stop'
+gosub help_scrn  
 *
 lf = char(10)
 *
@@ -34,6 +30,10 @@ rtn_stat = PY_INITIALIZE()
 if rtn_stat <> 0 then
   crt 'Failed to Init Python, status = : ': status()
   goto 999
+end else
+  crt 'success'
+  scrpt = 'print(sys.version)'
+  gosub exe_script
 end
 
 prompt ""
@@ -57,7 +57,7 @@ case rsp = '!'
     gosub exe_script
     indent = 0
     scrpt  = ''
-    crt @(0):   ;* output from python is new line terminated, need to fix this
+**    crt @(0):   ;* output from python is new line terminated, need to fix this
   end  
   
 * new block?     
@@ -66,13 +66,17 @@ case rsp[1] = ':'
   indent += 2
 
 * display script  
-case rsp = '?'  
+case rsp = '??'  
   gosub dsp_script
+  
+* display help
+case rsp = '?' 
+  gosub help_scrn  
   
 *  complete block?  
 case rsp = ''
   scrpt = scrpt : space(indent) : rsp : lf
-  indent -= 2
+  if indent > 0 then indent -= 2
   
 case 1
   scrpt = scrpt : space(indent) : rsp : lf
@@ -135,9 +139,14 @@ loop
   case skey = K$UP
 * is there input history?
     if hsz > 0 then
-      instr = instr_hist<hidx>
-      hidx -= 1
-      if hidx < 1 then hidx = 1
+      if hidx < 1 then
+        * top of history, return to blank text
+        instr = ''
+        hidx = hsz
+      end else
+        instr = instr_hist<hidx>
+        hidx -= 1
+      end
       ch_idx = 1
       col  = 0
     end
@@ -145,9 +154,14 @@ loop
   case skey = K$DOWN
 * is there input history?
     if hsz > 0 then
-      hidx += 1
-      if hidx > hsz then hidx = hsz
-      instr = instr_hist<hidx>
+      if hidx ge hsz then
+        * bottom of history, return blank line
+        instr = ''
+        hidx = 1
+      end else
+        instr = instr_hist<hidx>
+        hidx += 1
+      end
       ch_idx = 1
       col    = 0
     end
@@ -260,6 +274,17 @@ next i
 return 
 
 **********************************************************************************
-
+* help
+**********************************************************************************
+help_scrn:
+crt '--------------Embedded python terminal--------------------------'
+crt 'Valid line edit keys: Bcksp, Ins, Del, Cursor Rght, Cursor Lft'
+crt 'History: Up Arrow, Down Arrow' 
+crt '"??" to display script'
+crt '"!" to exe script, "quit" to stop'
+crt '"?" to display this help screen'
+crt '----------------------------------------------------------------'
+return
+*
 999: crt 'complete'
 end
