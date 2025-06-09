@@ -170,7 +170,7 @@ def Connect():
             sg.popup('Account Reqd')
             return
         insert_status_text('Attempting to connect')
-        status =   sdmelib.sdmeConnect(str(values['-ADDRESS-']), -1, str(values['-UNAME-']), str(values['-PWD-']), str(values['-ACCOUNT-'])) 
+        status =   sdmelib.sdmeConnect(str(values['-ADDRESS-']), 4245, str(values['-UNAME-']), str(values['-PWD-']), str(values['-ACCOUNT-'])) 
         insert_status_text('Connect Status: ' + str(status))
     
     if sdmelib.sdmeConnected() == 1:
