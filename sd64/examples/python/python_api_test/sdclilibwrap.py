@@ -80,10 +80,13 @@ __sdClilib = None
 #
 def sdmeInitialize():
     
-  global __sdClilib
+    global __sdClilib
 
-  if __sdClilib is None:
-    LIBRARY_PATH = os.getcwd() +"/sdclilib.so"
+    if __sdClilib is None:
+        if os.name == 'nt':
+            LIBRARY_PATH = '.\\winsdclilib.dll'
+        else:
+            LIBRARY_PATH = os.getcwd() +"/sdclilib.so"
     __sdClilib = ctypes.cdll.LoadLibrary(LIBRARY_PATH)
 
 def sdmeConnect(host, port, username, password, account):
