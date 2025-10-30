@@ -18,6 +18,7 @@
 * 
 * 
 * START-HISTORY:
+* rev 0.9-3 Nov 25 move voc back to dynamic file
 * rev 0.9.0 Jan 25 mab change dyn file prefix to %
 *           sd group belong to linux group of the same name
 *           on sd directory creation, we set the setgid bit
@@ -372,8 +373,8 @@ make.account:
    * Set up VOC
 
    display sysmsg(6015) ;* Creating VOC...
-
-   create.file pathname:@ds:'VOC' directory on error
+* rev 0.9-3 Nov 25 move voc back to dynamic file
+   create.file pathname:@ds:'VOC' on error
       @system.return.code = -6
       stop sysmsg(6016) ;* Unable to create VOC
    end

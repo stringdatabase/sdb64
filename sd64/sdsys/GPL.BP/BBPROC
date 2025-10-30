@@ -26,8 +26,9 @@
 *
 * START-HISTORY:
 * mab 06/00/24 
-* 02 Jul 24 add check for install already complete
+* rev 0.9-3 Nov 25 move voc back to dynamic file
 * 06 Aug 24 comment out "<cr> to install" prompt 
+* 02 Jul 24 add check for install already complete
 * END-HISTORY
 *
 *
@@ -154,6 +155,7 @@ end
 *   if upcase(cmnd[1,1]) = 'Q' then goto abort.bbproc
    
 *  note all files must be opend via openpath, open depends on pcode!
+
    openpath @sdsys:@ds:'gcat' to gcat.f else
       crt 'Cannot open global catalogue directory! ABORT'
       if logging then writeseq 'Cannot open global catalogue directory! ABORT' to log.f else null
@@ -261,7 +263,8 @@ FILES_LIST<-1> = "$HOLD"     :@VM:'N'      :@VM:'Y'
 FILES_LIST<-1> = "$MAP"      :@VM:'Y'      :@VM:'Y' 
 FILES_LIST<-1> = "$IPC"      :@VM:'Y'      :@VM:'N' 
 FILES_LIST<-1> = "DICT.DIC"  :@VM:'Y'      :@VM:'N'  
-FILES_LIST<-1> = "DIR_DICT"  :@VM:'Y'      :@VM:'N' 
+FILES_LIST<-1> = "DIR_DICT"  :@VM:'Y'      :@VM:'N'
+FILES_LIST<-1> = "VOC"       :@VM:'Y'      :@VM:'N' 
 FILES_LIST<-1> = "VOC.DIC"   :@VM:'Y'      :@VM:'N'
 *
 files.cnt = dcount(FILES_LIST,@FM)
@@ -281,8 +284,31 @@ for i = 1 to files.cnt
   end
 
 next i
-     
+* 
+* move items in voc_template to voc
+*
+crt 'populating VOC from VOC_TEMPLATE'
+openpath @sdsys:@ds:'VOC_TEMPLATE' to voc_t.f else
+  crt 'Cannot open VOC_TEMPLATE directory! ABORT'
+  if logging then writeseq 'Cannot open VOC_TEMPLATE directory! ABORT' to log.f else null
+  goto abort.bbproc
+end
+*
+openpath @sdsys:@ds:'VOC' to voc.f else
+  crt 'Cannot open VOC file! ABORT'
+  if logging then writeseq 'Cannot open VOC file! ABORT' to log.f else null
+  goto abort.bbproc
+end
 
+select voc_t.f to 2
+voc_nxt:
+readnext id from 2 then
+  read voc_item from voc_t.f, id then
+    write voc_item on voc.f, id 
+  end
+  goto voc_nxt
+end
+*
 abort.bbproc: 
 return to abort.bbproc
 

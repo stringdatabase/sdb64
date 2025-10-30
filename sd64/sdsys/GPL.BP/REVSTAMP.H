@@ -17,6 +17,7 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 * 
 * START-HISTORY:
+* rev 0.9-3 Nov 25 move voc back to dynamic file
 * rev 0.9-2 mab add sdpyobj function
 * rev 0.9.1 return to single rev tracking
 * 31 Dec 23 SD launch - prior history suppressed
@@ -33,8 +34,8 @@
 * REVSTAMP.H found in GPL.BP                        
 $define MAJOR.REV      0
 $define MINOR.REV      9
-$define BUILD          2
-$define SD.REV.STAMP   "0.9-2"
+$define BUILD          3
+$define SD.REV.STAMP   "0.9-3"
 
 
 $define SD.COPYRIGHT.YEAR "2007"
