@@ -3,7 +3,7 @@
 #   (c) 2023-2025 Donald Montaine and Mark Buller
 #   This software is released under the Blue Oak Model License
 #   a copy can be found on the web here: https://blueoakcouncil.org/license/1.0.0
-#   
+#   rev 0.9-3 Nov 25 move voc back to dynamic file
 #   rev 0.9-1 Apr 25 mab - replace lsb_release with /etc/os-release - not installed by default on Fedora
 #   rev 0.9-1 Mar 25 mab - create generic install script and make corrections needed for Raspberry install
 #   rev 0.9-1 Mar 25 mab - add optional install of TAPE / RESTORE subsystem
@@ -160,7 +160,7 @@ case $yn in
         echo "copy TAPE and RESTORE programs to GPL.BP"
         sudo cp tape/GPL.BP/* /usr/local/sdsys/GPL.BP 
         echo "copy TAPE and RESTORE verbs to VOC"
-        sudo cp -R tape/VOC/* /usr/local/sdsys/VOC
+        sudo cp -R tape/VOC/* /usr/local/sdsys/VOC_TEMPLATE
         echo ;;  
 esac
 
@@ -258,6 +258,7 @@ sudo chmod -R 755 /usr/local/sdsys/\$MAP.DIC
 sudo chmod -R 755 /usr/local/sdsys/ACCOUNTS.DIC
 sudo chmod -R 755 /usr/local/sdsys/DICT.DIC
 sudo chmod -R 755 /usr/local/sdsys/DIR_DICT
+sudo chmod -R 755 /usr/local/sdsys/VOC
 sudo chmod -R 755 /usr/local/sdsys/VOC.DIC
 #
 sudo chown -R sdsys:sdusers /usr/local/sdsys/\$HOLD.DIC
@@ -267,6 +268,7 @@ sudo chown -R sdsys:sdusers  /usr/local/sdsys/\$MAP.DIC
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/ACCOUNTS.DIC
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/DICT.DIC
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/DIR_DICT
+sudo chown -R sdsys:sdusers  /usr/local/sdsys/VOC
 sudo chown -R sdsys:sdusers  /usr/local/sdsys/VOC.DIC
 
 echo "Bootstap pass 2"
