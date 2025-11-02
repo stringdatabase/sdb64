@@ -25,9 +25,9 @@
 *
 *
 * START-HISTORY:
-* mab 06/00/24 
-* 02 Jul 24 add check for install already complete
+* rev 0.9-3 Nov 25 move voc back to dynamic file
 * 06 Aug 24 comment out "<cr> to install" prompt 
+* 02 Jul 24 add check for install already complete
 * END-HISTORY
 *
 *
@@ -102,12 +102,6 @@ if not(kernel(K$CPROC.LEVEL,0)) then
    initial.account.path = account.path
    who = upcase(account.path[index(account.path, @ds, count(account.path, @ds)) + 1, 99999]) ;* 0414
 
-   openpath "VOC" to voc else
-      crt 'Cannot open VOC'
-      goto abort.bbproc
-   end
-
-
 
 end else   ;* Abort
    abort.code = abort.cause()
@@ -142,7 +136,7 @@ if ospath(@sdsys:@ds:'GPL.BP.OUT/LOGIN',OS$EXISTS) then
    goto abort.bbproc
 end
 
-   unload.object               ;* Unload inactive object code
+unload.object               ;* Unload inactive object code
 
    * Fetch new command
 * 20240806 mab comment out prompt   
@@ -152,37 +146,70 @@ end
 *
 *
 *   if upcase(cmnd[1,1]) = 'Q' then goto abort.bbproc
+
+* need VOC to exist for BCOMP to work 
+   
+filename = @sdsys:@ds:'VOC' 
+crt 'creating: ':filename
+create.file filename  DYNAMIC on error crt 'cannot create VOC'; goto abort.bbproc
+   
+* and it must be open
+openpath filename to voc else
+  crt 'Cannot open VOC'
+  goto abort.bbproc
+end
+   
+crt 'populate VOC'
+* 
+* move items in voc_template to voc
+*
+crt 'populating VOC from VOC_TEMPLATE'
+openpath @sdsys:@ds:'VOC_TEMPLATE' to voc_t.f else
+  crt 'Cannot open VOC_TEMPLATE directory! ABORT'
+  if logging then writeseq 'Cannot open VOC_TEMPLATE directory! ABORT' to log.f else null
+  goto abort.bbproc
+end
+*
+select voc_t.f to 2
+voc_nxt:
+readnext id from 2 then
+  read voc_item from voc_t.f, id then
+    write voc_item on voc, id 
+  end
+  goto voc_nxt
+end
    
 *  note all files must be opend via openpath, open depends on pcode!
-   openpath @sdsys:@ds:'gcat' to gcat.f else
-      crt 'Cannot open global catalogue directory! ABORT'
-      if logging then writeseq 'Cannot open global catalogue directory! ABORT' to log.f else null
-      goto abort.bbproc
-   end
+
+openpath @sdsys:@ds:'gcat' to gcat.f else
+  crt 'Cannot open global catalogue directory! ABORT'
+  if logging then writeseq 'Cannot open global catalogue directory! ABORT' to log.f else null
+  goto abort.bbproc
+end
    
-   mark.mapping gcat.f, off
+mark.mapping gcat.f, off
    
-   source.file.name = 'GPL.BP'
-   openpath @sdsys:@ds:source.file.name to src.f else
-     crt 'Cannot open ':source.file.name:'!, ABORT'
-     if logging then writeseq 'Cannot open ':source.file.name:'!, ABORT' to log.f else null
-     goto abort.bbproc
-   end
+source.file.name = 'GPL.BP'
+openpath @sdsys:@ds:source.file.name to src.f else
+  crt 'Cannot open ':source.file.name:'!, ABORT'
+  if logging then writeseq 'Cannot open ':source.file.name:'!, ABORT' to log.f else null
+  goto abort.bbproc
+end
    
-   output.file.name = source.file.name:'.OUT' 
+output.file.name = source.file.name:'.OUT' 
    
-   output.file.name = 'GPL.BP.OUT'
-   openpath @sdsys:@ds:output.file.name to out.f else
-     crt 'Cannot open ':output.file.name:'!, ABORT'
-     if logging then writeseq 'Cannot open ':output.file.name:'!, ABORT' to log.f else null
-     goto abort.bbproc
-   end
+output.file.name = 'GPL.BP.OUT'
+openpath @sdsys:@ds:output.file.name to out.f else
+  crt 'Cannot open ':output.file.name:'!, ABORT'
+  if logging then writeseq 'Cannot open ':output.file.name:'!, ABORT' to log.f else null
+  goto abort.bbproc
+end
    
-   mark.mapping out.f, off
+mark.mapping out.f, off
    
-   compiler.flags = 0
-   compiler.flags = bitor(compiler.flags, BCOMP.NO.XREF.TABLES)
-   catalogue.mode = 'GLOBAL'
+compiler.flags = 0
+compiler.flags = bitor(compiler.flags, BCOMP.NO.XREF.TABLES)
+catalogue.mode = 'GLOBAL'
 *
 * common knowledge seem to indicate that when compiling GPL.BP
 * order is important, I am not 100% sure this is necessary in our case
@@ -261,7 +288,7 @@ FILES_LIST<-1> = "$HOLD"     :@VM:'N'      :@VM:'Y'
 FILES_LIST<-1> = "$MAP"      :@VM:'Y'      :@VM:'Y' 
 FILES_LIST<-1> = "$IPC"      :@VM:'Y'      :@VM:'N' 
 FILES_LIST<-1> = "DICT.DIC"  :@VM:'Y'      :@VM:'N'  
-FILES_LIST<-1> = "DIR_DICT"  :@VM:'Y'      :@VM:'N' 
+FILES_LIST<-1> = "DIR_DICT"  :@VM:'Y'      :@VM:'N'
 FILES_LIST<-1> = "VOC.DIC"   :@VM:'Y'      :@VM:'N'
 *
 files.cnt = dcount(FILES_LIST,@FM)
@@ -281,8 +308,8 @@ for i = 1 to files.cnt
   end
 
 next i
-     
 
+*
 abort.bbproc: 
 return to abort.bbproc
 
