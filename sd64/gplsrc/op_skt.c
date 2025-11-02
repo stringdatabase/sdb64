@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * rev 0.9-3 SIGPIPE Error in op_writeskt() (WRITE.SOCKET)  issue #89 / ScarletDME 
  * 31 Dec 23 SD launch - prior history suppressed
  * END-HISTORY
  *
@@ -1130,8 +1131,8 @@ void op_writeskt() {
     do {
       if (!socket_wait(skt, FALSE, (blocking) ? timeout : 0))
         goto exit_op_writeskt;
-
-      bytes_sent = send(skt, p, bytes, 0);
+// rev 0.9-3 SIGPIPE Error in Sockets issue #89 / ScarletDME
+      bytes_sent = send(skt, p, bytes,  MSG_NOSIGNAL);
       if (bytes_sent < 0) /* Lost connection */
       {
         process.status = ER_FAILED;

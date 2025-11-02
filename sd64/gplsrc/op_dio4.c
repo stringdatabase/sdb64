@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * rev 0.9-3 mab in dir_select if we end up with an empty name, don't add to list
  * rev 0.9.0 Jan 25 mab fix period or tilde character mapping (%t / %d) 
  *                      to match either case
  * 31 Dec 23 SD launch - prior history suppressed
@@ -1160,14 +1161,15 @@ Private bool dir_select(FILE_VAR* fvar, int16_t list_no) {
           p = name;
           q = name;
 /* rev 0.9.0 */
+/* rev 0.9-3 roll back test for both cases of t and d */
           if ((*p == '%') &&
-             ((*(p + 1) == 'D')  ||  (*(p + 1) == 'd')))    /* Special case - first char only */
+             (*(p + 1) == 'D'))    /* Special case - first char only */
           {
             *(q++) = '.';
             p += 2;
 /* rev 0.9.0 */            
           } else if ((*p == '%') &&
-                     ((*(p + 1) == 'T') ||  (*(p + 1) == 't')))/* Special case - first char only */
+                     (*(p + 1) == 'T'))/* Special case - first char only */
           {
             *(q++) = '~';
             p += 2;
@@ -1185,15 +1187,17 @@ Private bool dir_select(FILE_VAR* fvar, int16_t list_no) {
           }
           *q = '\0';
         }
+// rev 0.9-3  mab if we end up here with an empty name, don't add to list
+        if (strlen(name) > 0) {        
+          if (head == NULL)
+            ts_init(&head, 256);
+          else
+            ts_copy_byte(FIELD_MARK);
 
-        if (head == NULL)
-          ts_init(&head, 256);
-        else
-          ts_copy_byte(FIELD_MARK);
-
-        ts_copy_c_string(name);
-        record_count++;
-      }
+          ts_copy_c_string(name);
+          record_count++;
+		}
+	  }
     }
 
     closedir(dfu);
