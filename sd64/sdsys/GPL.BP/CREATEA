@@ -374,7 +374,7 @@ make.account:
 
    display sysmsg(6015) ;* Creating VOC...
 * rev 0.9-3 Nov 25 move voc back to dynamic file
-   create.file pathname:@ds:'VOC' on error
+   create.file pathname:@ds:'VOC' dynamic on error
       @system.return.code = -6
       stop sysmsg(6016) ;* Unable to create VOC
    end
@@ -403,42 +403,7 @@ make.account:
          end
 
          write rec to voc.f, id
-*  20240302 mab set file ownership accordingly  
-*  we need to handle file name funny business, see pdf manual section 3.2, Directory Files and Rec Id Translation
-*  I am only converting the ones in newvoc I know about, if any get added you will get error
-* "Unable change ownership of directory error <fn>"
-*  And need to revised this Kludge. A routine to handle all cases could be written, but I am not doing it, sorry
-* $define K$MAP.DIR.IDS     51       ;* Enable/disable dir file id mapping - but not sure this will work here,
-*  we are dealing with file actions outside of sd (chown).
-         Begin Case
-           case id = '%'
-             fnid = '%P'
-           case id = '<'
-             fnid = '%L'
-           case id = '<='
-             fnid = '%L%E'
-           case id = '<>'
-             fnid = '%L%G'
-           case id = '='
-             fnid = '%E'
-           case id = '=<'
-             fnid = '%E%L'
-           case id = '=>'
-             fnid = '%E%G'
-           case id = '>'
-             fnid = '%G'
-           case id = '><'
-             fnid = '%G%L'
-           case id = '>='
-             fnid = '%G%E'
-* rev 0.9.0             
-           case id = '~'
-             fnid = '%t'             
-           case 1
-             fnid = id
-         end case    
-         set.owner.path = vocfn:fnid
-         gosub set.owner        
+       
       end
    repeat
 
@@ -447,9 +412,6 @@ make.account:
    * Set up $COMMAND,STACK VOC entry
 
    write 'X' to voc.f, '$COMMAND.STACK'
-   *  20240302 mab set file ownership accordingly  
-   set.owner.path = vocfn:'$COMMAND.STACK'
-   gosub set.owner  
 
    * Create $HOLD
 
@@ -565,9 +527,6 @@ create.dir.file:
    end
 
    write voc.rec to voc.f, fn
- * 20240302 mab set file ownership accordingly  
-    set.owner.path = pathname:@ds:'VOC':@ds:fn
-    gosub set.owner  
 
    return
 
