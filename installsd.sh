@@ -201,13 +201,15 @@ ACCT_PATH=/home/sd
 if [ ! -d "$ACCT_PATH" ]; then
    sudo mkdir -p "$ACCT_PATH"/user_accounts
    sudo mkdir "$ACCT_PATH"/group_accounts
-   sudo chown sdsys:sdusers "$ACCT_PATH"
-   sudo chmod 775 "$ACCT_PATH"
-   sudo chown sdsys:sdusers "$ACCT_PATH"/group_accounts
-   sudo chmod 775 "$ACCT_PATH"/group_accounts
-   sudo chown sdsys:sdusers "$ACCT_PATH"/user_accounts
-   sudo chmod 775 "$ACCT_PATH"/user_accounts
-fi
+fi  
+# rev 0.9.3 always set ownership (these could get messed up if sdsys and sdusers group gets deleted during deletesd.sh script 
+sudo chown sdsys:sdusers "$ACCT_PATH"
+sudo chmod 775 "$ACCT_PATH"
+sudo chown sdsys:sdusers "$ACCT_PATH"/group_accounts
+sudo chmod 775 "$ACCT_PATH"/group_accounts
+sudo chown sdsys:sdusers "$ACCT_PATH"/user_accounts
+sudo chmod 775 "$ACCT_PATH"/user_accounts
+
 
 sudo ln -s /usr/local/sdsys/bin/sd /usr/local/bin/sd
 

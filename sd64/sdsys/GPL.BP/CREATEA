@@ -378,6 +378,12 @@ make.account:
       @system.return.code = -6
       stop sysmsg(6016) ;* Unable to create VOC
    end
+   set.owner.path = pathname:@ds:'VOC'
+   gosub set.owner
+   set.owner.path = pathname:@ds:'VOC':@ds:'%0'
+   gosub set.owner
+   set.owner.path = pathname:@ds:'VOC':@ds:'%1'
+   gosub set.owner
 
    openpath pathname:@ds:'VOC' to voc.f else
       @system.return.code = -status()
