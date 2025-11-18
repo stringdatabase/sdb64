@@ -41,7 +41,7 @@
 #define FALLBACK
 #define HOT_SPOT_MONITOR
 
-#define _XOPEN_SOURCE
+#define _XOPEN_SOURCE 700
 #define _XOPEN_CRYPT
 #include <unistd.h>
 

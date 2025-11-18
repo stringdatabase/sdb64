@@ -1,3 +1,25 @@
+Version 0.9-3
+
+-------------
+
+(mab) Move VOC back to dynamic file. This file is constantly being accessed by SD.  Having it as a Directory file results constant file opens.
+      With having it as a Dynamic file the hope is most of the file is already buffered.
+      Note: Existing Accounts with VOC defined as a Directory file type will still work, just have more overhead.
+      * Add program VOC_TO_DYN to move VOC from Directory to Dynamic file type to sdsys/BP -to be added
+      
+      Mods to directory file name mapping (%char)  Now consistent with other versions of this code base?
+      
+      On SELECT of directory type files, if file name mapping results in empty name, don't add to list (op_dio4.c / dir_select)
+      
+      Update #define _XOPEN_SOURCE  to #define _XOPEN_SOURCE 700 in sddefs.h (mult define errors when compiling)
+ 
+      Add correction to handle SIGPIPE Error in op_writeskt() (WRITE.SOCKET)  issue #89 / ScarletDME 
+  
+      sdnet.h:
+	    replace termio.h (is obsolete) with termios.h  sys/ioctl.h
+
+      installsd.sh - always set ownership (these could get messed up if sdsys and sdusers group gets deleted during deletesd.sh script) 
+
 Version 0.9-2
 
 -------------
