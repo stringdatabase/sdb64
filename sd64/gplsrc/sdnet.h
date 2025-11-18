@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * rev 0.9-3 mab  move to termios.h (termio.h is obsolete)
  * 31 Dec 23 SD launch - prior history suppressed
  * END-HISTORY
  *
@@ -30,7 +31,9 @@
  * START-CODE
  */
 
-#include <termio.h>
+//  rev 0.9-3 mab  move to termios.h (termio.h is obsolete)
+#include <termios.h>
+#include <sys/ioctl.h>
 
 #include <netdb.h>
 #include <arpa/inet.h>
