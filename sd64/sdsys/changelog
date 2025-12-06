@@ -18,7 +18,9 @@ Version 0.9-3
       sdnet.h:
 	    replace termio.h (is obsolete) with termios.h  sys/ioctl.h
 
-      installsd.sh - always set ownership (these could get messed up if sdsys and sdusers group gets deleted during deletesd.sh script) 
+      installsd.sh - always set ownership (these could get messed up if sdsys and sdusers group gets deleted during deletesd.sh script)
+
+      Add subroutine PROG_INFO to GPL.BP, global catalog as !PROG_INFO, pulls date and time program was compiled from object header.	  
 
 Version 0.9-2
 
