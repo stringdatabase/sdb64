@@ -43,6 +43,8 @@ $INCLUDE GPL.BP HEADER.H
 * 
 
 * obj_dir_path,obj_name,prog_name,prog_rev_at_comp,prog_comp_time,prog_comp_date,error_msg
+
+error_msg = ''
  
 openpath obj_dir_path to dir_path else
    error_msg = 'Opening Directory: ': obj_dir_path : ' failed (':status():')'
