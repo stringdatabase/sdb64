@@ -3,6 +3,7 @@
       * Copyright (c) 2004, Ladybridge Systems, All Rights Reserved
       
       $list off
+      * rev 0.9-2 Mar 25 mab add sdpyobj
       * rev 0.9.0 Jan 25 mab with the change in ownership of group ACCOUNTS
       *                      add SYSTEM() keys
       *                      add SD_EUID_SET SD_EUID_RESTORE 
@@ -272,12 +273,39 @@
       $define SD_EUID_RESTORE 103  ;* set current process's euid egid to what it was on entry to sd
       
       * embedded python 
-      $define  SD_PyInit        2000  ;* initialize the python interpreter   
-      $define  SD_PyFinal       2001  ;* Finalize the python interpreter  
-      $define  SD_IsPyInit      2002  ;* Is python interpreter initialized 
-      $define  SD_PyRunStr      2010  ;* Take the string in qmBasic variable VAL and run in python interpreter   
-      $define  SD_PyRunFile     2011  ;* Take the file and path defined in qmBasic variable VAL and run in python interpreter   
-      $define  SD_PyGetAtt      2100  ;* Return the (string) value of python attribute defined in qmBasic variable VAL    
+      
+      $define  SD_Obj_Unkn         0  ;* Unknown python object type 
+      $define  SD_Obj_Str          1  ;* String (Unicode) python object type 
+      $define  SD_Obj_List         2  ;* List python object type 
+      $define  SD_Obj_Dict         3  ;* Dictionary  python object type 
+      $define  SD_Obj_Long         4  ;* Long (int)  python object type 
+      $define  SD_Obj_Float        5  ;* Float (floating point)  python object type 
+      
+      $define SD_PyInit        2000  ;* initialize the python interpreter   
+      $define SD_PyFinal       2001  ;* Finalize the python interpreter  
+      $define SD_IsPyInit      2002  ;* Is python interpreter initialized 
+      $define SD_PyRunStr      2010  ;* Take the string in qmBasic variable VAL and run in python interpreter   
+      $define SD_PyRunFile     2011  ;* Take the file and path defined in qmBasic variable VAL and run in python interpreter   
+      $define SD_PyGetAtt      2100  ;* Return the (string) value of python attribute defined in qmBasic variable VAL  
+      
+      $define SD_PyDictCrte    2200  ;* Creaete new dictionary for sd 
+      $define SD_PyDictClr     2201  ;* Clear  dictionary Keys and Values, (Name remains in global dictionary) for sd 
+      $define SD_PyDictVset    2202  ;* set dictionary key : value    
+      $define SD_PyDictVget    2203  ;* get value of dictionary item key  
+      $define SD_PyDictIDel    2204  ;* delete item (key / value) from dictionary 
+      $define SD_PyDictKeys    2205  ;* get dictionay keys as tab separated string 
+      $define SD_PyDictValues  2206  ;* get dictionay values as fld mrk separated string 
+      
+      $define SD_PYStrSet      2210  ;* create and or set string 
+      $define SD_PYStrGet      2211  ;* Get string */
+
+      $define SD_PYDelObj      2215  ;* Delete Python Object 
+      $define SD_PyObjLen      2216  ;* get object length (return err overflow > 32bits)
+      $define SD_PyObjType     2217  ;* get object type
+      
+      $define SD_PyListGet     2221  ;* get list items as tab separated string 
+      $define SD_PyListAppd    2222  ;* append object to list   
+      $define SD_PyListClr     2223  ;* clear list object     
       
       * SYSTEM() keys for BASIC Function SYSTEM() as defined in gplsrc/op_sys.c
       $define SYS$PTR_ON        1  ;*   Printer on?

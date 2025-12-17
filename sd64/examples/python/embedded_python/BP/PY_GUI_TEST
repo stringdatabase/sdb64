@@ -1,5 +1,5 @@
 program PY_GUI_TEST
-* Copyright (c)2024 The SD Developers, All Rights Reserved
+* Copyright (c)2025 The SD Developers, All Rights Reserved
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -61,6 +61,8 @@ script_file = "/home/xyz/python_stuff/sdguitest.py"
 *window.close()
 *
 *****************************************************************************
+$include SDPYFUNC.H
+*
 print 'embedded python test, hit <enter> to start':
 input ok
 * rem to set script_file = "/home/xyz/python_stuff/sdguitest.py"
@@ -69,24 +71,24 @@ print str('=',50)
 *
 *
 crt ' check to see if python already initialized'
-call !PY_IS_INITIALIZED(rtn)
-if rtn then
+rtn_stat = PY_IS_INITIALIZED()
+if rtn_stat then
   crt 'already initialized'
 end else
   crt 'not initialized, attempt init'
-  call !PY_INITIALIZE(rtn)
+  rtn_stat = PY_INITIALIZE()
   crt 'status = ':status()
 end
 
 crt str('=',50)
 
-call !PY_RUNFILE(script_file,rtn)
+rtn_stat = PY_RUNFILE(script_file)
 crt 'status = ':status()
-if rtn <> 0 then goto 999
+if rtn_stat <> 0 then goto 999
 
 crt str('=',50)
 crt 'attempt to access python object: values'
-call !PY_GETATTR("values",rtn_string,error)
+rtn_string = PY_GETATTR("values")
 crt "values:"
 crt rtn_string
 crt 'status = ':status()

@@ -30,6 +30,7 @@
 *                correct len(function.args) test in ST.DEFFUN
 *                add SDEXT as internal function
 * rev 0.9.0  Jan 25 mab @FILE.NAME should be allowed as a lvalues per doc
+* rev 0.9-2  Mar 25 mab add SDPYOBJ python object function
 * END-HISTORY
 *
 *
@@ -632,6 +633,8 @@ $define STACK.MARK 9999         ;* Marks start of sub-expression
    int.intrinsics<-1> = "SCAN"            ; int.intrinsic.opcodes<-1> = OP.BTSCAN
    * 20240806 mab add SDEXT function
    int.intrinsics<-1> = "SDEXT"           ; int.intrinsic.opcodes<-1> = OP.SDEXT
+   * rev 0.9-2 mab add SDPYOBJ
+   int.intrinsics<-1> = "SDPYOBJ"         ; int.intrinsic.opcodes<-1> = OP.SDPYOBJ
    int.intrinsics<-1> = "SORTDATA"        ; int.intrinsic.opcodes<-1> = OP.SORTDATA
    int.intrinsics<-1> = "SORTNEXT"        ; int.intrinsic.opcodes<-1> = OP.SORTNEXT
    int.intrinsics<-1> = "TESTLOCK"        ; int.intrinsic.opcodes<-1> = OP.TESTLOCK
@@ -3748,7 +3751,8 @@ end
                      gosub get.token           ; * Skip left bracket
                      intrinsic.stack = int.intrinsic.opcodes<i> : @fm : intrinsic.stack 
 * 20240728 mab remove PACKAGE 
-* 20240806 mab add SDEXT                     
+* 20240806 mab add SDEXT    
+* rev 0.9-2 mab SDPYOBJ                 
                      on i goto in.none,       ;* ABORT.CAUSE
                                in.two,        ;* AKMAP
                                in.one,        ;* ANALYSE
@@ -3784,6 +3788,7 @@ end
                                in.removef,    ;* REMOVEF
                                in.scan,       ;* SCAN
                                in.three,      ;* SDEXT
+                               in.four,       ;* SDPYOBJ
                                in.none,       ;* SORTDATA
                                in.sortnext,   ;* SORTNEXT
                                in.one         ;* TESTLOCK

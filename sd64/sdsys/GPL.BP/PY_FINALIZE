@@ -1,5 +1,6 @@
-subroutine PY_FINALIZE(rtnstat)
-* Copyright (c)2024 The SD Developers, All Rights Reserved
+* PY_FINALIZE()
+* finalize the python interpreter Note: most likely not needed, will check when sd shutsdown
+* Copyright (c)2025 The SD Developers, All Rights Reserved
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -15,15 +16,17 @@ subroutine PY_FINALIZE(rtnstat)
 * along with this program; if not, write to the Free Software Foundation,
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
-* finalize the python interpreter Note: most likely not needed, will check when sd shutsdown
+
 $internal
-$catalog !PY_FINALIZE
+$no.symbols
+$no.xref
+function py_finalize()
+$catalog !py_finalize
+
 $include KEYS.H
 $include ERR.H
 
 rtnstat = SDEXT('',@FALSE,SD_PyFinal)
-if rtnstat < 0 then
-* Py_FinalizeEx reported there were errors during finalization (flushing buffered data), not sure what we do about it!
-  rtnstat = SD_PyEr_FinalEr    ;* but we will let the caller know
-end
+return rtnstat
+
 end

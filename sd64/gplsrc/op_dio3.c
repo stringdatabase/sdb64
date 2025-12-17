@@ -17,9 +17,10 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
- * 31 Dec 23 SD launch - prior history suppressed
+ * rev 0.9-3 mab map_t1_id - map ~ to %T and . to %D (consistent with what dir_select in op_dio4.c)
+ * rev 0.9.0 Jan 25 mab change dyn file prefix to %
  * 01 Jul 24 mab define max string size.
- * rev 0.9.0 Jan 25 mab change dyn file prefix to % 
+ * 31 Dec 23 SD launch - prior history suppressed
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -1300,17 +1301,20 @@ bool map_t1_id(char *id, int16_t id_len, char *mapped_id) {
 
   p = id;
   q = mapped_id;
-
-  if (*p == '.') {
-    *(q++) = '%';
-    *(q++) = 'd';
-    p++;
-    id_len--;
-  } else if (*p == '~') {
-    *(q++) = '%';
-    *(q++) = 't';
-    p++;
-    id_len--;
+// rev 0.9-3  map ~ to %T and . to %D (consistent with what dir_select in op_dio4.c)
+//            but only when mapping to on
+  if (map_dir_ids){
+    if (*p == '.') {
+      *(q++) = '%';
+      *(q++) = 'D';
+      p++;
+      id_len--;
+    } else if (*p == '~') {
+      *(q++) = '%';
+      *(q++) = 'T';
+      p++;
+      id_len--;
+    }
   }
 
   while (id_len--) {
