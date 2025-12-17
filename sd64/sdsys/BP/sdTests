@@ -24,101 +24,120 @@
  *
  deffun is_grp_member(user,group) calling "!is_grp_member"
  *
- print 'minimal test of hardcoded value mark removal:'
- print 'The current time and date is: ':TIMEDATE()
- print
+ crt 'minimal test of hardcoded value mark removal:'
+ crt 'The current time and date is: ':TIMEDATE()
+ crt
  *
  *
- print 'rev updates:'
- print 'VM rev level (1012) is: ':system(1012)
- print 'MESSAGE 3061: ':sysmsg(3061)
- print
+ crt 'rev updates:'
+ crt 'VM rev level (1012) is: ':system(1012)
+ crt 'MESSAGE 3061: ':sysmsg(3061)
+ crt
  * new config options
- print 'new config options:'
- print 'APILOGIN: ':config('APILOGIN')
- print 'USRDIR: ':config('USRDIR')
- print 'GRPDIR:' :config('GRPDIR')
- print
+ crt 'new config options:'
+ crt 'APILOGIN: ':config('APILOGIN')
+ crt 'USRDIR: ':config('USRDIR')
+ crt 'GRPDIR:' :config('GRPDIR')
+ crt
  *
- print 'testing is_grp_member fucntion'
- print 'is ':@user:' a member of sdusers? ':is_grp_member(@user,'sdusers')
- print 'is joeblow a member of sdusers? ':is_grp_member('joeblow','sdusers')
- Print
+ crt 'testing is_grp_member fucntion'
+ crt 'is ':@user:' a member of sdusers? ':is_grp_member(@user,'sdusers')
+ crt 'is joeblow a member of sdusers? ':is_grp_member('joeblow','sdusers')
+ crt
  *
  * new ospath function OSPATH(OS$CHOWN)
  * rem this most likely will only work if we are running as root
  * 
- print "testing ospath function OSPATH(param,S$$CHOWN)"
+ crt "testing ospath function OSPATH(param,S$$CHOWN)"
  if system(27) = 0 then
-   print 'running as root!'
+   crt 'running as root!'
  end else
-   print 'not running as root, OSPATH(OS$CHOWN,param) should fail with permission issue!'
+   crt 'not running as root, OSPATH(OS$CHOWN,param) should fail with permission issue!'
  end
- print
+ crt
 * 
  mypath = '/home/sd/testdir'
  if ospath(mypath,OS$EXISTS) then
-   print mypath: ' exists, delete it'
+   crt mypath: ' exists, delete it'
     result = ospath(mypath,OS$DELETE)
     if result then
-      print 'delete successful'
+      crt 'delete successful'
     end else
-      print 'delete failed?'
+      crt 'delete failed?'
     end
  end
- print
+ crt
  *
- print 'create: ': mypath
+ crt 'create: ': mypath
  result = ospath(mypath,OS$MKDIR)
  if result then
-   print 'create successful'
+   crt 'create successful'
  end else
-   print 'create failed?'
+   crt 'create failed?'
  end
- print
+ crt
  *
- print 'create should have created test directory with owner root:root'
- print 'pause to check, <enter>':
+ crt 'create should have created test directory with owner root:root'
+ crt 'pause to check, <enter>':
  input ok
- print
+ crt
  *
- print 'attempt change to sdsys:sdusers'
+ crt 'attempt change to sdsys:sdusers'
  chown_parm = 'sdsys':@vm:'sdusers':@vm:mypath
  result = ospath(chown_parm,OS$CHOWN)
- print 'result: ':result
- print 'status(): ':status()
- Print
- print 'throw some junk at ospath(chown_parm,OS$CHOWN)'
- print 'unkown owner "xyz"'
+ crt 'result: ':result
+ crt 'status(): ':status()
+ crt
+ crt 'throw some junk at ospath(chown_parm,OS$CHOWN)'
+ crt 'unkown owner "xyz"'
  chown_parm = 'xyz':@vm:'sdusers':@vm:mypath
  result = ospath(chown_parm,OS$CHOWN)
- print 'result: ':result
- print 'status(): ':status()
- Print
- print 'empty chown_parm'
+ crt 'result: ':result
+ crt 'status(): ':status()
+ crt
+ crt 'empty chown_parm'
  chown_parm = ''
  result = ospath(chown_parm,OS$CHOWN)
- print 'result: ':result
- print 'status(): ':status()
- Print
- print 'not enough params'
+ crt 'result: ':result
+ crt 'status(): ':status()
+ crt
+ crt 'not enough params'
  chown_parm = 'xyz':'sdusers':@vm:mypath
  result = ospath(chown_parm,OS$CHOWN)
- print 'result: ':result
- print 'status(): ':status()
- Print
- print 'too many params'
+ crt 'result: ':result
+ crt 'status(): ':status()
+ crt
+ crt 'too many params'
  chown_parm = 'xyz':@vm:'sdusers':@vm:mypath:@vm:mypath
  result = ospath(chown_parm,OS$CHOWN)
- print 'result: ':result
- print 'status(): ':status()
- Print
- print 'attempt buffer overflow'
+ crt 'result: ':result
+ crt 'status(): ':status()
+ crt
+ crt 'attempt buffer overflow'
  chown_parm = 'sdsys':@vm:'sdusers':@vm:str('a',321)
  result = ospath(chown_parm,OS$CHOWN)
- print 'result: ':result
- print 'status(): ':status()
- Print
+ crt 'result: ':result
+ crt 'status(): ':status()
+ crt
  *
- print 'thats all folks!'
+ * try out prog_info
+ *
+ crt 'PROG_INFO subroutine on: '
+ prg_dir = "/usr/local/sdsys/BP.OUT"
+ prg_name = "sdTests"
+ crt '   ':prg_dir
+ crt '   ':prg_name
+ *
+
+ call !prog_info(prg_dir,prg_name,prog_name,prog_obj_sz,prog_comp_time,prog_comp_date,error_msg)
+ if error_msg = '' then
+   crt 'Prog Name:    ':prog_name
+   crt 'Prog obj sz:  ':prog_obj_sz
+   crt 'comp date:    ':prog_comp_date
+   crt 'comp time:    ':prog_comp_time
+ end else
+   crt 'prog_info failed: ': error_msg
+ end
+ *
+ crt 'thats all folks!'
  End
