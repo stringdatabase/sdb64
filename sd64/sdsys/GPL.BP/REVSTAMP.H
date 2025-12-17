@@ -32,10 +32,10 @@
 * N O T E:  Must manually edit REVSTAMP.H in GPL.BP 
 * OR run REVSTAMP in sd to sync this version with   
 * REVSTAMP.H found in GPL.BP                        
-$define MAJOR.REV      0
-$define MINOR.REV      9
-$define BUILD          3
-$define SD.REV.STAMP   "0.9-3"
+$define MAJOR.REV      1
+$define MINOR.REV      0
+$define BUILD          0
+$define SD.REV.STAMP   "1.0-0"
 
 
 $define SD.COPYRIGHT.YEAR "2007"
