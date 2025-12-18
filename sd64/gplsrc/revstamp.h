@@ -35,10 +35,10 @@
 /* OR run REVSTAMP in sd to sync this version with   */
 /* REVSTAMP.H found in GPL.BP                        */
 /* Also edit VOC and NEWVOC record $RELEASE          */
-#define MAJOR_REV      0
-#define MINOR_REV      9
-#define BUILD          3
-#define SD_REV_STAMP   "0.9-3"
+#define MAJOR_REV      1
+#define MINOR_REV      0
+#define BUILD          0
+#define SD_REV_STAMP   "1.0-0"
 
 #define SD_COPYRIGHT_YEAR "2007"
 
