@@ -16,7 +16,9 @@ creates and uses a System V shared memory segment that will not conflict with Op
 The current version of the SD repository contains no binary bits.  All features are available
 for auditing.  Binary files are only created during the install.
 
-To install on one of the supported systems, just clone (or download the zip file) of the repository to 
-the target computer and then run the appropriate install script found in the sdb64 directory.
+To install on one of the supported systems, use the installsd.sh script found at
+https://github.com/stringdatabase/sd-scripts/archive/refs/heads/main.zip .
+
+To install SD, just download and extract the scripts, make the scripts executable if needed and then run installsd.sh. The installer will handle installation of required packages, downloading and compiling of source, installation of SD into the proper directories and deletion of the temporary files. 
 
 See the sd64/sdsys/changelog file for changes in each version release.
