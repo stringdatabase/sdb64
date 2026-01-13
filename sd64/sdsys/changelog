@@ -1,5 +1,18 @@
-Version 0.9-3
+Version 1.0-1
+-------------
+(mab)  Add back basic statements PROCREAD and PROCWRITE. Changes to BCOMP, op_misc.c opcodes.h (both versions)
+       CREATE-ACCOUNT GROUP now creates linux group name lower case with "sdg_" prefix to group name (like user group names)
+	     Warn user if case inversion is on prior to creating new user 
+	   DELETE-ACCOUNT (gpl.bp/DELACC) replace deluser with userdel when deleting linux user at account deletion, not available on all Linux distros
+       Add PTERM CASE NOINVERT to the LOGIN paragraph in SDSYS,VOC_TEMPLATE (VOC) and SDSYS,NEWVOC
 
+Version 1.0
+-------------	   
+(mab) Add PROG-INFO to GPL.BP
+      Remove install and delete scritps from repo (now in their own github repo)	   
+	   
+
+Version 0.9-3
 -------------
 
 (mab) Move VOC back to dynamic file. This file is constantly being accessed by SD.  Having it as a Directory file results constant file opens.
