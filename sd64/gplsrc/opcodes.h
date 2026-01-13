@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * rev 1.0-1  mab add PROCREAD back in
  * 31 Dec 23 SD launch - prior history suppressed 
  * 28 Jul 24  mab remove unsupported BASIC Functions / Statements:
  *                ABORTE, ABORTM
@@ -502,7 +503,7 @@ _opc_(0xCF96, OP_PMATRIX,  "PMATRIX",    op_pmatrix,   PMATDATA,            0)
 _opc_(0xCF97, OP_DIMLCLP,  "DIMLCLP",    op_dimlclp,   OPCODE_BYTE,        -3)
 _opc_(0xCF98, OP_LOGMSG,   "LOGMSG",     op_logmsg,    OPCODE_BYTE,        -1)
 _opc_(0xCF99, OP_SHCAP,    "SHCAP",      op_shcap,     OPCODE_BYTE,        -1)
-_opc_(0xCF9A, OP_CF9A,     "OPCF9A",     op_illegal,   OPCODE_BYTE,         0)
+_opc_(0xCF9A, OP_PROCREAD, "PROCREAD",   op_procread,  OPCODE_BYTE,         0)
 _opc_(0xCF9B, OP_DEREF,    "DEREF",      op_deref,     OPCODE_BYTE,        -1)
 _opc_(0xCF9C, OP_IADD,     "IADD",       op_iadd,      OPCODE_BYTE,        -1)
 _opc_(0xCF9D, OP_ISUB,     "ISUB",       op_isub,      OPCODE_BYTE,        -1)
