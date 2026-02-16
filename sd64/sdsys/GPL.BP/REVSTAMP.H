@@ -18,8 +18,8 @@
 * 
 * START-HISTORY:
 * rev 0.9-3 Nov 25 move voc back to dynamic file
-* rev 0.9-2 mab add sdpyobj function
-* rev 0.9.1 return to single rev tracking
+* rev 0.9-2 Mar 25 add sdpyobj function
+* rev 0.9.1 Mar 25 return to single rev track
 * 31 Dec 23 SD launch - prior history suppressed
 * END-HISTORY
 *
@@ -29,14 +29,16 @@
 *
 * START-CODE
 
+
+* rev 0.9.1 Mar 25 return to single rev track 
 * N O T E:  Must manually edit REVSTAMP.H in GPL.BP 
 * OR run REVSTAMP in sd to sync this version with   
 * REVSTAMP.H found in GPL.BP                        
+* Also edit VOC and NEWVOC record $RELEASE          
 $define MAJOR.REV      1
 $define MINOR.REV      0
-$define BUILD          0
-$define SD.REV.STAMP   "1.0-0"
-
+$define BUILD          1
+$define SD.REV.STAMP   "1.0-1"
 
 $define SD.COPYRIGHT.YEAR "2007"
 

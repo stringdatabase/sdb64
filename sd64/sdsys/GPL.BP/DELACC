@@ -21,6 +21,7 @@
 * 19 Jan 04  0.6.1 SD launch. Earlier history details suppressed.
 * rev 0.9.0 delete-account requires admin priv, are we admin?
 *           on user account, delete os user if configured
+* rev 1.0-1 use userdel not deluser (deluser not on all Linux version)
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -203,7 +204,7 @@ deffun is_group(group) calling '!is_group'
          crt sysmsg(10027,username): ;* Delete OS user %1 (Y/N)?
          input yn
          if upcase(yn) = 'Y' then
-            OS.EXECUTE "sudo deluser ":username 
+            OS.EXECUTE "sudo userdel ":username 
             stat = OS.ERROR()
             if stat = 0 then
                crt sysmsg(10028,username) ;* OS User: %1 Deleted

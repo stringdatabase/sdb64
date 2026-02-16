@@ -18,6 +18,9 @@
 * 
 * 
 * START-HISTORY:
+* rev 1.0-1 Jan 26 group account now have linux group name written as lower case
+*           with "sdg_" prefix
+*           use "adduser" -p parameter when creating linux user account
 * rev 0.9-3 Nov 25 move voc back to dynamic file
 * rev 0.9.0 Jan 25 mab change dyn file prefix to %
 *           sd group belong to linux group of the same name
@@ -145,6 +148,11 @@ deffun set_passwd(uname)  calling '!set_passwd'
        * yes, attempt to create os user
        * sd convention is os user names are lowercase, if you don't want this, pre create the os user
          acc.uname = downcase(acc.uname)
+		 * Check INVERT/NOINVERT STATUS (1=INVERT on)
+         PVAL = SYSTEM(1001)
+         IF PVAL = 1 THEN
+           CRT "Warning: **** Case Inversion is not active during password entry! ****"   
+         END
          if not(create_user(acc.uname)) then
            * create user failed
            @system.return.code = ER$NOT.CREATED
@@ -321,10 +329,12 @@ PW.TRY.AGAIN:
         if not(group_success) then
           stop
         end
+		
       case upcase(acc.type) = "GROUP" 
       *
-      * create account's sd group          
-        group_name = acc.name      ;* callers entered group name, no changes to group_name case 
+      * create account's sd group 
+* rev 1.0-1	  
+        group_name = downcase("sdg_" : acc.name) ;* callers entered group name, force lower case with sdg_prefix
         gosub create.group
         if not(group_success) then
           stop
@@ -395,7 +405,6 @@ make.account:
       stop sysmsg(6018) ;* Cannot open SDSYS NEWVOC
    end
 
-   vocfn = pathname:@ds:'VOC':@ds
    select newvoc.f to 11
    loop
       readnext id from 11 else exit
