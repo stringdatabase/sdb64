@@ -1,6 +1,7 @@
 Version 1.0-2
 -------------
 (mab)  Add back LISTPQ - sentence to list procs (SD.VOCLIB, VOC_TEMPLATE, NEWVOC)
+       Add ACCOUNT.SAVE, FILE.SAVE, T-DUMP (ACCSVE program) to TAPE install
 
 
 Version 1.0-1
@@ -14,7 +15,7 @@ Version 1.0-1
 Version 1.0
 -------------	   
 (mab) Add PROG-INFO to GPL.BP
-      Remove install and delete scritps from repo (now in their own github repo)	   
+      Remove install and delete scripts from repo (now in their own github repo)	   
 	   
 
 Version 0.9-3
