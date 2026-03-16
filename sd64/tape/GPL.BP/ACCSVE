@@ -134,7 +134,7 @@ $include tape.h
    acc.list = ''
    listno = -1            ;* Not set
 
-   open 'QM.ACCOUNTS' to acc.f else
+   open 'SD.ACCOUNTS' to acc.f else
       stop sysmsg(2200)  ;* Cannot open accounts register
    end
 
@@ -303,8 +303,8 @@ $include tape.h
            if @selected > 0 then
              loop
                readnext acc.id else exit
-               * put QMSYS at the beginning of the tape
-               if acc.id = 'QMSYS' then
+               * put SDSYS at the beginning of the tape
+               if acc.id = 'SDSYS' then
                  ins acc.id before acc.list<1>
                end else
                  acc.list<-1> = acc.id
@@ -314,7 +314,7 @@ $include tape.h
          end else
             fsx = dcount(id.list, @am)
             for fx = 1 to fsx
-               if id.list<fx> = 'QMSYS' then
+               if id.list<fx> = 'SDSYS' then
                   ins acc.id before acc.list<1>
                end else
                   acc.list<-1> = id.list<fx>
@@ -372,7 +372,7 @@ do.account.save:
    end else
       read acc.rec from acc.f, src.name then
          acc.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
-         if acc.path = '@QMSYS' then acc.path = @QMSYS
+         if acc.path = '@SDSYS' then acc.path = @SDSYS
          voc.path = acc.path:@ds:'VOC'
          openpath voc.path to voc.f else
             stop sysmsg(7518, src.name)  ;* Cannot open VOC for account %1
@@ -474,8 +474,8 @@ do.account.save:
             if not(save.dict) then goto skip.dict
 
             dic.path = abspath(acc.path, f.name)
-            if voc.itm<2>[1, 6] # '@QMSYS' then
-               if f.name # '' and f.name[1, 6] # '@QMSYS' then
+            if voc.itm<2>[1, 6] # '@SDSYS' then
+               if f.name # '' and f.name[1, 6] # '@SDSYS' then
                   openpath dic.path to dic.f else
                      display sysmsg(7519, dic.path)  ;* Cannot open %1 - Dictionary skipped
                      goto skip.dict
@@ -544,7 +544,7 @@ skip.dict:
                           ins idx.names<j> before info.idx<1>
                           info.idx = lower(info.idx)
                           adicts<j> = info.idx
-                          anames<1, -1> = 'QMI':idx.names<j>
+                          anames<1, -1> = 'SDI':idx.names<j>
                         next j
                      end
                   end
@@ -583,7 +583,7 @@ skip.dict:
                   close data.f
                next i
             end else                   ;* Simple file
-               if voc.itm<2>[1, 6] # '@QMSYS' then
+               if voc.itm<2>[1, 6] # '@SDSYS' then
                   f.name = voc.itm<2>
                   level = '3'
                   path = abspath(acc.path, voc.itm<2>)
@@ -614,7 +614,7 @@ skip.dict:
                           ins idx.names<j> before info.idx<1>
                           info.idx = lower(info.idx)
                           adicts<j> = info.idx
-                          anames<1, -1> = 'QMI':idx.names<j>
+                          anames<1, -1> = 'SDI':idx.names<j>
                         next j
                      end
                   end
@@ -667,7 +667,7 @@ skip.dict:
                      continue
                   end
 
-                  * added to save QM indices
+                  * added to save SD indices
                   * if the DICT item exists, assume it is the correct one
                   * and delete from list - when the DICT is finished, any
                   * items left in idx.names and adicts will be added
@@ -692,7 +692,7 @@ skip.dict:
                   end
                repeat
 
-               * for QM indices
+               * for SD indices
                * anything left in idx.names at this point will be assumed
                * to be indices whos dictionary items have been deleted so
                * we will place them on the tape now so they will be restored
@@ -997,9 +997,9 @@ build.data.item:
 * ======================================================================
 
 convert.d.item:
-   * This routine will convert a QM 'D' type dictionary item into a D3
+   * This routine will convert a SD 'D' type dictionary item into a D3
    * 'A' type item for compatibility. Additional information that does
-   * not translate to D3 is stored in attribute<17> for use by QM's
+   * not translate to D3 is stored in attribute<17> for use by SD's
    * ACCOUNT-RESTORE process to facilitate the reconstruction of the
    * 'D' type dictionary item.
 
@@ -1029,7 +1029,7 @@ convert.d.item:
 
    * Will these translate OK to PICK?
    * Seems that all but maybe 'C' and it seems to fall back to 'L'
-   * and not crash a D3 listing so I will leave it for restore to QM
+   * and not crash a D3 listing so I will leave it for restore to SD
 
    if jus # 'C' and jus # 'L' and jus # 'R' and jus # 'T' and jus # 'U' then
       jus = ''
@@ -1047,15 +1047,15 @@ convert.d.item:
 
    * Use D3's extended description to store information that will not translate
    * to the PICK 'A' type. These will be parsed out by ACCOUNT-RESTORE and
-   * discarded when the QM 'D' dictionary item is created.
+   * discarded when the SD 'D' dictionary item is created.
    * This information will simply become odd but harmless stuff if restored to
    * a D3 system since this is a description attribute the format:
-   *   item<17, 1> 'QM-D'   flag for restore
+   *   item<17, 1> 'SD-D'   flag for restore
    *   item<17, 2> 'S/M'    single/multi valued
    *   item<17, 3>          value from Association
    *   item<17, 4>          value from user field
 
-   tmp.itm<17> = 'QM-D':@vm:itm<6>:@vm:itm<7>:@vm:itm<8>
+   tmp.itm<17> = 'SD-D':@vm:itm<6>:@vm:itm<7>:@vm:itm<8>
 
    itm = tmp.itm
 
