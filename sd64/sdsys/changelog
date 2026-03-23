@@ -2,6 +2,15 @@ Version 1.0-2
 -------------
 (mab)  Add back LISTPQ - sentence to list procs (SD.VOCLIB, VOC_TEMPLATE, NEWVOC)
        Add ACCOUNT.SAVE, FILE.SAVE, T-DUMP (ACCSVE program) to TAPE install
+       Add back the ability to set "PICK" compatibility options via the OPTION program:
+       PICK.BREAKPOINT    : Pick syntax for BREAK.ON and BREAK.SUP
+       PICK.BREAKPOINT.U  : Handle U breakpoint option in Pick manner
+       PICK.EXPLODE       : Pick style processing of single value item in BY.EXP
+       PICK.GRAND.TOTAL   : GRAND.TOTAL text on same line as values
+       PICK.IMPLIED.EQ    : Implied EQ between field and literal in query
+       PICK.NULL          : Return null for null data in ML, MR and FMT()
+       PICK.WILDCARD      : Allow use of Pick style wildcards in queries
+       QUALIFIED.DISPLAY  : Allow Pick style qualified display clauses
 
 
 Version 1.0-1
