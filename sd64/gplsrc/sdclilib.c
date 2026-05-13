@@ -19,6 +19,12 @@
  *               log local connections
  *               on local connection, set user / group id to user who forked process
  *               on connectlocal if account fails, disconnect!
+ * rev 1.0-3 mab add some connection logging to syslog
+ *               remove on local connection: set user / group id to user who forked process
+ *                Not sure made any sense, local connect is forked from running sd process,
+ *                   so by default it must be a valid user.
+ *                Also causes Apache spawned process to fail, but doesn't if run from test c program ??
+ *
  *  Warning: sdclilib does not maintian a storage area for Getarg parameters for each session.
  *  Using Callx will "overwrite" the previous Callx parameters regardless of session number.
  *  A solution would be to add the return call buffers to the session structure....
@@ -27,7 +33,7 @@
  *    Then use session_idx*MAX_ARGS as the offset into CallArgArray for the sessions SDCall arguments
  *  I cannot find where the transfer buffer "buff" is freed, need to test for memory leak to see if this is really the case.
  *     For now I have added code to disconnect() to free buff if there are no more remainging active connections.
- *
+ *  rem to copy to (at least for Fedora) /usr/lib64
  * 
  * END-HISTORY
  *
@@ -608,7 +614,7 @@ SDChange(char* src, char* old, char* new, int occurrences, int start) {
   if (start < 1)
     start = 1;
 
-  /* Count occurences of old string in source string, remembering start of
+  /* Count occurrences of old string in source string, remembering start of
     region to change.                                                     */
 
   changes = 0;
@@ -848,6 +854,8 @@ SDConnectUDS(char* account) {
   
   initialise_client();
 
+  openlog ("sd_Log", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
+
   if (!FindFreeSession())
     goto exit_sdconnectUDS;
   ClearError;
@@ -883,13 +891,19 @@ SDConnectUDS(char* account) {
   /* Note systemd starts the  sd process as root, linuxio.c function start_connection will set process to user */
   /* Open connection to server */
 
-  if (!OpenUDSocket())
-    goto exit_sdconnectUDS;
 
+  syslog (LOG_INFO, "APISrvr UDS Connection, user:");
+  syslog (LOG_INFO, "%s", username);
+
+  if (!OpenUDSocket()) {
+    syslog (LOG_INFO, "OpenUDSocket Failed");
+    goto exit_sdconnectUDS;
+  }
   /* Check username and password */
 
   n = p - login_data;
   if (!message_pair(SrvrLogin, login_data, n)) {
+    syslog (LOG_INFO, "SDConnectUDS login failed");
     goto exit_sdconnectUDS;
   }
 
@@ -907,6 +921,7 @@ SDConnectUDS(char* account) {
   /* Now attempt to attach to required account */
 
   if (!message_pair(SrvrAccount, account, strlen(account))) {
+    syslog (LOG_INFO, "SDConnectUDS Account failed");
     goto exit_sdconnectUDS;
   }
 
@@ -914,6 +929,7 @@ SDConnectUDS(char* account) {
   status = TRUE;
 
 exit_sdconnectUDS:
+  closelog();
   if (!status)
     CloseSocket();
   return status;
@@ -934,7 +950,7 @@ int DLLEntry SDConnected() {
 
 int DLLEntry SDConnectLocal(char* account) {
   int status = FALSE;
-  struct passwd *pwd;
+//  struct passwd *pwd;
   int cpid;
   char option[20];
   char path[MAX_PATHNAME_LEN + 1];
@@ -987,7 +1003,11 @@ int DLLEntry SDConnectLocal(char* account) {
   openlog ("sd_Log", LOG_CONS | LOG_PID | LOG_NDELAY, LOG_LOCAL1);
   syslog (LOG_INFO, "APISrvr Local Connection, user:");
   syslog (LOG_INFO, "%s", username);
-
+  // rev 1.0-3 
+  // not sure this makes any sense, local connect is spawned from running sd process
+  // so by default it must be a valid user
+  // also causes apache spawned process to fail, but doesn't if run from test c program ??
+  /*                                        
   if (((pwd = getpwnam(username)) != NULL) && (setgid(pwd->pw_gid) == 0) && (setuid(pwd->pw_uid) == 0)) {
             //         set_groups();
     syslog (LOG_INFO, "sdApiSrvr login via Username: %s (%d) Group: %d",username,pwd->pw_uid, pwd->pw_gid);
@@ -997,18 +1017,20 @@ int DLLEntry SDConnectLocal(char* account) {
     sprintf(session[session_idx].sderror, "Error Could Set User Group");
     goto exit_sdconnect_local; 
   }
- 
+  */
   closelog();
 
   /* Send local login packet */
 
   if (!message_pair(SrvrLocalLogin, NULL, 0)) {
+    syslog (LOG_INFO, "SDConnectLocal Login failed");
     goto exit_sdconnect_local;
   }
 
   /* Now attempt to attach to required account */
 
   if (!message_pair(SrvrAccount, account, strlen(account))) {
+    syslog (LOG_INFO, "SDConnectUDS Account failed");
 // rev 0.9.0
     disconnect();
     goto exit_sdconnect_local;
@@ -1018,6 +1040,7 @@ int DLLEntry SDConnectLocal(char* account) {
   status = TRUE;
 
 exit_sdconnect_local:
+  closelog();
   if (!status) {
     if (session[session_idx].RxPipe[0] >= 0) {
       close(session[session_idx].RxPipe[0]);
