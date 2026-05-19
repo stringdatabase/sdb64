@@ -24,6 +24,7 @@
 *               always run in secure mode
 * 28 Jul 24 mab remove enter.package / exit.package (commands not supported)
 * rev 0.9.0 Jan 25 mab test for user member of account on logto
+* rev 1.0-3 mab use logmsg for debug logging
 * END-HISTORY
 *
 *
@@ -123,6 +124,7 @@ if not(kernel(K$CPROC.LEVEL,0)) then
    echo on
 
    * not having any luck with this logging = bitand(config('DEBUG'), 0x20) ;* debug=32
+   * rem > 1 for detailed logging
    logging = APILOGGING
 
    account.path = ospath("", os$cwd)     ;* @PATH
@@ -147,6 +149,7 @@ if not(kernel(K$CPROC.LEVEL,0)) then
       recordlocku ipc.f,'P':@userno     ;* Phantom register
       delete ipc.f, 'P':@userno
    end
+   
 
 end else   ;* Abort
    abort.code = abort.cause()
@@ -164,12 +167,7 @@ end
 gosub reset.environment
 
 if logging then
-* mab 20240219 most likely this does not work unless we pre create the log file for userno??
-   openseq '/tmp/api_srvr.log' overwrite to log.f then
-      writeseq '> logging started at: ': timedate() to log.f else null
-   end else
-      if status() then logging = @false
-   end
+  logmsg '> logging started at: ': timedate() 
 end
 
 
@@ -191,10 +189,10 @@ loop
       goto abort.vbsrvr
    end
 
-   if logging then
+   if logging > 1 then
       s = oconv(cmnd, 'MX0C')
-      writeseq '> ' : s[1,4] : ' ' : s[5,1000] to log.f else null
-   end
+      logmsg '> ' : s[1,4] : ' ' : s[5,1000]
+  end
 
    action = oconv(cmnd[1,2], 'ISL')
 
@@ -266,9 +264,9 @@ return.status.set: ;* Return to here if ST already set
 
    if server.error = SV$ON.ERROR then response = @abort.message
 
-   if logging then
+   if logging > 1 then
       s = oconv(iconv(server.error, 'ISL'):iconv(st, 'ILL'):response, 'MX0C')
-      writeseq '< ' : s[1,4] : ' ' : s[5,8] : ' ' : s[13,1000] to log.f else null
+      logmsg '< ' : s[1,4] : ' ' : s[5,8] : ' ' : s[13,1000] 
    end
 
    writepkt iconv(server.error, 'ISL'):iconv(st, 'ILL'):response
@@ -336,6 +334,11 @@ readv i from @voc,'ON.LOGTO',0 on error null
 then execute 'ON.LOGTO' trapping aborts capturing response
 
 new.account = upcase(cmnd)
+
+if logging then
+  logmsg '> Connect to account: ':new.account 
+end
+
 
 old.account.path = account.path
 
@@ -899,12 +902,16 @@ vb.login:
                   * require entry of valid sd username? (rem connection from ssh tunnel, so user already validated)
                   * readu lgn.rec from lgn.f, username else null 
                   * 20240219 mab user must be member of sdusers   
-                  * if logging then
-                  *    writeseq '>  vb.login username: ' : username  to log.f else null
-                  * end        
+                  if logging then
+                      logmsg '>  vb.login username: ' : username  
+                  end        
                   if  not(is_grp_member(username,'sdusers')) then
                      server.error = SV$ON.ERROR
                      abort.message = sysmsg(5009) ;* This user is not registered for SD use
+                  
+                     if logging then
+                       logmsg '>  username: ' : username : 'not in sdusers' 
+                     end
                      goto exit.vb.login
                   end
                   
@@ -918,6 +925,9 @@ vb.login:
                   server.error = SV$ON.ERROR
                   abort.message = sysmsg(5017) ;* Invalid user name or password
                   sleep 3
+                  if logging then
+                      logmsg '>  username: ' : username : ' invalid'  
+                  end
                end
                * mab 20240219  end else      ;* System is insecure - no username/password checks
                * mab 20240219     i = kernel(K$ADMINISTRATOR,1)    ;* All users are administrators

@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * rev 1.0-3 see sdsys/changelog
  * rev 1.0-2 see sdsys/changelog
  * rev 1.0-1 Add back PROCREAD PROCWRITE
  * rev 0.9-3 Nov 25 move voc back to dynamic file 
@@ -39,8 +40,8 @@
 /* Also edit VOC and NEWVOC record $RELEASE          */
 #define MAJOR_REV      1
 #define MINOR_REV      0
-#define BUILD          2
-#define SD_REV_STAMP   "1.0-2"
+#define BUILD          3
+#define SD_REV_STAMP   "1.0-3"
 
 #define SD_COPYRIGHT_YEAR "2007"
 
