@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -121,7 +122,7 @@ Private void ccall_c(unsigned char* s1, void* s2) {
         break;
 
       case 6: /* call function */
-        Fn0 = *(void**)s1;
+        memcpy(&Fn0, s1, sizeof(Fn0));
         s1 += sizeof(void*);
         switch (StkCnt) {
           case 0:

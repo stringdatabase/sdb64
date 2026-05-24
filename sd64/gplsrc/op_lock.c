@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -503,7 +504,7 @@ void op_lockrec() {
     case -2: /* Deadlock detected */
       if (sysseg->deadlock)
         k_deadlock();
-      /* **** FALL THROUGH **** */
+      /* fall through */
 
     case -1:        /* Lock table is full */
     default:        /* Conflicting lock is already held by another user */
@@ -1282,7 +1283,7 @@ exit_lock_record:
     case -2: /* Deadlock detected */
       if (sysseg->deadlock && !no_wait)
         break; /* Let deadlock system handle */
-               /* *** FALL THROUGH *** */
+               /* fall through */
 
     default: /* Blocked by another user */
       if (!no_wait) {

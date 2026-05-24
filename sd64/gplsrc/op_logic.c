@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -457,7 +458,7 @@ recompare:
 
         case SUBR:
           k_get_string(arg2);
-          /* **** FALL THROUGH **** */
+          /* fall through */
 
         case STRING:
           if (arg2->data.str.saddr == NULL) /* Special case, int vs null */
@@ -497,7 +498,7 @@ recompare:
 
         case SUBR:
           k_get_string(arg2);
-          /* **** FALL THROUGH **** */
+          /* fall through */
 
         case STRING:
           if (arg2->data.str.saddr == NULL) /* Special case, float vs null */
@@ -521,7 +522,7 @@ recompare:
 
     case SUBR:
       k_get_string(arg1);
-      /* **** FALL THROUGH **** */
+      /* fall through */
 
     case STRING:
       switch (arg2->type) {
@@ -541,7 +542,7 @@ recompare:
 
         case SUBR:
           k_get_string(arg2);
-          /* **** FALL THROUGH **** */
+          /* fall through */
 
         case STRING:
           /* If one but not both strings is null, they do not match.

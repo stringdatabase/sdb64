@@ -22,6 +22,7 @@
  * 08 Aug 2024 mab add embedded python
  * rev 0.9.0 Jan 25 mab add sdext_eguid_set set / restore euid egid of process
  * rev 0.9-2 Mar 25 mab mods for sdext_pyobj
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -200,38 +201,38 @@ void op_sdext() {
       e_stack++;	
       break; 
 
-    case SD_SALT:
+    case SD_SALT: {
       char* mysalt = NULL;
-      mysalt = sd_salt();   /* Create unique salt and return base64 encoded  (caller mustr free!!!)   */                 
-      if (mysalt != NULL){
-        k_put_c_string(mysalt, e_stack);   /* sets as descr as type string and place the value in it */
-                                           /* this will then get transferred to RTNVAL */
+
+      mysalt = sd_salt();
+      if (mysalt != NULL) {
+        k_put_c_string(mysalt, e_stack);
         e_stack++;
         free(mysalt);
-      }	else {
-        sdme_err_rsp(SD_Mem_Err);          /* only possible error in sd_salt ? */
-      }
-      break; 
-
-
-    case SD_KEYFROMPW:  
-      char* mykey = NULL;
-      if (argCnt != 2){
-        sdme_err_rsp(SD_EXT_ARG_CNT);     /* we need 2 args for this to work */
-        break;
-      }
-      
-      mykey =  sd_KeyFromPW(SDMEArgArray[0], SDMEArgArray[1]);  /* create key from password in [0] and salt in [1] */
-                                                                /* sd_KeyFromPW(char* mypassword, char* mysalt)    */
-      if (mykey != NULL){
-        k_put_c_string(mykey, e_stack);   /* sets as descr as type string and place the value in it */
-                                           /* this will then get transferred to RTNVAL */
-        e_stack++;
-        sodium_free(mykey);                /* key buffer was allocated via sodium_malloc, free via sodium_free*/
-      }	else {
-        sdme_err_rsp(process.status);      /* eror set in process.status */
+      } else {
+        sdme_err_rsp(SD_Mem_Err);
       }
       break;
+    }
+
+    case SD_KEYFROMPW: {
+      char* mykey = NULL;
+
+      if (argCnt != 2) {
+        sdme_err_rsp(SD_EXT_ARG_CNT);
+        break;
+      }
+
+      mykey = sd_KeyFromPW(SDMEArgArray[0], SDMEArgArray[1]);
+      if (mykey != NULL) {
+        k_put_c_string(mykey, e_stack);
+        e_stack++;
+        sodium_free(mykey);
+      } else {
+        sdme_err_rsp(process.status);
+      }
+      break;
+    }
 
 /* rev 0.9.0 set restore process euid and egid */
     case SD_EUID_SET:
@@ -262,7 +263,7 @@ void op_sdext() {
   /* release our arg Buffers  */
   for (argIdx = 0; argIdx < SD_MAX_ARGS; argIdx++) {
 	  if (SDMEArgArray[argIdx] != NULL ){
-	    free(SDMEArgArray[argIdx]);
+	    free_extract_string(SDMEArgArray[argIdx]);
 	    SDMEArgArray[argIdx] = NULL;
 	  }
   }  

@@ -18,9 +18,12 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
+ *
+ * Client-side SDNet protocol: host table, packet I/O, and remote file ops.
  *
  * END-DESCRIPTION
  *
@@ -43,6 +46,7 @@
 #define DLLEntry
 
 #define MAX_HOSTS 10           /* Simultaneous host connections */
+#define MAX_PACKET_BODY (16 * 1024 * 1024) /* Cap incoming packet payload */
 #define MAX_SERVER_NAME_LEN 16 /* SD name of server */
 #define MAX_HOST_NAME_LEN 32   /* IP address or name */
 
@@ -104,6 +108,49 @@ Private bool GetResponse(void);
 Private bool read_packet(void);
 Private bool write_packet(int type, char* data, int32_t bytes);
 
+static bool host_connection_ok(void) {
+  return (host_index >= 0 && host_index < MAX_HOSTS &&
+          host_table[host_index].ref_ct > 0 &&
+          host_table[host_index].sock != INVALID_SOCKET);
+}
+
+static int16_t net_clip_id_len(int16_t id_len) {
+  if (id_len < 0)
+    return 0;
+  if (id_len > MAX_ID_LEN)
+    return MAX_ID_LEN;
+  return id_len;
+}
+
+static size_t net_clip_name_len(const char* name, size_t max_len) {
+  size_t len;
+
+  if (name == NULL)
+    return 0;
+  len = strlen(name);
+  if (len > max_len)
+    len = max_len;
+  return len;
+}
+
+static bool ensure_buff_size(int32_t need) {
+  INBUFF* q;
+  int32_t n;
+
+  if (need <= 0 || need > MAX_PACKET_BODY)
+    return FALSE;
+  if (buff != NULL && need <= buff_size)
+    return TRUE;
+  n = (need + BUFF_INCR - 1) & ~(BUFF_INCR - 1);
+  q = (INBUFF*)malloc((size_t)n);
+  if (q == NULL)
+    return FALSE;
+  free(buff);
+  buff = q;
+  buff_size = n;
+  return TRUE;
+}
+
 /* ======================================================================
    net_clearfile()                                                        */
 
@@ -112,6 +159,8 @@ int net_clearfile(FILE_VAR* fvar) {
     int16_t fno;
   } ALIGN2 packet;
 
+  if (fvar == NULL)
+    return remote_status;
   host_index = fvar->access.net.host_index;
   packet.fno = fvar->access.net.file_no;
   message_pair(SrvrClearfile, (char*)&packet, sizeof(packet));
@@ -126,7 +175,12 @@ void net_close(FILE_VAR* fvar) {
     int16_t fno;
   } ALIGN2 packet;
 
+  if (fvar == NULL)
+    return;
+
   host_index = fvar->access.net.host_index;
+  if (host_index < 0 || host_index >= MAX_HOSTS)
+    return;
 
   packet.fno = ShortInt(fvar->access.net.file_no);
 
@@ -147,12 +201,14 @@ int net_delete(FILE_VAR* fvar, char* id, int16_t id_len, bool keep_lock) {
     char id[MAX_ID_LEN];
   } ALIGN2 packet;
 
-  host_index = fvar->access.net.host_index;
+  if (fvar == NULL || id == NULL)
+    return SV_ON_ERROR;
 
-  /* Set up outgoing packet */
+  host_index = fvar->access.net.host_index;
+  id_len = net_clip_id_len(id_len);
 
   packet.fno = ShortInt(fvar->access.net.file_no);
-  memcpy(packet.id, id, id_len);
+  memcpy(packet.id, id, (size_t)id_len);
   if (!message_pair((keep_lock) ? SrvrDeleteu : SrvrDelete, (char*)&packet,
                     id_len + 2)) {
     server_error = SV_ON_ERROR;
@@ -266,8 +322,10 @@ STRING_CHUNK* net_indices2(FILE_VAR* fvar, char* index_name) {
   host_index = fvar->access.net.host_index;
 
   packet.fno = ShortInt(fvar->access.net.file_no);
-  len = strlen(index_name);
-  memcpy(packet.index_name, index_name, len);
+  if (index_name == NULL)
+    return NULL;
+  len = (int)net_clip_name_len(index_name, MAX_ID_LEN);
+  memcpy(packet.index_name, index_name, (size_t)len);
 
   if (!message_pair(SrvrIndices2, (char*)&packet, len + 2) ||
       (server_error == SV_ON_ERROR)) {
@@ -303,10 +361,14 @@ int net_lock(/* Returns 1000+blocking user if blocked */
     char id[MAX_ID_LEN];
   } ALIGN2 packet;
 
+  if (fvar == NULL || id == NULL)
+    return SV_ON_ERROR;
+
   host_index = fvar->access.net.host_index;
 
   packet.fno = ShortInt(fvar->access.net.file_no);
-  memcpy(packet.id, id, id_len);
+  id_len = net_clip_id_len(id_len);
+  memcpy(packet.id, id, (size_t)id_len);
 
   flags = (update) ? 1 : 0;
   if (no_wait)
@@ -367,6 +429,7 @@ bool net_open(char* server,      /* Server name */
   char* password;
   int port = 4245;
   bool connected = FALSE;
+  bool sock_open = FALSE;
   char mapped_chars[] =
       "PWbfTYR.BZKwm6qX4tH-avjUd0GI18Lx37ehiFSJEn52lMocy9OQDNszAVprkuCg";
   int16_t map_len;
@@ -380,12 +443,23 @@ bool net_open(char* server,      /* Server name */
   char* q;
   char* r;
 
+  if (server == NULL || remote_file == NULL || fvar == NULL) {
+    process.status = ER_PARAMS;
+    return FALSE;
+  }
+
   if (buff == NULL) {
     buff_size = 32768;
-    buff = (INBUFF*)malloc(buff_size);
+    buff = (INBUFF*)malloc((size_t)buff_size);
+    if (buff == NULL) {
+      process.status = -ER_MEM;
+      goto exit_open_networked_file;
+    }
 
     for (i = 0; i < MAX_HOSTS; i++) {
       host_table[i].ref_ct = 0;
+      host_table[i].server_name[0] = '\0';
+      host_table[i].sock = INVALID_SOCKET;
     }
   }
 
@@ -438,7 +512,7 @@ bool net_open(char* server,      /* Server name */
     if (ini_rec[0] == '[') {
       if ((p = strchr(ini_rec, ']')) != NULL)
         *p = '\0';
-      strcpy(section, ini_rec + 1);
+      snprintf(section, sizeof(section), "%s", ini_rec + 1);
       UpperCaseString(section);
       continue;
     }
@@ -465,6 +539,10 @@ bool net_open(char* server,      /* Server name */
   host = strtok(p, ",");
   username = strtok(NULL, ",");
   password = strtok(NULL, ",");
+  if (host == NULL || username == NULL || password == NULL) {
+    process.status = ER_SERVER;
+    goto exit_open_networked_file;
+  }
   if ((p = strchr(host, ':')) != NULL) {
     *p = '\0';
     port = atoi(p + 1);
@@ -491,6 +569,7 @@ bool net_open(char* server,      /* Server name */
     process.os_error = NetError;
     goto exit_open_networked_file;
   }
+  sock_open = TRUE;
 
   sock_addr.sin_family = AF_INET;
   sock_addr.sin_addr.s_addr = nInterfaceAddr;
@@ -604,8 +683,11 @@ exit_open_networked_file:
 
   if (process.status != 0) {
     if (connected) {
-      if (--host_table[host_index].ref_ct == 0)
+      if (host_index >= 0 && host_index < MAX_HOSTS &&
+          --host_table[host_index].ref_ct == 0)
         close_connection();
+    } else if (sock_open && sock != INVALID_SOCKET) {
+      closesocket(sock);
     }
   }
   return (process.status == 0);
@@ -637,10 +719,14 @@ int net_read(FILE_VAR* fvar,
     mode = SrvrRead;
   }
 
+  if (fvar == NULL || id == NULL || str == NULL)
+    return SV_ON_ERROR;
+
   host_index = fvar->access.net.host_index;
+  id_len = net_clip_id_len(id_len);
 
   packet.fno = ShortInt(fvar->access.net.file_no);
-  memcpy(packet.id, id, id_len);
+  memcpy(packet.id, id, (size_t)id_len);
 
   if (!message_pair(mode, (char*)&packet, id_len + 2)) {
     server_error = SV_ON_ERROR;
@@ -677,7 +763,11 @@ int net_readv(FILE_VAR* fvar,
     char id[MAX_ID_LEN];
   } ALIGN2 packet;
 
+  if (fvar == NULL || id == NULL || str == NULL)
+    return SV_ON_ERROR;
+
   host_index = fvar->access.net.host_index;
+  id_len = net_clip_id_len(id_len);
 
   packet.fno = ShortInt(fvar->access.net.file_no);
 
@@ -691,7 +781,7 @@ int net_readv(FILE_VAR* fvar,
   packet.flags = ShortInt(flags);
 
   packet.field_no = LongInt(field_no);
-  memcpy(packet.id, id, id_len);
+  memcpy(packet.id, id, (size_t)id_len);
 
   if (!message_pair(SrvrReadv, (char*)&packet, id_len + 8)) {
     server_error = SV_ON_ERROR;
@@ -719,12 +809,19 @@ int net_recordlocked(FILE_VAR* fvar, char* id, int16_t id_len) {
     char id[MAX_ID_LEN];
   } ALIGN2 packet;
 
+  if (fvar == NULL || id == NULL)
+    return 0;
+
   host_index = fvar->access.net.host_index;
+  id_len = net_clip_id_len(id_len);
 
   packet.fno = ShortInt(fvar->access.net.file_no);
-  memcpy(packet.id, id, id_len);
+  memcpy(packet.id, id, (size_t)id_len);
 
-  message_pair(SrvrRecordlocked, (char*)&packet, id_len + 2);
+  if (!message_pair(SrvrRecordlocked, (char*)&packet, id_len + 2) ||
+      server_error != SV_OK)
+    return 0;
+
   process.status = remote_status;
   return buff->data.recordlocked.status;
 }
@@ -747,12 +844,15 @@ int net_scanindex(FILE_VAR* fvar,
   int32_t count = 0;
   char* p;
 
+  if (fvar == NULL || index_name == NULL)
+    return remote_status;
+
   host_index = fvar->access.net.host_index;
 
   packet.fno = ShortInt(fvar->access.net.file_no);
   packet.list_no = ShortInt(list_no);
-  len = strlen(index_name);
-  memcpy(packet.index_name, index_name, len);
+  len = (int)net_clip_name_len(index_name, MAX_AK_NAME_LEN);
+  memcpy(packet.index_name, index_name, (size_t)len);
 
   if (message_pair((right) ? SrvrSelectRight : SrvrSelectLeft, (char*)&packet,
                    len + 4)) {
@@ -842,8 +942,10 @@ int net_selectindex(FILE_VAR* fvar, char* index_name, STRING_CHUNK** str) {
   host_index = fvar->access.net.host_index;
 
   packet.fno = ShortInt(fvar->access.net.file_no);
-  len = strlen(index_name);
-  memcpy(packet.index_name, index_name, len);
+  if (index_name == NULL)
+    return 0;
+  len = (int)net_clip_name_len(index_name, MAX_AK_NAME_LEN);
+  memcpy(packet.index_name, index_name, (size_t)len);
 
   if (!message_pair(SrvrSelectIndexv, (char*)&packet, len + 2) ||
       (server_error == SV_ON_ERROR)) {
@@ -888,19 +990,29 @@ int net_selectindexv(FILE_VAR* fvar,
     char index_name[1];
   } ALIGN2;
 
+  int name_len;
+  int value_len;
+  int pkt_bytes;
+
+  if (fvar == NULL || index_name == NULL || value == NULL || str == NULL)
+    return 0;
+
   host_index = fvar->access.net.host_index;
 
+  name_len = (int)net_clip_name_len(index_name, MAX_AK_NAME_LEN);
+  value_len = (int)net_clip_name_len(value, MAX_ID_LEN);
+  pkt_bytes = 4 + name_len + value_len;
+  if (!ensure_buff_size(pkt_bytes + 1))
+    return 0;
+
   ((struct PACKET*)buff)->fno = ShortInt(fvar->access.net.file_no);
+  ((struct PACKET*)buff)->index_name_len = ShortInt(name_len);
+  memcpy(((struct PACKET*)buff)->index_name, index_name, (size_t)name_len);
+  p = (char*)(((struct PACKET*)buff)->index_name + name_len);
+  memcpy(p, value, (size_t)value_len);
+  p += value_len;
 
-  len = strlen(index_name);
-  ((struct PACKET*)buff)->index_name_len = ShortInt(len);
-  memcpy(((struct PACKET*)buff)->index_name, index_name, len);
-  p = (char*)(((struct PACKET*)buff)->index_name + len);
-  len = strlen(value);
-  memcpy(p, value, len);
-  p += len;
-
-  if (!message_pair(SrvrSelectIndexk, (char*)buff, (char*)p - (char*)buff) ||
+  if (!message_pair(SrvrSelectIndexk, (char*)buff, (int32_t)(p - (char*)buff)) ||
       (server_error == SV_ON_ERROR)) {
     return 0;
   }
@@ -940,8 +1052,10 @@ int net_setindex(FILE_VAR* fvar, char* index_name, bool right) {
   host_index = fvar->access.net.host_index;
 
   packet.fno = ShortInt(fvar->access.net.file_no);
-  len = strlen(index_name);
-  memcpy(packet.index_name, index_name, len);
+  if (index_name == NULL)
+    return remote_status;
+  len = (int)net_clip_name_len(index_name, MAX_AK_NAME_LEN);
+  memcpy(packet.index_name, index_name, (size_t)len);
 
   message_pair((right) ? SrvrSetRight : SrvrSetLeft, (char*)&packet, len + 2);
 
@@ -958,10 +1072,14 @@ int net_unlock(FILE_VAR* fvar, char* id, int16_t id_len) {
     char id[MAX_ID_LEN];
   } ALIGN2 packet;
 
+  if (fvar == NULL || id == NULL)
+    return SV_ON_ERROR;
+
   host_index = fvar->access.net.host_index;
+  id_len = net_clip_id_len(id_len);
 
   packet.fno = ShortInt(fvar->access.net.file_no);
-  memcpy(packet.id, id, id_len);
+  memcpy(packet.id, id, (size_t)id_len);
 
   if (!message_pair(SrvrRelease, (char*)&packet, id_len + 2) ||
       (server_error == SV_ON_ERROR)) {
@@ -1004,37 +1122,29 @@ int net_write(FILE_VAR* fvar,
   int32_t data_len;
   int bytes;
   char* p;
-  INBUFF* q;
   struct PACKET {
     int16_t fno;
     int16_t id_len;
     char id[1];
   } ALIGN2;
 
+  if (fvar == NULL || id == NULL)
+    return SV_ON_ERROR;
+
   host_index = fvar->access.net.host_index;
+  id_len = net_clip_id_len(id_len);
 
   data_len = (str != NULL) ? (str->string_len) : 0;
 
-  /* Ensure buffer is big enough for this record */
-
-  bytes = sizeof(struct PACKET) + id_len + data_len;
-  if (bytes >= buff_size) /* Must reallocate larger buffer */
-  {
-    bytes = (bytes + BUFF_INCR - 1) & ~BUFF_INCR;
-    q = (INBUFF*)malloc(bytes);
-    if (q == NULL) {
-      process.status = -ER_MEM;
-      return SV_ON_ERROR;
-    }
-    free(buff);
-    buff = q;
+  bytes = (int)(offsetof(struct PACKET, id) + (size_t)id_len + (size_t)data_len);
+  if (!ensure_buff_size(bytes)) {
+    process.status = -ER_MEM;
+    return SV_ON_ERROR;
   }
-
-  /* Set up outgoing packet */
 
   ((struct PACKET*)buff)->fno = ShortInt(fvar->access.net.file_no);
   ((struct PACKET*)buff)->id_len = ShortInt(id_len);
-  memcpy(((struct PACKET*)buff)->id, id, id_len);
+  memcpy(((struct PACKET*)buff)->id, id, (size_t)id_len);
   p = ((struct PACKET*)buff)->id + id_len;
   while (str != NULL) {
     memcpy(p, str->data, str->bytes);
@@ -1056,18 +1166,27 @@ int net_write(FILE_VAR* fvar,
    close_connection()                                                     */
 
 Private void close_connection() {
-  (void)write_packet(SrvrQuit, NULL, 0);
-  closesocket(host_table[host_index].sock);
+  if (host_index < 0 || host_index >= MAX_HOSTS)
+    return;
+
+  if (host_table[host_index].sock != INVALID_SOCKET) {
+    (void)write_packet(SrvrQuit, NULL, 0);
+    closesocket(host_table[host_index].sock);
+    host_table[host_index].sock = INVALID_SOCKET;
+  }
   host_table[host_index].ref_ct = 0;
+  host_table[host_index].server_name[0] = '\0';
 }
 
 /* ======================================================================
    message_pair()  -  Send message and receive response                   */
 
 Private bool message_pair(int type, char* data, int32_t bytes) {
-  if (write_packet(type, data, bytes)) {
+  if (!host_connection_ok())
+    return FALSE;
+
+  if (write_packet(type, data, bytes))
     return GetResponse();
-  }
 
   return FALSE;
 }
@@ -1085,11 +1204,12 @@ Private bool GetResponse() {
    read_packet()  -  Read a SD data packet                                */
 
 Private bool read_packet() {
-  int rcvd_bytes;        /* Length of received packet fragment */
-  int32_t packet_bytes; /* Total length of incoming packet */
+  int rcvd_bytes;
+  int32_t packet_bytes;
+  int hdr_read;
   int rcv_len;
-  int32_t n;
   char* p;
+  int32_t total_len;
 
   struct {
     int32_t packet_length;
@@ -1098,50 +1218,44 @@ Private bool read_packet() {
   } in_packet_header;
 #define IN_PKT_HDR_BYTES 10
 
-  /* Read packet header */
+  if (!host_connection_ok() || buff == NULL)
+    return FALSE;
 
   p = (char*)&in_packet_header;
-  buff_bytes = 0;
+  hdr_read = 0;
   do {
-    rcv_len = IN_PKT_HDR_BYTES - buff_bytes;
-    if ((rcvd_bytes =
-             recv(host_table[host_index].sock, (char*)p, rcv_len, 0)) <= 0) {
+    rcv_len = IN_PKT_HDR_BYTES - hdr_read;
+    rcvd_bytes =
+        (int)recv(host_table[host_index].sock, p, (size_t)rcv_len, 0);
+    if (rcvd_bytes <= 0)
       return FALSE;
-    }
-    buff_bytes += rcvd_bytes;
+    hdr_read += rcvd_bytes;
     p += rcvd_bytes;
-  } while (buff_bytes < IN_PKT_HDR_BYTES);
+  } while (hdr_read < IN_PKT_HDR_BYTES);
 
-  /* Calculate remaining bytes to read */
+  total_len = LongInt(in_packet_header.packet_length);
+  if (total_len < IN_PKT_HDR_BYTES || total_len > MAX_PACKET_BODY + IN_PKT_HDR_BYTES)
+    return FALSE;
 
-  packet_bytes = LongInt(in_packet_header.packet_length) - IN_PKT_HDR_BYTES;
-
-  if (packet_bytes >= buff_size) /* Must reallocate larger buffer */
-  {
-    free(buff);
-    n = (packet_bytes + BUFF_INCR) & ~(BUFF_INCR - 1);
-    buff = (INBUFF*)malloc(n);
-    if (buff == NULL)
-      return FALSE;
-    buff_size = n;
-  }
-
-  /* Read data part of packet */
+  packet_bytes = total_len - IN_PKT_HDR_BYTES;
+  if (!ensure_buff_size(packet_bytes + 1))
+    return FALSE;
 
   p = (char*)buff;
   buff_bytes = 0;
   while (buff_bytes < packet_bytes) {
-    rcv_len = min(buff_size - buff_bytes, 16384);
-    if ((rcvd_bytes =
-             recv(host_table[host_index].sock, (char*)p, rcv_len, 0)) <= 0) {
+    rcv_len = (int)min((int32_t)(buff_size - buff_bytes), (int32_t)16384);
+    rcvd_bytes =
+        (int)recv(host_table[host_index].sock, p, (size_t)rcv_len, 0);
+    if (rcvd_bytes <= 0)
       return FALSE;
-    }
 
     buff_bytes += rcvd_bytes;
     p += rcvd_bytes;
   }
 
-  ((char*)buff)[buff_bytes] = '\0';
+  if (buff_size > buff_bytes)
+    ((char*)buff)[buff_bytes] = '\0';
 
   server_error = ShortInt(in_packet_header.server_error);
   remote_status = LongInt(in_packet_header.status);
@@ -1159,6 +1273,9 @@ Private bool write_packet(int type, char* data, int32_t bytes) {
   } packet_header;
 #define PKT_HDR_BYTES 6
   int bytes_sent;
+
+  if (!host_connection_ok())
+    return FALSE;
 
   packet_header.length = LongInt(bytes + PKT_HDR_BYTES); /* 0272 */
   packet_header.type = ShortInt(type);
@@ -1194,7 +1311,6 @@ STRING_CHUNK* get_sdnet_connections() {
     return NULL; /* Nothing opened yet */
 
   ts_init(&str, 128);
-  str = NULL;
 
   for (i = 0; i < MAX_HOSTS; i++) {
     if (host_table[i].ref_ct) {

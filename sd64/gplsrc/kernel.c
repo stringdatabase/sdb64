@@ -21,6 +21,7 @@
  * 11 Jun 24 mab overwrite op_errmsg (pick error message) and op_pabort (pick abort) as illegal op code
  * 15 Jun 24 mab overwrite op_ttyset op_ttyget as illegal op code
  * 28 Jul 24 mab remove op code overwrites (removed from opcodes.h)
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -150,7 +151,7 @@ bool init_kernel() {
 
   if (my_uptr != NULL) {
     my_uptr->pid = GetCurrentProcessId();
-    strcpy((char*)(my_uptr->ip_addr), ip_addr);
+    snprintf((char*)(my_uptr->ip_addr), MAX_SOCKET_ADDR_STR_LEN, "%s", ip_addr);
     my_uptr->events = 0;
     my_uptr->flags = 0;
     my_uptr->lockwait_index = 0;
@@ -195,7 +196,8 @@ abort_login:
   my_uptr->login_time = sdtime();
 
   process.user_no = my_uptr->uid;
-  strcpy(process.username, (char*)(my_uptr->username));
+  snprintf(process.username, sizeof(process.username), "%s",
+           (char*)(my_uptr->username));
 
   status = TRUE;
 
@@ -225,12 +227,12 @@ Private void init_program() {
 int16_t assign_user_no(int16_t user_table_index) {
   int16_t i;
   int16_t hi;
-  int16_t portmap_lo_user = 9999;
-  int16_t portmap_hi_user;
+  int16_t portmap_lo_user = 0;
+  int16_t portmap_hi_user = -1;
   int16_t portmap_lo_port;
   int16_t portmap_range;
-  int16_t fixusers_lo_user = 9999;
-  int16_t fixusers_hi_user;
+  int16_t fixusers_lo_user = 0;
+  int16_t fixusers_hi_user = -1;
 
   /* Copy FIXUSERS and PORTMAP related parameters from shared memory
     for best performance                                             */
@@ -375,7 +377,8 @@ void kernel() {
     }
 
     retained_flags = process.program.flags & (IS_EXECUTE | IGNORE_ABORTS);
-    strcpy(processor, ((OBJECT_HEADER*)c_base)->ext_hdr.prog.program_name);
+    snprintf(processor, sizeof(processor), "%s",
+             ((OBJECT_HEADER*)c_base)->ext_hdr.prog.program_name);
 
     k_return();
 
@@ -936,6 +939,10 @@ bool raise_event(int16_t event, /* Event to raise */
 
 void process_events() {
   int16_t events;
+
+  if (my_uptr == NULL)
+    return;
+
   static u_int16_t event_mask = 0xFFFF;
   u_int16_t defered_events;
   int32_t saved_status;
@@ -1003,9 +1010,11 @@ void process_events() {
         ((fvar = ipc_descr->data.fvar) != NULL) &&
         ((dh_file = fvar->access.dh.dh_file) != NULL)) {
       str = hsm_dump();
-      sprintf(id, "H%d", (int)process.user_no);
-      dh_write(dh_file, id, strlen(id), str);
-      s_free(str);
+      if (str != NULL) {
+        snprintf(id, sizeof(id), "H%d", (int)process.user_no);
+        dh_write(dh_file, id, (int16_t)strlen(id), str);
+        s_free(str);
+      }
     }
   }
 
@@ -1233,22 +1242,29 @@ Private void dump_status() {
   EndExclusive(REC_LOCK_SEM);
   EndExclusive(FILE_TABLE_LOCK);
 
-  sprintf(id, "S%d", (int)process.user_no);
-  dh_write(dh_file, id, strlen(id), ev_head);
-  s_free(ev_head);
+  snprintf(id, sizeof(id), "S%d", (int)process.user_no);
+  if (ev_head != NULL) {
+    dh_write(dh_file, id, (int16_t)strlen(id), ev_head);
+    s_free(ev_head);
+    ev_head = NULL;
+    ev_tail = NULL;
+  }
 }
 
 Private void ev_printf(char* template_string, ...) {
   char s[500];
   va_list arg_ptr;
-  int16_t len;
+  int len;
   int16_t bytes_to_move;
   int16_t bytes_remaining;
   char* p;
+  STRING_CHUNK* next_chunk;
 
   if (ev_head == NULL) /* First call */
   {
     ev_head = s_alloc(512, &bytes_remaining);
+    if (ev_head == NULL)
+      return;
     ev_head->ref_ct = 1;
     ev_head->string_len = 0;
     ev_tail = ev_head;
@@ -1257,20 +1273,26 @@ Private void ev_printf(char* template_string, ...) {
 
   va_start(arg_ptr, template_string);
 
-  len = vsprintf(s, template_string, arg_ptr);
+  len = vsnprintf(s, sizeof(s), template_string, arg_ptr);
+  va_end(arg_ptr);
+  if (len < 0)
+    return;
+
   p = s;
   while (len > 0) {
     /* Allocate new chunk if the current one is full */
 
     if (bytes_remaining == 0) {
-      ev_head->string_len += ev_tail->bytes;
-      ev_tail->next = s_alloc(512, &bytes_remaining);
-      ev_tail = ev_tail->next;
+      next_chunk = s_alloc(512, &bytes_remaining);
+      if (next_chunk == NULL)
+        return;
+      ev_tail->next = next_chunk;
+      ev_tail = next_chunk;
     }
 
     /* Copy what will fit into current chunk */
 
-    bytes_to_move = min(bytes_remaining, len);
+    bytes_to_move = (int16_t)min(bytes_remaining, len);
     memcpy(ev_tail->data + ev_tail->bytes, p, bytes_to_move);
     p += bytes_to_move;
     ev_tail->bytes += bytes_to_move;
@@ -1278,8 +1300,6 @@ Private void ev_printf(char* template_string, ...) {
     len -= bytes_to_move;
     bytes_remaining -= bytes_to_move;
   }
-
-  va_end(arg_ptr);
 }
 
 /* ======================================================================
@@ -1309,8 +1329,13 @@ void sigusr1_handler(int signum) {
 
 void fatal_signal_handler(int signum) {
   set_old_tty_modes();
-  log_printf("Fault type %d. PC = %08lX (%02X %02X) in %s\n", signum,
-             op_pc - c_base, *op_pc, *(op_pc + 1), ProgramName(c_base));
+  if (c_base != NULL && op_pc != NULL) {
+    log_printf("Fault type %d. PC = %08lX (%02X %02X) in %s\n", signum,
+               (unsigned long)(op_pc - c_base), *op_pc, *(op_pc + 1),
+               ProgramName(c_base));
+  } else {
+    log_printf("Fault type %d. PC unavailable (no program loaded)\n", signum);
+  }
 
   printf("Errno : %08X\n", OSError);
 
@@ -1320,18 +1345,21 @@ void fatal_signal_handler(int signum) {
 
     /* Show area around top of e-stack */
 
-    for (i = 4; i >= -4; i--) {
-      descr = e_stack + i;
-//#warning "Casting to int64_t may not be the right solution for this."
+    if (e_stack != NULL && e_stack_base != NULL) {
+      for (i = 4; i >= -4; i--) {
+        descr = e_stack + i;
 #ifndef __LP64__ /* 09Jan22 gwb: use int64_t for 64 bit builds. */
-      printf("%2d %08X: %02X %02X %08X %08X\n", i, (int32_t)descr, descr->type,
-             descr->flags, descr->data.dbg.w1, descr->data.dbg.w2);
+        printf("%2d %08X: %02X %02X %08X %08X\n", i, (int32_t)descr,
+               descr->type, descr->flags, descr->data.dbg.w1,
+               descr->data.dbg.w2);
 #else
-      printf("%2d %08lX: %02X %02X %08X %08X\n", i, (int64_t)descr, descr->type,
-             descr->flags, descr->data.dbg.w1, descr->data.dbg.w2);
+        printf("%2d %08lX: %02X %02X %08X %08X\n", i, (int64_t)descr,
+               descr->type, descr->flags, descr->data.dbg.w1,
+               descr->data.dbg.w2);
 #endif
-      if (descr == e_stack_base)
-        break;
+        if (descr == e_stack_base)
+          break;
+      }
     }
   }
 

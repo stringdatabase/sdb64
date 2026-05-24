@@ -20,6 +20,7 @@
  * 15 Jun 24 mab remove or disable op_ttyset and op_ttyget 
  * 31 Dec 23 SD launch - prior history suppressed
  * 28 Jul 24 mab remove  op_ttyset and op_ttyget TTYGET/TTYSET not supported
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -213,6 +214,7 @@ void op_at() {
                 break;
               }
               tio.terminfo_hpa++;
+              /* fall through */
             case 1:
               p = sdtgetstr("cuf");
               if (*p != '\0') {
@@ -223,6 +225,7 @@ void op_at() {
                 break;
               }
               tio.terminfo_hpa++;
+              /* fall through */
             default:
               emitn(s + 1, sdtgetstr("cuf1"), at1);
               p = s;
@@ -332,14 +335,14 @@ void op_at() {
 
       case IT_E80: /* @(-29)  -  Set 80 columns */
         if (is_SDTerm) {
-          sprintf(s, "\x1B[29Q");
+          snprintf(s, sizeof(s), "\x1B[29Q");
           p = s;
         }
         break;
 
       case IT_E132: /* @(-30)  -  Set 132 columns */
         if (is_SDTerm) {
-          sprintf(s, "\x1B[30Q");
+          snprintf(s, sizeof(s), "\x1B[30Q");
           p = s;
         }
         break;
@@ -395,7 +398,7 @@ void op_at() {
 
       case IT_SCREEN: /* @(-256, n)  -  Set screen shape */
         if (is_SDTerm) {
-          sprintf(s, "\x1B[256;%dQ", at2);
+          snprintf(s, sizeof(s), "\x1B[256;%dQ", at2);
           p = s;
         }
         break;
@@ -411,7 +414,7 @@ void op_at() {
       default:
         if ((at1 <= -100) && (at1 >= -107)) /* 0233 */
         {
-          sprintf(s, "u%d", -(at1 + 100));
+          snprintf(s, sizeof(s), "u%d", -(at1 + 100));
           p = sdtgetstr(s);
         }
         break;
@@ -1559,9 +1562,9 @@ void op_setpu() {
     case PU_NEWLINE:
       k_get_c_string(descr, s, 2);
       if (!strcmp(s, "\r") || !strcmp(s, "\r\n"))
-        strcpy(pu->newline, s);
+        snprintf(pu->newline, sizeof(pu->newline), "%s", s);
       else
-        strcpy(pu->newline, "\n");
+        snprintf(pu->newline, sizeof(pu->newline), "%s", "\n");
       break;
 
     case PU_PRINTER_NAME:
@@ -3261,9 +3264,11 @@ int tio_printf(char *template_string, ...) {
 
   va_start(arg_ptr, template_string);
 
-  n = vsprintf(s, template_string, arg_ptr);
+  n = (int16_t)vsnprintf(s, sizeof(s), template_string, arg_ptr);
+  if (n < 0 || (size_t)n >= sizeof(s))
+    n = (int16_t)(sizeof(s) - 1);
 
-  tio_display_string(s, strlen(s), TRUE, FALSE);
+  tio_display_string(s, (int16_t)strlen(s), TRUE, FALSE);
 
   va_end(arg_ptr);
 
@@ -3391,8 +3396,8 @@ PRINT_UNIT *tio_set_printer(int16_t unit, int16_t mode, int16_t lines_per_page, 
     p->paper_size = 26; /* A4 */
     p->copies = 1;
     p->weight = 0;               /* Medium */
-    strcpy(p->symbol_set, "8U"); /* Roman-8 */
-    strcpy(p->newline, "\n");
+    snprintf(p->symbol_set, sizeof(p->symbol_set), "%s", "8U");
+    snprintf(p->newline, sizeof(p->newline), "%s", "\n");
     p->printer_name = NULL;
     p->file_name = NULL;
     p->banner = NULL;

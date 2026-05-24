@@ -18,6 +18,7 @@
  *
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -26,7 +27,7 @@
  *
  *    B         Boolean (Y or N)
  *
- *    B64       Base64 encoding
+ *    B64       Base64 encoding (RFC 4648 standard alphabet, not URL-safe)
  *
  *    C;1;2;3   Concatenation
  *
@@ -102,9 +103,11 @@
 #include "syscom.h"
 
 #include <math.h>
+#include <stdarg.h>
 #include <time.h>
 
 #define MAX_FMT_STRING_LEN 256   /* Max length of FMT() control string */
+#define OCONV_DATE_OUT_LEN 101   /* Buffer size for oconv_d() / date_conversion() */
 #define MAX_CONV_STRING_LEN 256  /* Max length of OCONV() control string */
 #define MAX_DATA_STRING_LEN 4096 /* Max length of data in FMT() */
 
@@ -119,8 +122,85 @@ void op_substr(void);
 void op_substre(void);
 void op_xtd(void);
 
+static size_t oconv_remain(const char* base, size_t size, const char* ptr) {
+  if (ptr == NULL || ptr < base)
+    return 0;
+  if ((size_t)(ptr - base) >= size)
+    return 0;
+  return size - (size_t)(ptr - base);
+}
+
+static int oconv_append(char* ptr, size_t rem, const char* fmt, ...) {
+  va_list ap;
+  int n;
+
+  if (ptr == NULL || rem == 0 || fmt == NULL)
+    return 0;
+  va_start(ap, fmt);
+  n = vsnprintf(ptr, rem, fmt, ap);
+  va_end(ap);
+  if (n < 0)
+    return 0;
+  if ((size_t)n >= rem)
+    return (int)rem - 1;
+  return n;
+}
+
+static void oconv_cat_buf(char* buf, size_t buf_sz, const char* suffix) {
+  size_t len;
+  size_t slen;
+  size_t rem;
+
+  if (buf == NULL || buf_sz == 0 || suffix == NULL)
+    return;
+  len = strlen(buf);
+  if (len >= buf_sz - 1)
+    return;
+  rem = buf_sz - len;
+  slen = strlen(suffix);
+  if (slen >= rem)
+    slen = rem - 1;
+  memcpy(buf + len, suffix, slen);
+  buf[len + slen] = '\0';
+}
+
+static void oconv_pcpy(char** pp, char* base, size_t size, const char* src) {
+  size_t rem;
+  int n;
+
+  if (pp == NULL || *pp == NULL || base == NULL || src == NULL)
+    return;
+  rem = oconv_remain(base, size, *pp);
+  if (rem <= 1)
+    return;
+  n = snprintf(*pp, rem, "%s", src);
+  if (n > 0)
+    *pp += (size_t)n;
+  if (*pp >= base + size)
+    *pp = base + size - 1;
+  **pp = '\0';
+}
+
+static void oconv_pcat(char** pp, char* base, size_t size, const char* suffix) {
+  size_t rem;
+  size_t len;
+  size_t slen;
+
+  if (pp == NULL || *pp == NULL || base == NULL || suffix == NULL)
+    return;
+  len = strlen(*pp);
+  rem = oconv_remain(base, size, *pp);
+  if (rem <= 1)
+    return;
+  slen = strlen(suffix);
+  if (slen >= rem - 1)
+    slen = rem - 2;
+  memcpy(*pp + len, suffix, slen);
+  (*pp)[len + slen] = '\0';
+  *pp += len + slen;
+}
+
 void k_trace(void);
-STRING_CHUNK* b64encode(STRING_CHUNK* str);
 
 /* Public local functions */
 int32_t concatenation_conversion(char* src_ptr);
@@ -294,7 +374,7 @@ void op_fmt() {
   while (*p != '\0') {
     switch (UpperCase(*p)) {
       case '$': /* Currency symbol required. (0183 moved) */
-        strcpy(currency, national.currency);
+        (void)snprintf(currency, sizeof(currency), "%s", national.currency);
         p++;
         break;
 
@@ -382,7 +462,7 @@ end_conversion:
         }
         break;
       }
-      /* **** FALL THROUGH TO TREAT AS A NUMBER **** */
+      /* fall through: treat as a number */
 
     case INTEGER:
     case FLOATNUM:
@@ -401,15 +481,18 @@ end_conversion:
           int_value = labs(int_value);
         }
 
-        strcpy(p, currency);
-        p += strlen(currency); /* Position for number output */
+        oconv_pcpy(&p, s, sizeof(s), currency);
 
         if (null_zero && (int_value == 0))
           *p = '\0';
         else if (dp >= 0)
           ftoa((double)int_value, dp, FALSE, p); /* 0352 */
-        else
-          sprintf(p, "%d", int_value);
+        else {
+          size_t rem = oconv_remain(s, sizeof(s), p);
+          int n = oconv_append(p, rem, "%d", int_value);
+          if (n > 0)
+            p += n;
+        }
       } else /* Either is float or is integer with scale factor */
       {
         if (is_integer)
@@ -425,8 +508,7 @@ end_conversion:
           fvalue = fabs(fvalue);
         }
 
-        strcpy(p, currency);
-        p += strlen(currency); /* Position for number output */
+        oconv_pcpy(&p, s, sizeof(s), currency);
 
         /* 0088 Apply scale factor */
 
@@ -473,27 +555,27 @@ end_conversion:
           break;
         case 'B':
           if (Option(OptCRDBUpcase))
-            strcat(s, (is_negative) ? "DB" : "  ");
+            oconv_cat_buf(s, sizeof(s), (is_negative) ? "DB" : "  ");
           else
-            strcat(s, (is_negative) ? "db" : "  ");
+            oconv_cat_buf(s, sizeof(s), (is_negative) ? "db" : "  ");
           break;
         case 'C':
           if (Option(OptCRDBUpcase))
-            strcat(s, (is_negative) ? "CR" : "  ");
+            oconv_cat_buf(s, sizeof(s), (is_negative) ? "CR" : "  ");
           else
-            strcat(s, (is_negative) ? "cr" : "  ");
+            oconv_cat_buf(s, sizeof(s), (is_negative) ? "cr" : "  ");
           break;
         case 'D':
           if (Option(OptCRDBUpcase))
-            strcat(s, (is_negative) ? "  " : "DB");
+            oconv_cat_buf(s, sizeof(s), (is_negative) ? "  " : "DB");
           else
-            strcat(s, (is_negative) ? "  " : "db");
+            oconv_cat_buf(s, sizeof(s), (is_negative) ? "  " : "db");
           break;
         case 'E':
-          strcat(s, (is_negative) ? ">" : " ");
+          oconv_cat_buf(s, sizeof(s), (is_negative) ? ">" : " ");
           break;
         case 'M':
-          strcat(s, (is_negative) ? "-" : " ");
+          oconv_cat_buf(s, sizeof(s), (is_negative) ? "-" : " ");
           break;
       }
 
@@ -817,6 +899,9 @@ Private int32_t base64_conversion() {
 
   str = b64encode(src_descr->data.str.saddr);
   k_dismiss();
+  if (str == NULL)
+    return 2;
+
   InitDescr(e_stack, STRING);
   (e_stack++)->data.str.saddr = str;
 
@@ -1481,7 +1566,7 @@ Private int32_t masked_decimal_conversion(char* p) {
   char prefix[32 + 1] = "";
   char thousands;
   char decimal;
-  char suffix[32] = "";
+  char suffix[32 + 1] = "";
   int16_t neg; /* Action for negative values */
 #define LEADING_MINUS 0
 #define TRAILING_SIGN 1
@@ -1569,7 +1654,7 @@ rescan:
       p++;
     } else if (*p == '$') /* Currency symbol */
     {
-      strcpy(prefix, national.currency);
+      (void)snprintf(prefix, sizeof(prefix), "%s", national.currency);
       p++;
     } else
       break;
@@ -1763,13 +1848,13 @@ rescan:
         *(r++) = decimal;
         while (i++ < 0)
           *(r++) = '0';
-        strcpy(r, q);
+        (void)snprintf(r, sizeof(s) - (size_t)(r - s), "%s", q);
       } else {
         memcpy(r, q, i);
         r += i;
         q += i;
         *(r++) = decimal;
-        strcpy(r, q);
+        (void)snprintf(r, sizeof(s) - (size_t)(r - s), "%s", q);
       }
     } else /* No decimal point required */
     {
@@ -1814,80 +1899,59 @@ rescan:
     case LEADING_MINUS:
       if (is_negative)
         *(q++) = '-';
-      if (prefix[0] != '\0') {
-        strcpy(q, prefix);
-        q += strlen(prefix);
-      }
-      strcpy(q, s);
+      oconv_pcpy(&q, z, sizeof(z), prefix);
+      oconv_pcpy(&q, z, sizeof(z), s);
       break;
 
     case TRAILING_SIGN:
-      if (prefix[0] != '\0') {
-        strcpy(q, prefix);
-        q += strlen(prefix);
-      }
-      strcpy(q, s);
-      strcat(q, (is_negative) ? "-" : "+");
+      oconv_pcpy(&q, z, sizeof(z), prefix);
+      oconv_pcpy(&q, z, sizeof(z), s);
+      oconv_pcat(&q, z, sizeof(z), (is_negative) ? "-" : "+");
       break;
 
     case TRAILING_MINUS:
-      if (prefix[0] != '\0') {
-        strcpy(q, prefix);
-        q += strlen(prefix);
-      }
-      strcpy(q, s);
-      strcat(q, (is_negative) ? "-" : " ");
+      oconv_pcpy(&q, z, sizeof(z), prefix);
+      oconv_pcpy(&q, z, sizeof(z), s);
+      oconv_pcat(&q, z, sizeof(z), (is_negative) ? "-" : " ");
       break;
 
     case ANGLE_BRACKETS:
       *(q++) = (is_negative) ? '<' : ' ';
-      if (prefix[0] != '\0') {
-        strcpy(q, prefix);
-        q += strlen(prefix);
-      }
-      strcpy(q, s);
-      strcat(q, (is_negative) ? ">" : " ");
+      oconv_pcpy(&q, z, sizeof(z), prefix);
+      oconv_pcpy(&q, z, sizeof(z), s);
+      oconv_pcat(&q, z, sizeof(z), (is_negative) ? ">" : " ");
       break;
 
     case ROUND_BRACKETS:
       *(q++) = (is_negative) ? '(' : ' ';
-      if (prefix[0] != '\0') {
-        strcpy(q, prefix);
-        q += strlen(prefix);
-      }
-      strcpy(q, s);
-      strcat(q, (is_negative) ? ")" : " ");
+      oconv_pcpy(&q, z, sizeof(z), prefix);
+      oconv_pcpy(&q, z, sizeof(z), s);
+      oconv_pcat(&q, z, sizeof(z), (is_negative) ? ")" : " ");
       break;
 
     case TRAILING_CR:
-      if (prefix[0] != '\0') {
-        strcpy(q, prefix);
-        q += strlen(prefix);
-      }
-      strcpy(q, s);
+      oconv_pcpy(&q, z, sizeof(z), prefix);
+      oconv_pcpy(&q, z, sizeof(z), s);
       if (Option(OptCRDBUpcase))
-        strcat(q, (is_negative) ? "CR" : "  ");
+        oconv_pcat(&q, z, sizeof(z), (is_negative) ? "CR" : "  ");
       else
-        strcat(q, (is_negative) ? "cr" : "  ");
+        oconv_pcat(&q, z, sizeof(z), (is_negative) ? "cr" : "  ");
       break;
 
     case TRAILING_DB:
-      if (prefix[0] != '\0') {
-        strcpy(q, prefix);
-        q += strlen(prefix);
-      }
-      strcpy(q, s);
+      oconv_pcpy(&q, z, sizeof(z), prefix);
+      oconv_pcpy(&q, z, sizeof(z), s);
       if (Option(OptCRDBUpcase))
-        strcat(q, (is_negative) ? "DB" : "  ");
+        oconv_pcat(&q, z, sizeof(z), (is_negative) ? "DB" : "  ");
       else
-        strcat(q, (is_negative) ? "db" : "  ");
+        oconv_pcat(&q, z, sizeof(z), (is_negative) ? "db" : "  ");
       break;
   }
 
   /* Add suffix */
 
   if (suffix[0] != '\0')
-    strcat(q, suffix);
+    oconv_pcat(&q, z, sizeof(z), suffix);
 
 apply_formatting:
 
@@ -2469,13 +2533,14 @@ Private int32_t time_conversion(char* p) {
 
   secs = secs % 60;
 
-  sprintf(s, (include_seconds) ? "%02d%c%02d%c%02d" : "%02d%c%02d", (int)hours,
-          separator, (int)mins, separator, (int)secs);
+  (void)snprintf(s, sizeof(s),
+                 (include_seconds) ? "%02d%c%02d%c%02d" : "%02d%c%02d",
+                 (int)hours, separator, (int)mins, separator, (int)secs);
   if (am_pm) {
     if (Option(OptAMPMUpcase))
-      strcat(s, (am) ? "AM" : "PM");
+      oconv_cat_buf(s, sizeof(s), (am) ? "AM" : "PM");
     else
-      strcat(s, (am) ? "am" : "pm");
+      oconv_cat_buf(s, sizeof(s), (am) ? "am" : "pm");
   }
 
 exit_time_conversion_ok:
@@ -2502,7 +2567,7 @@ Private void insert_commas(char* s,
 
   if (thousands != '\0') {
     q = strchr(s, decimal);
-    n = (q != NULL) ? (q - s) : strlen(s); /* Chars before decimal */
+    n = (int16_t)((q != NULL) ? (q - s) : (ssize_t)strlen(s));
     if (n > 3) {
       i = n % 3;
       if (i == 0)
@@ -2518,8 +2583,8 @@ Private void insert_commas(char* s,
         i = 3;
         n -= 3;
       }
-      strcpy(p, q);
-      strcpy(s, z);
+      (void)snprintf(p, sizeof(z) - (size_t)(p - z), "%s", q);
+      (void)snprintf(s, MAX_DATA_STRING_LEN + 1, "%s", z);
     }
   }
 }
@@ -2695,7 +2760,7 @@ int32_t conv_dtx(char* p) {
     return 0;
   }
 
-  sprintf(s, "%u", GetUnsignedInt(descr)); /* 0291 */
+  (void)snprintf(s, sizeof(s), "%u", GetUnsignedInt(descr)); /* 0291 */
   k_put_c_string(s, descr);
 
   return 0;
@@ -2968,7 +3033,7 @@ int oconv_d(int dt,     /* Date value to convert */
           code += 2;
           break;
         }
-        /* **** Fall through **** */
+        /* fall through */
       case 'J':
         format[i].code = c;
         format[i].width = 2;
@@ -3185,102 +3250,143 @@ int oconv_d(int dt,     /* Date value to convert */
   p = tgt;
 
   for (i = 0; (i < 5) && (format[i].code != '\0'); i++) {
+    size_t rem;
+    int written;
+
     /* Insert separator */
 
     if (sep != NULL) {
-      strcpy(p, sep);
-      p += strlen(sep);
+      rem = oconv_remain(tgt, OCONV_DATE_OUT_LEN, p);
+      written = snprintf(p, rem, "%s", sep);
+      if (written > 0)
+        p += written;
     }
 
     n = format[i].width;
 
     switch (format[i].code) {
       case 'A': /* Alphabetic month */
-        strcpy(z, month_names[mon - 1]);
+        (void)snprintf(z, sizeof(z), "%s", month_names[mon - 1]);
         if (!leading_upper)
           UpperCaseString(z);
+        rem = oconv_remain(tgt, OCONV_DATE_OUT_LEN, p);
         if (n)
-          p += sprintf(p, "%-*.*s", (int)n, (int)n, z);
+          written = oconv_append(p, rem, "%-*.*s", (int)n, (int)n, z);
         else
-          p += sprintf(p, "%s", z);
+          written = oconv_append(p, rem, "%s", z);
+        if (written > 0)
+          p += written;
         sep = separator;
         break;
 
       case 'D': /* Numeric day of month */
-        p += sprintf(p, "%-*.*d", (int)n, (format[i].zero_suppress) ? 1 : 2,
-                     (int)day);
+        rem = oconv_remain(tgt, OCONV_DATE_OUT_LEN, p);
+        written = oconv_append(p, rem, "%-*.*d", (int)n,
+                               (format[i].zero_suppress) ? 1 : 2, (int)day);
+        if (written > 0)
+          p += written;
         sep = separator;
         break;
 
       case 'I': /* ISO week number */
-        p += sprintf(p, "%-*.*d", (int)n, (format[i].zero_suppress) ? 1 : 2,
-                     (int)iso_wk);
+        rem = oconv_remain(tgt, OCONV_DATE_OUT_LEN, p);
+        written = oconv_append(p, rem, "%-*.*d", (int)n,
+                               (format[i].zero_suppress) ? 1 : 2, (int)iso_wk);
+        if (written > 0)
+          p += written;
         sep = separator;
         break;
 
       case 'J':
-        w = sprintf(z, "%d", (int)julian);
+        w = snprintf(z, sizeof(z), "%d", (int)julian);
+        if (w < 0)
+          w = 0;
+        if ((size_t)w >= sizeof(z))
+          w = (int)sizeof(z) - 1;
         y = n - w;
-        while (y-- > 0) {
+        while (y-- > 0 && p < tgt + OCONV_DATE_OUT_LEN - 1)
           *(p++) = (format[i].zero_suppress) ? ' ' : '0';
+        rem = oconv_remain(tgt, OCONV_DATE_OUT_LEN, p);
+        if ((size_t)w < rem) {
+          memcpy(p, z, (size_t)w);
+          p += w;
+          *p = '\0'; /* 0564 */
         }
-        memcpy(p, z, w);
-        p += w;
-        *p = '\0'; /* 0564 */
         sep = separator;
         break;
 
       case 'M': /* Numeric month */
-        p += sprintf(p, "%-*.*d", (int)n, (format[i].zero_suppress) ? 1 : 2,
-                     (int)mon);
+        rem = oconv_remain(tgt, OCONV_DATE_OUT_LEN, p);
+        written = oconv_append(p, rem, "%-*.*d", (int)n,
+                               (format[i].zero_suppress) ? 1 : 2, (int)mon);
+        if (written > 0)
+          p += written;
         sep = separator;
         break;
 
       case 'N': /* Numeric day of week */
-        p += sprintf(p, "%-*d", (int)n, (int)dow);
+        rem = oconv_remain(tgt, OCONV_DATE_OUT_LEN, p);
+        written = oconv_append(p, rem, "%-*d", (int)n, (int)dow);
+        if (written > 0)
+          p += written;
         sep = space;
         break;
 
       case 'O': /* Ordinal day of month */
         if (ordinals[0] == NULL) {
+          size_t qlen;
+
           q = sysmsg(1502);
           if (strdcount(q, ',') != 31)
             continue; /* Omit element */
 
-          ordinals[0] = (char*)k_alloc(89, strlen(q) + 1);
-          strcpy(ordinals[0], q);
+          qlen = strlen(q);
+          ordinals[0] = (char*)k_alloc(89, qlen + 1);
+          (void)snprintf(ordinals[0], qlen + 1, "%s", q);
           (void)strtok(ordinals[0], ",");
           for (j = 1; j < 31; j++)
             ordinals[j] = strtok(NULL, ",");
         }
-        p += sprintf(p, "%s", ordinals[day - 1]);
+        rem = oconv_remain(tgt, OCONV_DATE_OUT_LEN, p);
+        written = oconv_append(p, rem, "%s", ordinals[day - 1]);
+        if (written > 0)
+          p += written;
         sep = separator;
         break;
 
       case 'Q': /* Quarter */
-        p += sprintf(p, "%-*d", (int)n, (int)((mon + 2) / 3));
+        rem = oconv_remain(tgt, OCONV_DATE_OUT_LEN, p);
+        written =
+            oconv_append(p, rem, "%-*d", (int)n, (int)((mon + 2) / 3));
+        if (written > 0)
+          p += written;
         sep = space;
         break;
 
       case 'W': /* Alphabetic day of week */
-        strcpy(z, day_names[dow - 1]);
+        (void)snprintf(z, sizeof(z), "%s", day_names[dow - 1]);
         if (!leading_upper)
           UpperCaseString(z);
+        rem = oconv_remain(tgt, OCONV_DATE_OUT_LEN, p);
         if (n)
-          p += sprintf(p, "%-*.*s", (int)n, (int)n, z);
+          written = oconv_append(p, rem, "%-*.*s", (int)n, (int)n, z);
         else
-          p += sprintf(p, "%s", z);
+          written = oconv_append(p, rem, "%s", z);
+        if (written > 0)
+          p += written;
         sep = space;
         break;
 
       case 'Y':
         if (format[i].width > 0) {
-          if (format[i].zero_suppress) {
-            p += sprintf(p, "%d", (int)(year % (int)tens[n]));
-          } else {
-            p += sprintf(p, "%.*d", (int)format[i].width,
-                         (int)(year % (int)tens[n]));
-          }
+          rem = oconv_remain(tgt, OCONV_DATE_OUT_LEN, p);
+          if (format[i].zero_suppress)
+            written = oconv_append(p, rem, "%d", (int)(year % (int)tens[n]));
+          else
+            written = oconv_append(p, rem, "%.*d", (int)format[i].width,
+                                   (int)(year % (int)tens[n]));
+          if (written > 0)
+            p += written;
 
           sep = separator;
         }
@@ -3288,12 +3394,15 @@ int oconv_d(int dt,     /* Date value to convert */
 
       case 'y':
         if (format[i].width > 0) {
-          if (format[i].zero_suppress) {
-            p += sprintf(p, "%d", (int)(iso_year % (int)tens[n]));
-          } else {
-            p += sprintf(p, "%.*d", (int)format[i].width,
-                         (int)(iso_year % (int)tens[n]));
-          }
+          rem = oconv_remain(tgt, OCONV_DATE_OUT_LEN, p);
+          if (format[i].zero_suppress)
+            written =
+                oconv_append(p, rem, "%d", (int)(iso_year % (int)tens[n]));
+          else
+            written = oconv_append(p, rem, "%.*d", (int)format[i].width,
+                                   (int)(iso_year % (int)tens[n]));
+          if (written > 0)
+            p += written;
 
           sep = separator;
         }

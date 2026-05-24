@@ -16,9 +16,10 @@
  * along with this program; if not, write to the Free Software Foundation,
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  *
- * START-HISTORY):
+ * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
  * rev 0.9.0 Jan 25 mab change dyn file prefix to %
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -81,6 +82,142 @@ Private int32_t ak_node_num;
 Private int16_t ak_rec_offset;
 Private u_char ak_flags;
 Private int16_t ak_lock_slot = 0; /* Pseudo record lock position */
+
+#define AK_MAP_BIT(akno) (1u << (unsigned)(akno))
+
+Private bool valid_akno(int16_t akno) {
+  return (akno >= 0) && (akno < MAX_INDICES);
+}
+
+Private bool ak_in_map(u_int32_t ak_map, int16_t akno) {
+  if (!valid_akno(akno))
+    return FALSE;
+  return (ak_map & AK_MAP_BIT(akno)) != 0;
+}
+
+Private u_int16_t ak_hash_id(const char* id, int16_t id_len) {
+  u_int16_t key = 0;
+  int16_t i;
+
+  for (i = 0; i < id_len; i += 2) {
+    u_int16_t w = (u_int16_t)(u_char)id[i];
+    if (i + 1 < id_len)
+      w |= (u_int16_t)((u_char)id[i + 1]) << 8;
+    key ^= w;
+  }
+  return key;
+}
+
+Private bool ak_get_term_record(DH_TERM_NODE* term,
+                                int16_t rec_offset,
+                                DH_RECORD** rec_ptr_out,
+                                int16_t* rec_size_out) {
+  int16_t used_bytes;
+  DH_RECORD* rec_ptr;
+  int16_t rec_size;
+
+  used_bytes = term->used_bytes;
+  if (rec_offset < TERM_NODE_HEADER_SIZE || rec_offset >= used_bytes)
+    return FALSE;
+
+  rec_ptr = (DH_RECORD *)(((char*)term) + rec_offset);
+  rec_size = rec_ptr->next;
+  if (rec_size < (int16_t)RECORD_HEADER_SIZE || rec_offset + rec_size > used_bytes)
+    return FALSE;
+  if ((int16_t)(RECORD_HEADER_SIZE + rec_ptr->id_len) > rec_size)
+    return FALSE;
+
+  *rec_ptr_out = rec_ptr;
+  *rec_size_out = rec_size;
+  return TRUE;
+}
+
+#define AK_BIGREC_MAX_DATA (32 * 1024 * 1024)
+#define AK_BIGREC_MAX_CHAIN_NODES 8192
+
+Private int32_t ak_bigrec_chain_limit(int32_t data_len) {
+  int32_t per_node = (int32_t)(DH_AK_NODE_SIZE - DH_AK_BIG_NODE_SIZE);
+
+  if (data_len <= 0)
+    return 1;
+  if (per_node <= 0)
+    return AK_BIGREC_MAX_CHAIN_NODES;
+  return (data_len / per_node) + 2;
+}
+
+Private bool ak_validate_big_node(DH_BIG_NODE* node, bool is_head) {
+  if (node->node_type != AK_BIGREC_NODE)
+    return FALSE;
+  if (node->used_bytes < DH_AK_BIG_NODE_SIZE || node->used_bytes > DH_AK_NODE_SIZE)
+    return FALSE;
+  if (is_head && (node->data_len < 0 || node->data_len > AK_BIGREC_MAX_DATA))
+    return FALSE;
+  return TRUE;
+}
+
+Private bool ak_validate_int_node(DH_INT_NODE* node) {
+  int16_t used_bytes;
+  int child_count;
+  char* p;
+  char* end;
+  int i;
+  int kl;
+
+  if (node->node_type != AK_INT_NODE)
+    return FALSE;
+
+  used_bytes = node->used_bytes;
+  if (used_bytes < (int16_t)INT_NODE_HEADER_SIZE || used_bytes > DH_AK_NODE_SIZE)
+    return FALSE;
+
+  child_count = (int)node->child_count;
+  if (child_count <= 0 || child_count > MAX_CHILD)
+    return FALSE;
+
+  p = node->keys;
+  end = (char*)node + used_bytes;
+  for (i = 0; i < child_count; i++) {
+    kl = (int)node->key_len[i];
+    if (kl < 0 || kl > MAX_KEY_LEN)
+      return FALSE;
+    if (p + kl > end)
+      return FALSE;
+    p += kl;
+  }
+  return TRUE;
+}
+
+Private AK_CTRL* ak_ensure_ctrl(FILE_VAR* fvar, DH_FILE* dh_file) {
+  AK_CTRL* ak_ctrl;
+  int16_t i;
+  u_int32_t ak_map;
+
+  ak_ctrl = fvar->access.dh.ak_ctrl;
+  if (ak_ctrl != NULL)
+    return ak_ctrl;
+
+  ak_map = dh_file->ak_map;
+  if (ak_map == 0)
+    return NULL;
+
+  for (i = 31; i > 0; i--) {
+    if ((ak_map >> i) & 1)
+      break;
+  }
+  i++;
+
+  ak_ctrl = (AK_CTRL*)k_alloc(58, AkCtrlSize(i));
+  if (ak_ctrl == NULL) {
+    dh_err = DHE_NO_MEM;
+    return NULL;
+  }
+  fvar->access.dh.ak_ctrl = ak_ctrl;
+  while (i-- > 0) {
+    ak_ctrl->ak_scan[i].upd = 0;
+    ak_ctrl->ak_scan[i].key_len = 0;
+  }
+  return ak_ctrl;
+}
 
 /* Internal functions */
 
@@ -175,14 +312,14 @@ void op_akdelete() {
     descr = descr->data.d_addr;
   if (descr->type != UNASSIGNED) {
     if (descr->type != FILE_REF)
-      k_error("AK_READ not for file\n");
+      k_error("AK_DELETE not for file\n");
     ak_dh_file = descr->data.fvar->access.dh.dh_file;
   }
 
   /* Check validity for AK number */
 
-  if (!(((ak_dh_file->ak_map) >> akno) & 1))
-    k_error(sysmsg(1001));
+  if (!valid_akno(akno) || !ak_in_map(ak_dh_file->ak_map, akno))
+    k_error(sysmsg(ER_AKNF));
 
   if (id_len < 0) {
     process.status = ER_IID;
@@ -253,7 +390,6 @@ void op_akread() {
   char id[MAX_KEY_LEN + 1];
   int16_t id_len;
   u_int16_t key;
-  int16_t i;
 
   process.status = 0;
 
@@ -287,8 +423,8 @@ void op_akread() {
   } while (descr->type == ADDR);
   k_release(descr);
 
-  if (!(((ak_dh_file->ak_map) >> akno) & 1))
-    k_error(sysmsg(1001)); /* TODO: Magic numbers are bad, mmkay? */
+  if (!valid_akno(akno) || !ak_in_map(ak_dh_file->ak_map, akno))
+    k_error(sysmsg(ER_AKNF));
 
   if (id_len < 0) {
     process.status = ER_IID;
@@ -296,10 +432,7 @@ void op_akread() {
   {
     /* Form key value for pseudo group lock which actually locks AK record */
 
-    key = 0;
-    for (i = 0; i < id_len; i += 2) {
-      key ^= *((u_int16_t *)(id + i));
-    }
+    key = ak_hash_id(id, id_len);
 
     /* Lock the AK record */
 
@@ -380,8 +513,8 @@ void op_akwrite() {
   descr = e_stack - 4;
   k_get_string(descr);
 
-  if (!(((ak_dh_file->ak_map) >> akno) & 1))
-    k_error(sysmsg(1001));
+  if (!valid_akno(akno) || !ak_in_map(ak_dh_file->ak_map, akno))
+    k_error(sysmsg(ER_AKNF));
 
   if (id_len < 0) {
     process.status = ER_IID;
@@ -394,7 +527,7 @@ void op_akwrite() {
 
 exit_op_akwrite:
 
-  /* Release pseudo group lock that actually locks the AK record */
+  /* Release lock held by a prior op_akread in the same DH write/delete path */
 
   if (ak_lock_slot) {
     FreeGroupWriteLock(ak_lock_slot);
@@ -449,11 +582,15 @@ void op_akclear() {
     goto exit_op_akclear; /* Not DH file */
   dh_file = fvar->access.dh.dh_file;
 
-  if (!(dh_file->ak_map & (1 << akno)))
+  if (!valid_akno(akno) || !ak_in_map(dh_file->ak_map, akno))
     k_error("AK_CLEAR: No such AK");
 
-  if (!ak_clear(dh_file, AK_BASE_SUBFILE + akno))
+  if (!ak_clear(dh_file, AK_BASE_SUBFILE + akno)) {
+    process.status = dh_err;
     goto exit_op_akclear;
+  }
+
+  process.status = 0;
 
 exit_op_akclear:
   k_pop(1);    /* AK number */
@@ -481,6 +618,8 @@ void op_akenable() {
   DH_AK_HEADER ak_hdr;
   int16_t subfile;
 
+  process.status = DHE_NO_SUCH_AK;
+
   /* AK number */
 
   descr = e_stack - 1;
@@ -496,20 +635,26 @@ void op_akenable() {
   if (fvar->type == DYNAMIC_FILE) {
     dh_file = fvar->access.dh.dh_file;
 
-    if (dh_file->ak_map & (1 << akno)) {
-      subfile = AK_BASE_SUBFILE + akno;
+    if (!valid_akno(akno) || !ak_in_map(dh_file->ak_map, akno))
+      goto exit_ak_enable;
 
-      if (FDS_open(dh_file, subfile)) {
-        if (!dh_read_group(dh_file, subfile, 0, (char *)&ak_hdr, DH_AK_HEADER_SIZE)) {
-          goto exit_ak_enable;
-        }
+    subfile = AK_BASE_SUBFILE + akno;
 
-        ak_hdr.flags |= AK_ENABLED;
-
-        if (!dh_write_group(dh_file, subfile, 0, (char *)&ak_hdr, DH_AK_HEADER_SIZE)) {
-          goto exit_ak_enable;
-        }
+    if (FDS_open(dh_file, subfile)) {
+      if (!dh_read_group(dh_file, subfile, 0, (char *)&ak_hdr, DH_AK_HEADER_SIZE)) {
+        process.status = dh_err;
+        goto exit_ak_enable;
       }
+
+      ak_hdr.flags |= AK_ENABLED;
+
+      if (!dh_write_group(dh_file, subfile, 0, (char *)&ak_hdr, DH_AK_HEADER_SIZE)) {
+        process.status = dh_err;
+        goto exit_ak_enable;
+      }
+      process.status = 0;
+    } else {
+      process.status = dh_err;
     }
   }
 
@@ -705,6 +850,11 @@ void op_deleteak() {
   GetInt(descr);
   akno = (int16_t)(descr->data.value);
 
+  if (!valid_akno(akno)) {
+    process.status = DHE_NO_SUCH_AK;
+    goto exit_op_deleteak;
+  }
+
   /* Pathname */
 
   descr = e_stack - 2;
@@ -894,6 +1044,7 @@ void op_selindx() {
   int32_t node_num;
   int16_t used_bytes;
   int16_t rec_offset;
+  int16_t rec_size;
   DH_RECORD *rec_ptr;
   char index_name[MAX_AK_NAME_LEN + 1];
   DESCRIPTOR *list_descr;
@@ -976,6 +1127,12 @@ void op_selindx() {
       }
       if (((DH_INT_NODE *)buff)->node_type == AK_TERM_NODE)
         break;
+      if (!ak_validate_int_node((DH_INT_NODE *)buff)) {
+        log_printf("SELINDX: corrupt internal AK node at subfile %d node %ld\n",
+                   (int)subfile, (long)node_num);
+        dh_err = DHE_AK_NODE_ERROR;
+        goto exit_selindx;
+      }
       node_num = GetAKFwdLink(dh_file, ((DH_INT_NODE *)buff)->child[0]);
     } while (1);
 
@@ -983,11 +1140,15 @@ void op_selindx() {
       used_bytes = ((DH_TERM_NODE *)buff)->used_bytes;
       rec_offset = TERM_NODE_HEADER_SIZE;
       while (rec_offset < used_bytes) {
-        rec_ptr = (DH_RECORD *)(buff + rec_offset);
+        if (!ak_get_term_record((DH_TERM_NODE*)buff, rec_offset, &rec_ptr, &rec_size)) {
+          log_printf("SELINDX: corrupt AK node at subfile %d node %ld\n", (int)subfile, (long)node_num);
+          dh_err = DHE_POINTER_ERROR;
+          goto exit_selindx;
+        }
         if (record_count++)
           ts_copy_byte(FIELD_MARK);
         ts_copy(rec_ptr->id, rec_ptr->id_len);
-        rec_offset += rec_ptr->next;
+        rec_offset += rec_size;
       }
 
       node_num = GetAKFwdLink(dh_file, ((DH_TERM_NODE *)buff)->right);
@@ -1141,17 +1302,19 @@ void op_selindxv() {
           p = q + 1;
         } while (bytes);
       } while ((str = str->next) != NULL);
+
+      /* Save position for scan operations only when the value was found */
+
+      ak_ctrl = ak_ensure_ctrl(fvar, dh_file);
+      if (ak_ctrl == NULL)
+        goto exit_selindxv;
+      ak_ctrl->ak_scan[akno].upd = ak_upd;
+      ak_ctrl->ak_scan[akno].node_num = ak_node_num;
+      ak_ctrl->ak_scan[akno].rec_offset = ak_rec_offset;
+      ak_ctrl->ak_scan[akno].flags = ak_flags;
+      ak_ctrl->ak_scan[akno].key_len = (u_char)indexed_value_len;
+      memcpy(ak_ctrl->ak_scan[akno].key, indexed_value, indexed_value_len);
     }
-
-    /* Save position for scan operations */
-
-    ak_ctrl = fvar->access.dh.ak_ctrl;
-    ak_ctrl->ak_scan[akno].upd = ak_upd;
-    ak_ctrl->ak_scan[akno].node_num = ak_node_num;
-    ak_ctrl->ak_scan[akno].rec_offset = ak_rec_offset;
-    ak_ctrl->ak_scan[akno].flags = ak_flags;
-    ak_ctrl->ak_scan[akno].key_len = (u_char)indexed_value_len;
-    memcpy(ak_ctrl->ak_scan[akno].key, indexed_value, indexed_value_len);
 
     /* Set record count for select list */
 
@@ -1206,6 +1369,7 @@ Private void akscan(bool right) {
   DH_FILE *dh_file;
   int16_t subfile;
   DH_RECORD *rec_ptr;
+  int16_t rec_size;
   AK_CTRL *ak_ctrl;
   int16_t lock_slot = 0;
   union AKBUFF *node = NULL;
@@ -1277,7 +1441,9 @@ Private void akscan(bool right) {
   /* If the AK transaction counter has changed, we must read to the last
      key extracted because the node may have moved.                       */
 
-  ak_ctrl = fvar->access.dh.ak_ctrl;
+  ak_ctrl = ak_ensure_ctrl(fvar, dh_file);
+  if (ak_ctrl == NULL)
+    goto exit_akscan;
 
   /* Lock the AK subfile */
 
@@ -1316,11 +1482,18 @@ Private void akscan(bool right) {
   /* Read the node buffer */
 
   node = (AKBUFF *)k_alloc(104, sizeof(AKBUFF));
+  if (node == NULL) {
+    dh_err = DHE_NO_MEM;
+    goto exit_akscan;
+  }
   if (!dh_read_group(dh_file, subfile, ak_node_num, node->buff, DH_AK_NODE_SIZE)) {
     goto exit_akscan;
   }
 
-  rec_ptr = (DH_RECORD *)(node->buff + ak_rec_offset);
+  if (!ak_get_term_record(&node->term_node, ak_rec_offset, &rec_ptr, &rec_size)) {
+    dh_err = DHE_POINTER_ERROR;
+    goto exit_akscan;
+  }
 
   if (found) /* Previous scan position was found */
   {
@@ -1330,7 +1503,7 @@ Private void akscan(bool right) {
     if (right) {
       /* Step one record to the right */
 
-      ak_rec_offset += rec_ptr->next;
+      ak_rec_offset += rec_size;
       if (ak_rec_offset == node->term_node.used_bytes) {
         ak_node_num = GetAKFwdLink(dh_file, node->term_node.right);
         ak_rec_offset = TERM_NODE_HEADER_SIZE;
@@ -1341,6 +1514,10 @@ Private void akscan(bool right) {
         }
 
         if (!dh_read_group(dh_file, subfile, ak_node_num, node->buff, DH_AK_NODE_SIZE)) {
+          goto exit_akscan;
+        }
+        if (!ak_get_term_record(&node->term_node, ak_rec_offset, &rec_ptr, &rec_size)) {
+          dh_err = DHE_POINTER_ERROR;
           goto exit_akscan;
         }
       }
@@ -1362,13 +1539,31 @@ Private void akscan(bool right) {
         }
 
         rec_ptr = rightmost(&node->term_node);
+        if (rec_ptr == NULL) {
+          dh_err = DHE_POINTER_ERROR;
+          goto exit_akscan;
+        }
         ak_rec_offset = (char *)rec_ptr - node->buff;
+        rec_size = rec_ptr->next;
       } else {
         p = node->buff + TERM_NODE_HEADER_SIZE;
-        while ((p - node->buff + ((DH_RECORD *)p)->next) < ak_rec_offset) {
-          p += ((DH_RECORD *)p)->next;
+        while (p - node->buff < ak_rec_offset) {
+          int16_t step;
+          DH_RECORD* walk_rec;
+          if (!ak_get_term_record(&node->term_node, (int16_t)(p - node->buff), &walk_rec, &step))
+          {
+            dh_err = DHE_POINTER_ERROR;
+            goto exit_akscan;
+          }
+          if ((p - node->buff) + step >= ak_rec_offset)
+            break;
+          p += step;
         }
-        ak_rec_offset = p - node->buff;
+        ak_rec_offset = (int16_t)(p - node->buff);
+        if (!ak_get_term_record(&node->term_node, ak_rec_offset, &rec_ptr, &rec_size)) {
+          dh_err = DHE_POINTER_ERROR;
+          goto exit_akscan;
+        }
       }
     }
   } else /* Previous scan position was not found */
@@ -1387,7 +1582,7 @@ Private void akscan(bool right) {
       if (old_flags & AKS_RIGHT) {
         /* Step one record to the right */
 
-        ak_rec_offset += rec_ptr->next;
+        ak_rec_offset += rec_size;
         if (ak_rec_offset == node->term_node.used_bytes) {
           ak_node_num = GetAKFwdLink(dh_file, node->term_node.right);
           ak_rec_offset = TERM_NODE_HEADER_SIZE;
@@ -1398,6 +1593,10 @@ Private void akscan(bool right) {
           }
 
           if (!dh_read_group(dh_file, subfile, ak_node_num, node->buff, DH_AK_NODE_SIZE)) {
+            goto exit_akscan;
+          }
+          if (!ak_get_term_record(&node->term_node, ak_rec_offset, &rec_ptr, &rec_size)) {
+            dh_err = DHE_POINTER_ERROR;
             goto exit_akscan;
           }
         }
@@ -1422,13 +1621,31 @@ Private void akscan(bool right) {
           }
 
           rec_ptr = rightmost(&node->term_node);
+          if (rec_ptr == NULL) {
+            dh_err = DHE_POINTER_ERROR;
+            goto exit_akscan;
+          }
           ak_rec_offset = (char *)rec_ptr - node->buff;
+          rec_size = rec_ptr->next;
         } else {
           p = node->buff + TERM_NODE_HEADER_SIZE;
-          while ((p - node->buff + ((DH_RECORD *)p)->next) < ak_rec_offset) {
-            p += ((DH_RECORD *)p)->next;
+          while (p - node->buff < ak_rec_offset) {
+            int16_t step;
+            DH_RECORD* walk_rec;
+            if (!ak_get_term_record(&node->term_node, (int16_t)(p - node->buff), &walk_rec, &step))
+            {
+              dh_err = DHE_POINTER_ERROR;
+              goto exit_akscan;
+            }
+            if ((p - node->buff) + step >= ak_rec_offset)
+              break;
+            p += step;
           }
-          ak_rec_offset = p - node->buff;
+          ak_rec_offset = (int16_t)(p - node->buff);
+          if (!ak_get_term_record(&node->term_node, ak_rec_offset, &rec_ptr, &rec_size)) {
+            dh_err = DHE_POINTER_ERROR;
+            goto exit_akscan;
+          }
         }
       } else /* 0523 Moving left from rightmost unfound record */
       {
@@ -1438,13 +1655,21 @@ Private void akscan(bool right) {
 
         if (ak_rec_offset == node->term_node.used_bytes) {
           rec_ptr = rightmost(&node->term_node);
+          if (rec_ptr == NULL) {
+            dh_err = DHE_POINTER_ERROR;
+            goto exit_akscan;
+          }
           ak_rec_offset = (char *)rec_ptr - node->buff;
+          rec_size = rec_ptr->next;
         }
       }
     }
   }
 
-  rec_ptr = (DH_RECORD *)(node->buff + ak_rec_offset);
+  if (!ak_get_term_record(&node->term_node, ak_rec_offset, &rec_ptr, &rec_size)) {
+    dh_err = DHE_POINTER_ERROR;
+    goto exit_akscan;
+  }
 
   /* Save the key value and position data */
 
@@ -1576,14 +1801,16 @@ Private void setakpos(bool right) {
   if (fvar->type != DYNAMIC_FILE)
     goto exit_setakpos; /* Not DH file */
   dh_file = fvar->access.dh.dh_file;
-  ak_ctrl = fvar->access.dh.ak_ctrl;
-
   /* Get index name */
 
   descr = e_stack - 2;
   if ((akno = find_ak_by_name(descr, dh_file)) < 0)
     goto exit_setakpos;
   subfile = AK_BASE_SUBFILE + akno;
+
+  ak_ctrl = ak_ensure_ctrl(fvar, dh_file);
+  if (ak_ctrl == NULL)
+    goto exit_setakpos;
 
   /* Allocate a buffer for handling AK blocks */
 
@@ -1612,6 +1839,11 @@ Private void setakpos(bool right) {
     if (node_ptr->node_type == AK_TERM_NODE)
       break;
 
+    if (!ak_validate_int_node(node_ptr)) {
+      dh_err = DHE_AK_NODE_ERROR;
+      goto exit_setakpos;
+    }
+
     if (right)
       node_num = GetAKFwdLink(dh_file, node_ptr->child[node_ptr->child_count - 1]);
     else
@@ -1627,6 +1859,10 @@ Private void setakpos(bool right) {
 
   if (right) {
     rec_ptr = rightmost((DH_TERM_NODE *)buff);
+    if (rec_ptr == NULL) {
+      dh_err = DHE_POINTER_ERROR;
+      goto exit_setakpos;
+    }
     rec_offset = (char *)rec_ptr - buff;
   } else {
     rec_offset = TERM_NODE_HEADER_SIZE;
@@ -1692,11 +1928,18 @@ Private int16_t create_ak(char *data_path,          /* Data file path name */
   char *q;
   int ak_header_size;
   u_char *obj;
+  char ak_subfile_path[MAX_PATHNAME_LEN + 1];
+  bool ak_subfile_created = FALSE;
+
+  ak_subfile_path[0] = '\0';
 
   /* Open primary subfile.  We do this outside of the file sharing mechanism
      to guarantee that we are the only user of the file.                     */
 /* rev 0.9.0 */
-  sprintf(path, "%s%c%%0", data_path, DS);
+  if (snprintf(path, sizeof(path), "%s%c%%0", data_path, DS) >= (int)sizeof(path)) {
+    dh_err = DHE_INVA_FILE_NAME;
+    goto exit_create_ak;
+  }
   fu = dio_open(path, DIO_UPDATE);
   if (!ValidFileHandle(fu)) {
     dh_err = DHE_FILE_NOT_FOUND;
@@ -1718,7 +1961,7 @@ Private int16_t create_ak(char *data_path,          /* Data file path name */
 
   for (i = 0, ak_map = header.ak_map; i < MAX_INDICES; i++, ak_map = ak_map >> 1) {
     if ((ak_map & 1) == 0) {
-      header.ak_map |= 1 << i; /* Update ready to write back */
+      header.ak_map |= AK_MAP_BIT(i); /* Update ready to write back */
       subfile = i + 2;
       break;
     }
@@ -1743,18 +1986,35 @@ Private int16_t create_ak(char *data_path,          /* Data file path name */
   ak_header.magic = DH_INDEX;
   ak_header.flags = flags;
   ak_header.fno = fno;
-  strcpy((char *)ak_header.ak_name, ak_name);
+  if (snprintf((char *)ak_header.ak_name, sizeof(ak_header.ak_name), "%s", ak_name) >=
+      (int)sizeof(ak_header.ak_name)) {
+    dh_err = DHE_AK_NAME_LEN;
+    subfile = 0;
+    goto exit_create_ak;
+  }
   ak_header.data_creation_timestamp = header.creation_timestamp;
 
   if (ak_path[0] == '\0') /* Not relocated */
   {
-    strcpy(ak_path, data_path); /* Use data path for AKs */
-  } else                        /* Relocated */
+    if (snprintf(ak_path, MAX_PATHNAME_LEN + 1, "%s", data_path) >= MAX_PATHNAME_LEN + 1) {
+      dh_err = DHE_INVA_FILE_NAME;
+      subfile = 0;
+      goto exit_create_ak;
+    }
+  } else /* Relocated */
   {
-    strcpy(header.akpath, ak_path); /* Only relevant on first index */
+    if (snprintf(header.akpath, sizeof(header.akpath), "%s", ak_path) >= (int)sizeof(header.akpath)) {
+      dh_err = DHE_INVA_FILE_NAME;
+      subfile = 0;
+      goto exit_create_ak;
+    }
   }
 /* rev 0.9.0 */
-  sprintf(path, "%s%c%%%d", ak_path, DS, subfile);
+  if (snprintf(path, sizeof(path), "%s%c%%%d", ak_path, DS, subfile) >= (int)sizeof(path)) {
+    dh_err = DHE_INVA_FILE_NAME;
+    subfile = 0;
+    goto exit_create_ak;
+  }
   akfu = dio_open(path, DIO_NEW);
   if (!ValidFileHandle(akfu)) {
     dh_err = DHE_AK_CREATE_ERR;
@@ -1762,6 +2022,8 @@ Private int16_t create_ak(char *data_path,          /* Data file path name */
     subfile = 0;
     goto exit_create_ak;
   }
+  snprintf(ak_subfile_path, sizeof(ak_subfile_path), "%s", path);
+  ak_subfile_created = TRUE;
 
   dict_rec_len = dict_rec->string_len;
   ak_header.itype_len = dict_rec_len;
@@ -1779,7 +2041,12 @@ Private int16_t create_ak(char *data_path,          /* Data file path name */
   /* Set collation map */
 
   if (collation_map_name[0] != '\0') {
-    strcpy(ak_header.collation_map_name, collation_map_name);
+    if (snprintf(ak_header.collation_map_name, sizeof(ak_header.collation_map_name), "%s",
+                 collation_map_name) >= (int)sizeof(ak_header.collation_map_name)) {
+      dh_err = DHE_AK_NAME_LEN;
+      subfile = 0;
+      goto exit_create_ak;
+    }
     memcpy(ak_header.collation_map, collation_map, 256);
   }
 
@@ -1875,6 +2142,9 @@ exit_create_ak:
   if (ValidFileHandle(akfu))
     CloseFile(akfu);
 
+  if (subfile == 0 && ak_subfile_created)
+    (void)remove(ak_subfile_path);
+
   if (buff != NULL)
     k_free(buff);
 
@@ -1892,10 +2162,18 @@ Private bool delete_ak(char *pathname, /* File path name */
   OSFILE fu = INVALID_FILE_HANDLE;
   DH_HEADER header;
 
+  if (!valid_akno(akno)) {
+    dh_err = DHE_NO_SUCH_AK;
+    goto exit_delete_ak;
+  }
+
   /* Open primary subfile.  We do this outside of the file sharing mechanism
      to guarantee that we are the only user of the file.                     */
 /* rev 0.9.0 */
-  sprintf(path, "%s%c%%0", pathname, DS);
+  if (snprintf(path, sizeof(path), "%s%c%%0", pathname, DS) >= (int)sizeof(path)) {
+    dh_err = DHE_INVA_FILE_NAME;
+    goto exit_delete_ak;
+  }
   fu = dio_open(path, DIO_UPDATE);
   if (!ValidFileHandle(fu)) {
     dh_err = DHE_FILE_NOT_FOUND;
@@ -1909,24 +2187,14 @@ Private bool delete_ak(char *pathname, /* File path name */
     goto exit_delete_ak;
   }
 
-  /* Check this AK exists */
-  /* the (1 << akno) code in the if statement below is triggering a warning
-   * "warning: ‘<<’ in boolean context, did you mean ‘<’ ? [-Wint-in-bool-context]"
-   * Based on how it's used later (header.ak_map ^= (1 << akno)) in the code, it's
-   * my belief that the code is correct as written.  As such, I'm going to turn off
-   * the warning for this single instance.  -gwb 22Feb20
-   */
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wint-in-bool-context"
-  if ((header.ak_map && (1 << akno)) == 0) {
-#pragma GCC diagnostic pop
+  if (!ak_in_map(header.ak_map, akno)) {
     dh_err = DHE_NO_SUCH_AK;
     goto exit_delete_ak;
   }
 
   /* Clear AK map flag */
 
-  header.ak_map ^= (1 << akno);
+  header.ak_map ^= AK_MAP_BIT(akno);
 
   /* Does this file use relocated indices? */
 
@@ -1983,8 +2251,7 @@ Private bool ak_write(DH_FILE *dh_file, /* File descriptor */
   int32_t data_len;        /* Data length */
   bool big_rec;            /* Stored as big record? */
   int16_t subfile;         /* Subfile number */
-  int16_t lock_slot = 0;   /* Group lock table index */
-  int16_t header_lock = 0; /* File header group lock table index */
+  int16_t lock_slot = 0; /* Group lock table index */
   int32_t node_num;
   int16_t flags;    /* AK flags from ak.data matrix */
   bool rj;          /* Right justified? */
@@ -2025,6 +2292,11 @@ Private bool ak_write(DH_FILE *dh_file, /* File descriptor */
   int n;
 
   tail = NULL;
+
+  if (id_len > MAX_KEY_LEN) {
+    dh_err = DHE_POINTER_ERROR;
+    return FALSE;
+  }
 
   /* Get basic information */
 
@@ -2072,6 +2344,10 @@ Private bool ak_write(DH_FILE *dh_file, /* File descriptor */
     /* Allocate a new buffer area */
 
     node_ptr = (NODE *)k_alloc(43, sizeof(struct NODE));
+    if (node_ptr == NULL) {
+      dh_err = DHE_NO_MEM;
+      goto exit_ak_write;
+    }
     node_ptr->prev = tail;
     tail = node_ptr;
     tail->node_num = node_num;
@@ -2089,7 +2365,15 @@ Private bool ak_write(DH_FILE *dh_file, /* File descriptor */
       log_printf(
           "DH_AK: Invalid node type (x%04X) at subfile %d node %d\nof file "
           "%s.\n",
-          (int)(tail->node.int_node.node_type), (int)subfile, node_num, fptr->pathname);
+          (int)(tail->node.int_node.node_type), (int)subfile, (int)node_num, fptr->pathname);
+      dh_err = DHE_AK_NODE_ERROR;
+      goto exit_ak_write;
+    }
+
+    if (!ak_validate_int_node(&tail->node.int_node)) {
+      log_printf(
+          "AK_WRITE: corrupt internal node at subfile %d node %d of file %s.\n",
+          (int)subfile, (int)node_num, fptr->pathname);
       dh_err = DHE_AK_NODE_ERROR;
       goto exit_ak_write;
     }
@@ -2143,8 +2427,13 @@ Private bool ak_write(DH_FILE *dh_file, /* File descriptor */
   rec_offset = TERM_NODE_HEADER_SIZE;
   found = FALSE;
   while (rec_offset < used_bytes) {
-    rec_ptr = (DH_RECORD *)(((char *)&(tail->node.term_node)) + rec_offset);
-    rec_size = rec_ptr->next;
+    if (!ak_get_term_record(&tail->node.term_node, rec_offset, &rec_ptr, &rec_size)) {
+      log_printf(
+          "AK_WRITE: corrupt record at subfile %d node %d of file %s.\n",
+          (int)subfile, (int)node_num, fptr->pathname);
+      dh_err = DHE_POINTER_ERROR;
+      goto exit_ak_write;
+    }
 
     x = compare(id, id_len, (rec_ptr->id), rec_ptr->id_len, rj, nocase);
     if (x <= 0) /* Record goes here */
@@ -2168,7 +2457,7 @@ Private bool ak_write(DH_FILE *dh_file, /* File descriptor */
       break;
     }
 
-    rec_offset += rec_ptr->next;
+    rec_offset += rec_size;
   }
 
   if (!found) {
@@ -2279,6 +2568,10 @@ Private bool ak_write(DH_FILE *dh_file, /* File descriptor */
 
   new_node1_num = get_ak_node(dh_file, subfile);
   new_node1 = (DH_TERM_NODE *)k_alloc(50, DH_AK_NODE_SIZE);
+  if (new_node1 == NULL) {
+    dh_err = DHE_NO_MEM;
+    goto exit_ak_write;
+  }
   memset((char *)new_node1, '\0', DH_AK_NODE_SIZE);
   new_node1->node_type = AK_TERM_NODE;
 
@@ -2300,6 +2593,10 @@ Private bool ak_write(DH_FILE *dh_file, /* File descriptor */
 
   new_node2_num = get_ak_node(dh_file, subfile);
   new_node2 = (DH_TERM_NODE *)k_alloc(50, DH_AK_NODE_SIZE);
+  if (new_node2 == NULL) {
+    dh_err = DHE_NO_MEM;
+    goto exit_ak_write;
+  }
   memset((char *)new_node2, '\0', DH_AK_NODE_SIZE);
   new_node2->node_type = AK_TERM_NODE;
   new_node2->used_bytes = TERM_NODE_HEADER_SIZE;
@@ -2394,8 +2691,13 @@ Private bool ak_write(DH_FILE *dh_file, /* File descriptor */
 
   rec_offset = next_offset;
   while (rec_offset < used_bytes) {
-    rec_ptr = (DH_RECORD *)(((char *)&(tail->node.term_node)) + rec_offset);
-    rec_size = rec_ptr->next;
+    if (!ak_get_term_record(&tail->node.term_node, rec_offset, &rec_ptr, &rec_size)) {
+      log_printf(
+          "AK_WRITE: corrupt record during split at subfile %d of file %s.\n",
+          (int)subfile, fptr->pathname);
+      dh_err = DHE_POINTER_ERROR;
+      goto exit_ak_write;
+    }
 
     if (new_node2->used_bytes + rec_size > DH_AK_NODE_SIZE)
       break;
@@ -2403,7 +2705,7 @@ Private bool ak_write(DH_FILE *dh_file, /* File descriptor */
     memcpy(((char *)new_node2) + new_node2->used_bytes, (char *)rec_ptr, rec_size);
     new_node2->used_bytes += rec_size;
 
-    rec_offset += rec_ptr->next;
+    rec_offset += rec_size;
   }
 
   /* Here we show node 2 as holding all the remaining data from the old MS
@@ -2428,6 +2730,10 @@ Private bool ak_write(DH_FILE *dh_file, /* File descriptor */
   if (rec_offset < used_bytes) {
     new_node3_num = get_ak_node(dh_file, subfile);
     new_node3 = (DH_TERM_NODE *)k_alloc(50, DH_AK_NODE_SIZE);
+    if (new_node3 == NULL) {
+      dh_err = DHE_NO_MEM;
+      goto exit_ak_write;
+    }
     memset((char *)new_node3, '\0', DH_AK_NODE_SIZE);
     new_node3->node_type = AK_TERM_NODE;
     new_node3->used_bytes = TERM_NODE_HEADER_SIZE;
@@ -2477,6 +2783,10 @@ Private bool ak_write(DH_FILE *dh_file, /* File descriptor */
   if (new_node1->left) {
     if (link_node == NULL) {
       link_node = (DH_TERM_NODE *)k_alloc(50, DH_AK_NODE_SIZE);
+      if (link_node == NULL) {
+        dh_err = DHE_NO_MEM;
+        goto exit_ak_write;
+      }
     }
 
     if (!dh_read_group(dh_file, subfile, GetAKFwdLink(dh_file, new_node1->left), (char *)link_node, DH_AK_NODE_SIZE)) {
@@ -2516,6 +2826,10 @@ Private bool ak_write(DH_FILE *dh_file, /* File descriptor */
   if (link_node_ptr->right) {
     if (link_node == NULL) {
       link_node = (DH_TERM_NODE *)k_alloc(50, DH_AK_NODE_SIZE);
+      if (link_node == NULL) {
+        dh_err = DHE_NO_MEM;
+        goto exit_ak_write;
+      }
     }
 
     if (!dh_read_group(dh_file, subfile, GetAKFwdLink(dh_file, link_node_ptr->right), (char *)link_node, DH_AK_NODE_SIZE)) {
@@ -2662,8 +2976,6 @@ ak_written:
 exit_ak_write:
   if (lock_slot != 0)
     FreeGroupWriteLock(lock_slot);
-  if (header_lock != 0)
-    FreeGroupWriteLock(header_lock);
 
   /* Release memory */
 
@@ -2692,17 +3004,25 @@ exit_ak_write:
 Private DH_RECORD *rightmost(DH_TERM_NODE *node) {
   int16_t rec_offset;
   int16_t used_bytes;
+  int16_t rec_size;
   DH_RECORD *rec_ptr;
 
   used_bytes = node->used_bytes;
+  if (used_bytes < TERM_NODE_HEADER_SIZE || used_bytes > DH_AK_NODE_SIZE)
+    return NULL;
+
   rec_offset = TERM_NODE_HEADER_SIZE;
   if (rec_offset == used_bytes)
     return NULL; /* Node is empty */
 
-  do {
-    rec_ptr = (DH_RECORD *)(((char *)node) + rec_offset);
-    rec_offset += rec_ptr->next;
-  } while (rec_offset < used_bytes);
+  if (!ak_get_term_record(node, rec_offset, &rec_ptr, &rec_size))
+    return NULL;
+
+  while (rec_offset + rec_size < used_bytes) {
+    rec_offset += rec_size;
+    if (!ak_get_term_record(node, rec_offset, &rec_ptr, &rec_size))
+      return NULL;
+  }
 
   return rec_ptr;
 }
@@ -2720,6 +3040,11 @@ Private void copy_ak_record(DH_FILE *dh_file,
                             STRING_CHUNK *str,    /* Record data string chunk head */
                             int16_t pad_bytes) {
   char *data_ptr; /* Data */
+
+  if (id_len < 0 || id_len > MAX_KEY_LEN) {
+    log_printf("copy_ak_record: invalid id_len %d\n", (int)id_len);
+    return;
+  }
 
   rec_ptr->next = base_size;
   rec_ptr->flags = 0;
@@ -2754,6 +3079,10 @@ Private int32_t get_ak_node(DH_FILE *dh_file, int16_t subfile) {
   int64 file_bytes;
 
   ak_header = (DH_AK_HEADER *)k_alloc(51, DH_AK_HEADER_SIZE);
+  if (ak_header == NULL) {
+    dh_err = DHE_NO_MEM;
+    return 0;
+  }
 
   if (!dh_read_group(dh_file, subfile, 0, (char *)ak_header, DH_AK_HEADER_SIZE)) {
     goto exit_get_ak_node;
@@ -2763,7 +3092,10 @@ Private int32_t get_ak_node(DH_FILE *dh_file, int16_t subfile) {
     file_bytes = filelength64(dh_file->sf[subfile].fu);
     new_node_num = (int32_t)((file_bytes - dh_file->ak_header_bytes) / DH_AK_NODE_SIZE + 1);
 
-    chsize64(dh_file->sf[subfile].fu, file_bytes + DH_AK_NODE_SIZE);
+    if (chsize64(dh_file->sf[subfile].fu, file_bytes + DH_AK_NODE_SIZE) != 0) {
+      new_node_num = 0;
+      goto exit_get_ak_node;
+    }
   } else {
     new_node_num = GetAKFwdLink(dh_file, ak_header->free_chain);
     if (!dh_read_group(dh_file, subfile, new_node_num, (char *)&ak_node, DH_FREE_NODE_SIZE)) {
@@ -2793,6 +3125,10 @@ Private bool free_ak_node(DH_FILE *dh_file, int16_t subfile, int32_t node_num) {
   DH_FREE_NODE ak_node;
 
   ak_header = (DH_AK_HEADER *)k_alloc(54, DH_AK_HEADER_SIZE);
+  if (ak_header == NULL) {
+    dh_err = DHE_NO_MEM;
+    return FALSE;
+  }
 
   if (!dh_read_group(dh_file, subfile, 0, (char *)ak_header, DH_AK_HEADER_SIZE)) {
     goto exit_free_ak_node;
@@ -2831,8 +3167,7 @@ Private void ak_delete(DH_FILE *dh_file, /* File descriptor */
 {
   FILE_ENTRY *fptr;        /* File table entry pointer */
   int16_t subfile;         /* Subfile number */
-  int16_t lock_slot = 0;   /* Group lock table index */
-  int16_t header_lock = 0; /* File header group lock table index */
+  int16_t lock_slot = 0; /* Group lock table index */
   int32_t node_num;
   int32_t sibling_node_num;
   int16_t flags;      /* AK flags from ak.data matrix */
@@ -2845,6 +3180,7 @@ Private void ak_delete(DH_FILE *dh_file, /* File descriptor */
   int16_t rec_size;   /* ...and its size */
   NODE *node_ptr;
   bool found;
+  bool record_deleted = FALSE;
   int16_t x;
   int n;
   char *key;       /* Key being examined in tree scan... */
@@ -2857,6 +3193,11 @@ Private void ak_delete(DH_FILE *dh_file, /* File descriptor */
   bool rightmost_record;
 
   tail = NULL;
+
+  if (id_len > MAX_KEY_LEN) {
+    dh_err = DHE_POINTER_ERROR;
+    return;
+  }
 
   /* Get basic information */
 
@@ -2881,6 +3222,10 @@ Private void ak_delete(DH_FILE *dh_file, /* File descriptor */
     /* Allocate a new buffer area */
 
     node_ptr = (NODE *)k_alloc(43, sizeof(struct NODE));
+    if (node_ptr == NULL) {
+      dh_err = DHE_NO_MEM;
+      goto exit_ak_delete;
+    }
     node_ptr->prev = tail;
     tail = node_ptr;
     tail->node_num = node_num;
@@ -2898,7 +3243,15 @@ Private void ak_delete(DH_FILE *dh_file, /* File descriptor */
       log_printf(
           "AK_DELETE: Invalid node type (x%04X) at subfile %d node %d\nof "
           "file %s.\n",
-          (int)(tail->node.int_node.node_type), (int)subfile, node_num, fptr->pathname);
+          (int)(tail->node.int_node.node_type), (int)subfile, (int)node_num, fptr->pathname);
+      dh_err = DHE_AK_NODE_ERROR;
+      goto exit_ak_delete;
+    }
+
+    if (!ak_validate_int_node(&tail->node.int_node)) {
+      log_printf(
+          "AK_DELETE: corrupt internal node at subfile %d node %d of file %s.\n",
+          (int)subfile, (int)node_num, fptr->pathname);
       dh_err = DHE_AK_NODE_ERROR;
       goto exit_ak_delete;
     }
@@ -2919,6 +3272,7 @@ Private void ak_delete(DH_FILE *dh_file, /* File descriptor */
 
     if (!found) /* Key is to right of existing values */
     {
+      dh_err = DHE_RECORD_NOT_FOUND;
       goto exit_ak_delete;
     }
 
@@ -2943,18 +3297,20 @@ Private void ak_delete(DH_FILE *dh_file, /* File descriptor */
   }
 
   rec_offset = TERM_NODE_HEADER_SIZE;
-  found = FALSE;
   prev_key = NULL;
   while (rec_offset < used_bytes) {
-    rec_ptr = (DH_RECORD *)(((char *)&(tail->node.term_node)) + rec_offset);
-    rec_size = rec_ptr->next;
+    if (!ak_get_term_record(&tail->node.term_node, rec_offset, &rec_ptr, &rec_size)) {
+      log_printf(
+          "AK_DELETE: corrupt record at subfile %d node %d of file %s.\n",
+          (int)subfile, (int)tail->node_num, fptr->pathname);
+      dh_err = DHE_POINTER_ERROR;
+      goto exit_ak_delete;
+    }
 
     x = compare(id, id_len, rec_ptr->id, rec_ptr->id_len, rj, nocase);
-    if (x <= 0) /* Record goes here */
+    if (x == 0) /* Found key  -  Delete record */
     {
-      if (x == 0) /* Found key  -  Delete record */
-      {
-        rightmost_record = ((rec_offset + rec_ptr->next) == used_bytes);
+        rightmost_record = ((rec_offset + rec_size) == used_bytes);
 
         if (rec_ptr->flags & DH_BIG_REC) /* Old record is big */
         {
@@ -2987,6 +3343,10 @@ Private void ak_delete(DH_FILE *dh_file, /* File descriptor */
               /* Adjust right pointer from left sibling */
 
               sibling = (DH_TERM_NODE *)k_alloc(57, DH_AK_NODE_SIZE);
+              if (sibling == NULL) {
+                dh_err = DHE_NO_MEM;
+                goto exit_ak_delete;
+              }
 
               if (tail->node.term_node.left != 0) {
                 sibling_node_num = GetAKFwdLink(dh_file, tail->node.term_node.left);
@@ -3041,13 +3401,21 @@ Private void ak_delete(DH_FILE *dh_file, /* File descriptor */
             }
           }
         }
-      }
-      goto record_deleted;
+        record_deleted = TRUE;
+        goto record_deleted;
     }
+
+    if (x < 0) /* Search key is before this record - not in tree */
+      break;
 
     prev_key = rec_ptr->id;
     prev_len = rec_ptr->id_len;
-    rec_offset += rec_ptr->next;
+    rec_offset += rec_size;
+  }
+
+  if (!record_deleted) {
+    dh_err = DHE_RECORD_NOT_FOUND;
+    goto exit_ak_delete;
   }
 
 record_deleted:
@@ -3069,8 +3437,6 @@ node_deleted:
 exit_ak_delete:
   if (lock_slot != 0)
     FreeGroupWriteLock(lock_slot);
-  if (header_lock != 0)
-    FreeGroupWriteLock(header_lock);
 
   /* Release memory */
 
@@ -3107,6 +3473,7 @@ Private STRING_CHUNK *ak_read(DH_FILE *dh_file, /* File descriptor */
   int16_t child_ct;       /* Child node count */
   int16_t ci;             /* Child index for node scan */
   int16_t rec_offset = 0; /* Offset of current record and... */ /* initialized to clear a clang warning -gwb */
+  int16_t rec_size = 0;
   DH_RECORD *rec_ptr;     /* ...its DH_RECORD pointer */
   union AKBUFF *node = NULL;
   bool found;
@@ -3123,6 +3490,15 @@ Private STRING_CHUNK *ak_read(DH_FILE *dh_file, /* File descriptor */
   /* Allocate node buffer */
 
   node = (AKBUFF *)k_alloc(105, sizeof(AKBUFF));
+  if (node == NULL) {
+    dh_err = DHE_NO_MEM;
+    return NULL;
+  }
+
+  if (id_len > MAX_KEY_LEN) {
+    dh_err = DHE_POINTER_ERROR;
+    goto exit_ak_read;
+  }
 
   /* Get basic information */
 
@@ -3157,7 +3533,15 @@ Private STRING_CHUNK *ak_read(DH_FILE *dh_file, /* File descriptor */
       log_printf(
           "AK_READ: Invalid node type (x%04X) at subfile %d node %d\nof file "
           "%s.\n",
-          (int)(node->int_node.node_type), (int)subfile, node_num, fptr->pathname);
+          (int)(node->int_node.node_type), (int)subfile, (int)node_num, fptr->pathname);
+      dh_err = DHE_AK_NODE_ERROR;
+      goto exit_ak_read;
+    }
+
+    if (!ak_validate_int_node(&node->int_node)) {
+      log_printf(
+          "AK_READ: corrupt internal node at subfile %d node %d of file %s.\n",
+          (int)subfile, (int)node_num, fptr->pathname);
       dh_err = DHE_AK_NODE_ERROR;
       goto exit_ak_read;
     }
@@ -3223,7 +3607,13 @@ Private STRING_CHUNK *ak_read(DH_FILE *dh_file, /* File descriptor */
   rec_offset = TERM_NODE_HEADER_SIZE;
   found = FALSE;
   while (rec_offset < used_bytes) {
-    rec_ptr = (DH_RECORD *)(((char *)&(node->term_node)) + rec_offset);
+    if (!ak_get_term_record(&node->term_node, rec_offset, &rec_ptr, &rec_size)) {
+      log_printf(
+          "AK_READ: corrupt record at subfile %d node %d of file %s.\n",
+          (int)subfile, (int)node_num, fptr->pathname);
+      dh_err = DHE_POINTER_ERROR;
+      goto exit_ak_read;
+    }
 
     x = compare(id, id_len, rec_ptr->id, rec_ptr->id_len, rj, nocase);
     if (x <= 0) /* Found or gone past position */
@@ -3283,7 +3673,7 @@ Private STRING_CHUNK *ak_read(DH_FILE *dh_file, /* File descriptor */
       goto exit_ak_read;
     }
 
-    rec_offset += rec_ptr->next;
+    rec_offset += rec_size;
   }
 
   /* If we arrive here, we have gone off the right side of the terminal node.
@@ -3449,6 +3839,12 @@ Private bool update_internal_node(DH_FILE *dh_file,  /* DH file affected and... 
     pkey_len = id3_len;
   }
 
+  if (node_ptr->node.int_node.node_type != AK_INT_NODE ||
+      !ak_validate_int_node(&node_ptr->node.int_node)) {
+    dh_err = DHE_AK_NODE_ERROR;
+    return FALSE;
+  }
+
   update_parent = (node_ptr->ci == node_ptr->node.int_node.child_count - 1);
 
   key_diff = key_len - node_ptr->node.int_node.key_len[node_ptr->ci];
@@ -3464,6 +3860,10 @@ Private bool update_internal_node(DH_FILE *dh_file,  /* DH file affected and... 
 
     new_node_num = get_ak_node(dh_file, subfile);
     new_node = (DH_INT_NODE *)k_alloc(55, DH_AK_NODE_SIZE);
+    if (new_node == NULL) {
+      dh_err = DHE_NO_MEM;
+      goto exit_update_internal_node;
+    }
     memset((char *)new_node, '\0', DH_AK_NODE_SIZE);
 
     new_node->node_type = AK_INT_NODE;
@@ -3516,6 +3916,10 @@ Private bool update_internal_node(DH_FILE *dh_file,  /* DH file affected and... 
          child nodes.                                                 */
 
       root_node = (NODE *)k_alloc(56, sizeof(struct NODE));
+      if (root_node == NULL) {
+        dh_err = DHE_NO_MEM;
+        goto exit_update_internal_node;
+      }
       node_ptr->prev = root_node;
       root_node->prev = NULL;
       root_node->node_num = 1;
@@ -3714,6 +4118,10 @@ bool ak_clear(DH_FILE *dh_file, int16_t subfile) {
   char *buff = NULL;
 
   buff = (char *)k_alloc(59, DH_AK_NODE_SIZE);
+  if (buff == NULL) {
+    dh_err = DHE_NO_MEM;
+    return FALSE;
+  }
 
   if (FDS_open(dh_file, subfile)) {
     if (!dh_read_group(dh_file, subfile, 0, buff, DH_AK_HEADER_SIZE)) {
@@ -3745,7 +4153,10 @@ bool ak_clear(DH_FILE *dh_file, int16_t subfile) {
       node_num = GetAKFwdLink(dh_file, ((DH_ITYPE_NODE *)buff)->next);
     }
 
-    chsize64(dh_file->sf[subfile].fu, eof);
+    if (chsize64(dh_file->sf[subfile].fu, eof) != 0) {
+      dh_err = DHE_WRITE_ERROR;
+      goto exit_ak_clear;
+    }
 
     /* Write an empty terminal node at the root node position */
 
@@ -3802,22 +4213,44 @@ Private STRING_CHUNK *ak_read_record(DH_FILE *dh_file, int16_t subfile, DH_RECOR
   STRING_CHUNK *str = NULL;
   int32_t node_num;
   int32_t data_len;
+  int32_t chain_limit;
+  int chain_count = 0;
   int16_t n;
   DH_BIG_NODE *buff = NULL;
 
   if (rec_ptr->flags & DH_BIG_REC) /* Found a large record */
   {
     buff = (DH_BIG_NODE *)k_alloc(72, DH_AK_NODE_SIZE);
+    if (buff == NULL) {
+      dh_err = DHE_NO_MEM;
+      goto exit_ak_read_record;
+    }
 
     node_num = GetAKFwdLink(dh_file, rec_ptr->data.big_rec);
     while (node_num != 0) {
+      if (++chain_count > AK_BIGREC_MAX_CHAIN_NODES) {
+        dh_err = DHE_POINTER_ERROR;
+        goto exit_ak_read_record;
+      }
+
       if (!dh_read_group(dh_file, subfile, node_num, (char *)buff, DH_AK_NODE_SIZE)) {
+        goto exit_ak_read_record;
+      }
+
+      if (!ak_validate_big_node(buff, (str == NULL))) {
+        dh_err = DHE_POINTER_ERROR;
         goto exit_ak_read_record;
       }
 
       if (str == NULL) {
         data_len = buff->data_len;
+        chain_limit = ak_bigrec_chain_limit(data_len);
+        if (chain_limit > AK_BIGREC_MAX_CHAIN_NODES)
+          chain_limit = AK_BIGREC_MAX_CHAIN_NODES;
         ts_init(&str, data_len);
+      } else if (chain_count > chain_limit) {
+        dh_err = DHE_POINTER_ERROR;
+        goto exit_ak_read_record;
       }
 
       n = (int16_t)min(DH_AK_NODE_SIZE - DH_AK_BIG_NODE_SIZE, data_len);
@@ -3831,6 +4264,10 @@ Private STRING_CHUNK *ak_read_record(DH_FILE *dh_file, int16_t subfile, DH_RECOR
   } else /* Not a large record */
   {
     data_len = rec_ptr->data.data_len;
+    if (data_len < 0 || data_len > AK_BIGREC_MAX_DATA) {
+      dh_err = DHE_POINTER_ERROR;
+      goto exit_ak_read_record;
+    }
     if (data_len != 0) {
       ts_init(&str, data_len);
       ts_copy(rec_ptr->id + rec_ptr->id_len, data_len);
@@ -3853,12 +4290,23 @@ Private int32_t write_ak_big_rec(DH_FILE *dh_file, int16_t subfile, STRING_CHUNK
   DH_BIG_NODE *buff = NULL; /* Buffer */
   int32_t node_num;         /* Node being processed */
   int32_t next_node_num;    /* Next node to write */
+  int32_t chain_limit;
+  int chain_count = 0;
   STRING_CHUNK *str;
   int16_t bytes;
   int n;
   char *p;
   char *q;
   int16_t x;
+
+  if (data_len < 0 || data_len > AK_BIGREC_MAX_DATA) {
+    dh_err = DHE_POINTER_ERROR;
+    return 0;
+  }
+
+  chain_limit = ak_bigrec_chain_limit(data_len);
+  if (chain_limit > AK_BIGREC_MAX_CHAIN_NODES)
+    chain_limit = AK_BIGREC_MAX_CHAIN_NODES;
 
   /* Allocate overflow buffer */
 
@@ -3881,6 +4329,12 @@ Private int32_t write_ak_big_rec(DH_FILE *dh_file, int16_t subfile, STRING_CHUNK
   q = str->data;
 
   do {
+    if (++chain_count > chain_limit) {
+      dh_err = DHE_POINTER_ERROR;
+      head = 0;
+      goto exit_write_ak_big_rec;
+    }
+
     n = min(DH_AK_NODE_SIZE - DH_AK_BIG_NODE_SIZE, data_len);
     buff->used_bytes = DH_AK_BIG_NODE_SIZE + n;
 
@@ -3935,6 +4389,7 @@ Private bool free_ak_big_rec(DH_FILE *dh_file, int16_t subfile, int32_t head) {
   DH_BIG_NODE *buff = NULL;
   int32_t next_node_num;
   int32_t node_num;
+  int chain_count = 0;
 
   buff = (DH_BIG_NODE *)k_alloc(49, DH_AK_NODE_SIZE);
   if (buff == NULL) {
@@ -3944,8 +4399,18 @@ Private bool free_ak_big_rec(DH_FILE *dh_file, int16_t subfile, int32_t head) {
 
   next_node_num = head;
   do {
+    if (++chain_count > AK_BIGREC_MAX_CHAIN_NODES) {
+      dh_err = DHE_POINTER_ERROR;
+      goto exit_free_ak_big_rec;
+    }
+
     node_num = next_node_num;
     if (!dh_read_group(dh_file, subfile, node_num, (char *)buff, DH_AK_NODE_SIZE)) {
+      goto exit_free_ak_big_rec;
+    }
+
+    if (!ak_validate_big_node(buff, (chain_count == 1))) {
+      dh_err = DHE_POINTER_ERROR;
       goto exit_free_ak_big_rec;
     }
 

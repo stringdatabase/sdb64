@@ -19,6 +19,7 @@
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
  * rev 0.9.0 Jan 25 mab change dyn file prefix to %
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -67,13 +68,13 @@ bool dh_create_file(char path[],
     goto exit_dh_create_file;
   }
   group_size_bytes = group_size * DH_GROUP_MULTIPLIER;
-
-  if (min_modulus < 1) {
-    min_modulus = DEFAULT_MIN_MODULUS;
-  } else if (min_modulus < 1) {
-    dh_err = DHE_ILLEGAL_MIN_MODULUS;
+  if (group_size_bytes <= 0 || group_size_bytes > DH_MAX_GROUP_SIZE_BYTES) {
+    dh_err = DHE_ILLEGAL_GROUP_SIZE;
     goto exit_dh_create_file;
   }
+
+  if (min_modulus < 1)
+    min_modulus = DEFAULT_MIN_MODULUS;
 
   if (big_rec_size < 0) {
     big_rec_size = (int32_t)((group_size_bytes)*0.8);
@@ -132,7 +133,11 @@ bool dh_create_file(char path[],
 
   /* Create primary subfile */
 /* rev 0.9.0 */
-  sprintf(primary_subfile, "%s%c%%0", path, DS);
+  if (snprintf(primary_subfile, sizeof(primary_subfile), "%s%c%%0", path, DS) >=
+      (int)sizeof(primary_subfile)) {
+    dh_err = DHE_NAME_TOO_LONG;
+    goto exit_dh_create_file;
+  }
   fu = dio_open(primary_subfile, DIO_NEW);
 
   if (!ValidFileHandle(fu)) {
@@ -194,7 +199,11 @@ bool dh_create_file(char path[],
 
   /* Create overflow subfile */
 /* rev 0.9.0 */
-  sprintf(overflow_subfile, "%s%c%%1", path, DS);
+  if (snprintf(overflow_subfile, sizeof(overflow_subfile), "%s%c%%1", path,
+               DS) >= (int)sizeof(overflow_subfile)) {
+    dh_err = DHE_NAME_TOO_LONG;
+    goto exit_dh_create_file;
+  }
   fu = dio_open(overflow_subfile, DIO_NEW);
 
   if (!ValidFileHandle(fu)) {
@@ -202,6 +211,8 @@ bool dh_create_file(char path[],
     process.os_error = OSError;
     goto exit_dh_create_file;
   }
+
+  overflow_subfile_created = TRUE;
 
   /* Write overflow subfile header */
 

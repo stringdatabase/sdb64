@@ -18,10 +18,11 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
- *
+ * dh_close()  -  Decrement open count and release DH_FILE when last close.
  *
  * END-DESCRIPTION
  *
@@ -42,13 +43,32 @@ bool dh_close(DH_FILE* dh_file) {
   dh_err = 0;
   process.os_error = 0;
 
-  (void)dh_flush_header(dh_file);
+  if (dh_file == NULL) {
+    dh_err = DHE_FILE_NOT_OPEN;
+    return FALSE;
+  }
+
+  fptr = FPtr(dh_file->file_id);
+  if (fptr == NULL) {
+    dh_err = DHE_NOT_A_FILE;
+    return FALSE;
+  }
+
+  if (dh_file->open_count <= 0) {
+    dh_err = DHE_FILE_NOT_OPEN;
+    return FALSE;
+  }
+
+  if (!dh_flush_header(dh_file)) {
+    if (dh_err == 0)
+      dh_err = DHE_PSFH_WRITE_ERROR;
+    return FALSE;
+  }
 
   if (--(dh_file->open_count) == 0) {
     dh_end_select_file(dh_file); /* Clear down partially completed selects */
 
     StartExclusive(FILE_TABLE_LOCK, 42);
-    fptr = FPtr(dh_file->file_id);
     (fptr->ref_ct)--;
     if (my_uptr != NULL)
       (*UFMPtr(my_uptr, dh_file->file_id))--; /* 0505 */
@@ -73,7 +93,7 @@ bool dh_close(DH_FILE* dh_file) {
     deallocate_dh_file(dh_file);
   }
 
-  return (dh_err == 0);
+  return TRUE;
 }
 
 /* ======================================================================
@@ -81,6 +101,9 @@ bool dh_close(DH_FILE* dh_file) {
 
 void deallocate_dh_file(DH_FILE* dh_file) {
   int16_t i;
+
+  if (dh_file == NULL)
+    return;
 
   /* Close subfiles */
 

@@ -19,6 +19,7 @@
  * START-HISTORY:
  * rev 0.9-3 SIGPIPE Error in op_writeskt() (WRITE.SOCKET)  issue #89 / ScarletDME 
  * 31 Dec 23 SD launch - prior history suppressed
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -455,11 +456,12 @@ void op_openskt() {
         break;
 
       default:
-        strcpy(server_addr, "Unknown Address Family!");
+        snprintf(server_addr, sizeof(server_addr), "%s",
+                 "Unknown Address Family!");
     }
 
     if (process.status == 0) {
-      strcpy(sock->ip_addr, server_addr);
+      snprintf(sock->ip_addr, sizeof(sock->ip_addr), "%s", server_addr);
       sock->port = port;
       InitDescr(&result_descr, SOCK);
       result_descr.data.sock = sock;
@@ -822,7 +824,7 @@ void op_srvraddr() {
           }
           break;
         default:
-          strcpy(ip_addr, "Unknown Address Family!");
+          snprintf(ip_addr, sizeof(ip_addr), "%s", "Unknown Address Family!");
       }
     }
 
@@ -1023,10 +1025,11 @@ void op_srvrskt() {
           }
           break;
         default:
-          strcpy(server_addr, "Unknown Address Family!");
+          snprintf(server_addr, sizeof(server_addr), "%s",
+                 "Unknown Address Family!");
       }
       if (process.status == 0) {
-        strcpy(sock->ip_addr, server_addr);
+        snprintf(sock->ip_addr, sizeof(sock->ip_addr), "%s", server_addr);
         sock->port = port;
         InitDescr(&result_descr, SOCK);
         result_descr.data.sock = sock;

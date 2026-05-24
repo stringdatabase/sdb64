@@ -19,6 +19,7 @@
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
  * rev 0.9.0 Jan 25 mab change dyn file prefix to % 
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -598,7 +599,7 @@ Private void open_file(bool map_name) /* Map file name via VOC entry */
       process.status = -ER_MEM;
       goto exit_op_open;
     }
-    strcpy(fvar->voc_name, voc_name);
+    snprintf(fvar->voc_name, strlen(voc_name) + 1, "%s", voc_name);
 
     /* Map name via the VOC */
 
@@ -757,7 +758,7 @@ Private void open_file(bool map_name) /* Map file name via VOC entry */
         goto exit_op_open;
       }
 
-      strcpy(dh_cache[i].pathname, pathname);
+      snprintf(dh_cache[i].pathname, strlen(pathname) + 1, "%s", pathname);
       dh_cache[i].dh_file = dh_file;
       dh_file->open_count++;
     }

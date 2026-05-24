@@ -19,6 +19,7 @@
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
  * 28 Jul 24 mab remove op_cnctport() / CONNECT.PORT not supported
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -45,7 +46,6 @@
 Public bool case_sensitive;
 
 bool IsAdmin(void);
-bool recover_users(void);
 void set_date(int32_t);
 
 Private bool run_exe(char *exe_name, char *cmd_line);
@@ -232,7 +232,9 @@ void op_kernel() {
 
     case K_DATE_CONV:
       if ((result.data.value = (k_get_c_string(descr, s, 32))) > 0) {
-        strcpy(default_date_conversion, s);
+        if (snprintf(default_date_conversion, sizeof(default_date_conversion),
+                     "%s", s) >= (int)sizeof(default_date_conversion))
+          default_date_conversion[sizeof(default_date_conversion) - 1] = '\0';
       }
       k_put_c_string(default_date_conversion, &result);
       break;
@@ -582,7 +584,8 @@ void op_phantom() {
       phantom_uid = assign_user_no(i);
       uptr->uid = phantom_uid;
       uptr->puid = process.user_no;
-      strcpy((char *)(uptr->username), (char *)(my_uptr->username));
+      snprintf((char*)(uptr->username), MAX_USERNAME_LEN + 1, "%s",
+               (char*)(my_uptr->username));
       phantom_user_index = i;
       break;
     }
@@ -609,7 +612,7 @@ void op_phantom() {
       k_error("Overflowed path/filename length in op_phantom()!");
       goto exit_op_phantom;
     }
-    sprintf(option, "-p%d", phantom_user_index);
+    snprintf(option, sizeof(option), "-p%d", phantom_user_index);
     execl(path, path, option, NULL);
   } else if (cpid == -1) { /* Error */
     *(UMap(uptr->uid)) = 0;
@@ -691,11 +694,12 @@ void op_login() {
  
   if (ok) {
     if (pcfg.api_login){
-      strcpy((char *)(my_uptr->username), username);
-      strcpy(process.username, username);
-    }else{
+      snprintf((char*)(my_uptr->username), MAX_USERNAME_LEN + 1, "%s", username);
+      snprintf(process.username, MAX_USERNAME_LEN + 1, "%s", username);
+    } else {
       /* APILOGIN = 0 process.username was assigned in login.user */
-      strcpy((char *)(my_uptr->username), process.username);
+      snprintf((char*)(my_uptr->username), MAX_USERNAME_LEN + 1, "%s",
+               process.username);
     }
   }
   (e_stack++)->data.value = ok;
@@ -835,8 +839,10 @@ void op_userno() {
 /* ======================================================================
    run_exe()  -  Run executable from SD session                           */
 
-Private bool run_exe(char *exe_name, char *cmd_line) {
-  //* NIX implementation to follow
+Private bool run_exe(char* exe_name, char* cmd_line) {
+  (void)exe_name;
+  (void)cmd_line;
+  /* NIX implementation to follow */
   process.status = ER_FAILED;
   return FALSE;
 }

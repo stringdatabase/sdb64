@@ -19,6 +19,7 @@
  * 
  * START-HISTORY:
  * rev 0.9-2 Apr 25 mab op_sd_pyobj
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:

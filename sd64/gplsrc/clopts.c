@@ -18,13 +18,13 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD Launch - prior history suppressed
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
- * Processes these command line options:
- * -K         Kill user(s)
- * -RECOVER   Recover users
- * -U         Show users
+ * CLI helpers (from sd.c): -K kill user(s), -U show users, -CLEANUP,
+ * -SUSPEND / -RESUME. recover_users() is for the running kernel only
+ * (not a separate sd command-line flag); see op_kernel.c.
  *
  * END-DESCRIPTION
  *
@@ -32,16 +32,24 @@
  */
 
 #include <signal.h>
+#include <stdlib.h>
 #include "sd.h"
 #include "locks.h"
 
+/* StartExclusive() debug ids for this module */
+#define CLOPTS_LOCK_RECOVER 45
+#define CLOPTS_LOCK_KILL 68
+#define CLOPTS_LOCK_CLEANUP 59
+
+#define CLOPTS_ORIGIN_LEN (MAX_TTYNAME_LEN + 1 + MAX_SOCKET_ADDR_STR_LEN + 4)
 
 Private void kill_process(USER_ENTRY* uptr);
 Private bool process_exists(int pid);
 Private void remove_user(USER_ENTRY* uptr);
 
 /* ======================================================================
-   recover_users()  -  Recover licence space for vanished users           */
+   recover_users()  -  Recover licence space for vanished users
+   Caller must already have sysseg bound (in-process / kernel API).       */
 
 bool recover_users() {
   bool status = FALSE;
@@ -50,13 +58,10 @@ bool recover_users() {
   int16_t u;
   int16_t user_no;
 
-  /* Be brutal - Lock everything in sight */
-
-  StartExclusive(FILE_TABLE_LOCK,
-                 45); /* TODO: Magic numbers are bad, mmmkay? */
-  StartExclusive(REC_LOCK_SEM, 45);
-  StartExclusive(GROUP_LOCK_SEM, 45);
-  StartExclusive(SHORT_CODE, 45);
+  StartExclusive(FILE_TABLE_LOCK, CLOPTS_LOCK_RECOVER);
+  StartExclusive(REC_LOCK_SEM, CLOPTS_LOCK_RECOVER);
+  StartExclusive(GROUP_LOCK_SEM, CLOPTS_LOCK_RECOVER);
+  StartExclusive(SHORT_CODE, CLOPTS_LOCK_RECOVER);
 
   for (u = 1; u <= sysseg->max_users; u++) {
     uptr = UPtr(u);
@@ -80,36 +85,27 @@ bool recover_users() {
 }
 
 /* ======================================================================
- * show_users()  -  Display user information (SD -U)
- * TODO: this may not show IPv6 addresses properly -gwb 22Feb20
- */
+   show_users()  -  Display user information (SD -U)                      */
 
 void show_users() {
   int i;
   USER_ENTRY* uptr;
-  char origin[50];
+  char origin[CLOPTS_ORIGIN_LEN];
 
   if (!attach_shared_memory()) {
     fprintf(stderr, "SD is not active.\n");
     return;
   }
 
-  /* Users
-     0         1         2         3         4         5         6         7
-     01234567890123456789012345678901234567890123456789012345678901234567890123456789
-      Uid Pid........ Puid Origin.................
-     Username........................ 1234 12345678901 1234 telnet
-     123.123.123.123  xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
- */
-
   printf(" Uid Pid........ Puid Origin................. Username\n");
   for (i = 1; i <= sysseg->max_users; i++) {
     uptr = UPtr(i);
     if (uptr->uid != 0) {
-      strcpy(origin, (char*)(uptr->ttyname));
-      if (origin[0] != '\0')
-        strcat(origin, " ");
-      strcat(origin, (char*)(uptr->ip_addr));
+      if (uptr->ttyname[0] != '\0')
+        snprintf(origin, sizeof(origin), "%s %s", (char*)(uptr->ttyname),
+                 (char*)(uptr->ip_addr));
+      else
+        snprintf(origin, sizeof(origin), "%s", (char*)(uptr->ip_addr));
       printf("%4hd %11d %4d %-23s %-32s\n", uptr->uid, uptr->pid,
              (int)(uptr->puid), origin, uptr->username);
     }
@@ -126,7 +122,8 @@ void kill_user(char* user) {
   int16_t u;
   char errmsg[80 + 1];
   int16_t uid;
-  char* p;
+  char* endp;
+  long n;
 
   if (!attach_shared_memory()) {
     fprintf(stderr, "SD is not active.\n");
@@ -135,48 +132,42 @@ void kill_user(char* user) {
 
   if (!get_semaphores(FALSE, errmsg)) {
     fprintf(stderr, "Cannot access semaphores.\n");
+    unbind_sysseg();
     return;
   }
 
-  StartExclusive(FILE_TABLE_LOCK,
-                 68); /* TODO: Magic numbers are bad, mmmkay? */
-  StartExclusive(REC_LOCK_SEM, 68);
-  StartExclusive(GROUP_LOCK_SEM, 68);
-  StartExclusive(SHORT_CODE, 68);
+  StartExclusive(FILE_TABLE_LOCK, CLOPTS_LOCK_KILL);
+  StartExclusive(REC_LOCK_SEM, CLOPTS_LOCK_KILL);
+  StartExclusive(GROUP_LOCK_SEM, CLOPTS_LOCK_KILL);
+  StartExclusive(SHORT_CODE, CLOPTS_LOCK_KILL);
 
-  if (user == NULL) { /* Kill all users */
+  if (user == NULL) { /* Kill all users; also remove stale table entries */
     log_printf("External request to terminate all SD users.\n");
     for (u = 1; u <= sysseg->max_users; u++) {
       uptr = UPtr(u);
-      if (uptr->uid != 0) {
-        uptr->events |= (uptr->flags & USR_LOGOUT) ? EVT_LOGOUT : EVT_TERMINATE;
-        uptr->flags |= USR_LOGOUT;
-      }
+      if (uptr->uid != 0)
+        kill_process(uptr);
     }
-  } else {              /* Kill specific user */
-    if (IsDigit(*user)) { /* Kill user by user number */
-      for (p = user, uid = 0; IsDigit(*p); p++)
-        uid = (uid * 10) + (*p - '0');
-      if ((*p != '\0') || (uid < 1) || (uid > sysseg->hi_user_no)) {
-        fprintf(stderr, "Invalid user number.\n");
-      } else {
-        log_printf("External request to terminate SD user %d.\n", uid);
-        uptr = UserPtr(uid);
-        if (uptr != NULL)
-          kill_process(uptr);
-        else
-          fprintf(stderr, "User %d is not active.\n", uid);
-      }
-    } else { /* Kill user by login name */
-      log_printf(
-          "External request to terminate SD sessions for user %2.\n",
-          user);
-      for (u = 1; u <= sysseg->max_users; u++) {
-        uptr = UPtr(u);
-        if ((uptr->uid != 0) && !stricmp((char*)(uptr->username), user)) {
-          kill_process(uptr);
-        }
-      }
+  } else if (IsDigit(*user)) { /* Kill user by user number */
+    n = strtol(user, &endp, 10);
+    if ((*endp != '\0') || (n < 1) || (n > sysseg->hi_user_no)) {
+      fprintf(stderr, "Invalid user number.\n");
+    } else {
+      uid = (int16_t)n;
+      log_printf("External request to terminate SD user %d.\n", uid);
+      uptr = UserPtr(uid);
+      if (uptr != NULL)
+        kill_process(uptr);
+      else
+        fprintf(stderr, "User %d is not active.\n", uid);
+    }
+  } else { /* Kill user by login name */
+    log_printf("External request to terminate SD sessions for user %s.\n",
+               user);
+    for (u = 1; u <= sysseg->max_users; u++) {
+      uptr = UPtr(u);
+      if ((uptr->uid != 0) && !stricmp((char*)(uptr->username), user))
+        kill_process(uptr);
     }
   }
 
@@ -189,7 +180,7 @@ void kill_user(char* user) {
 }
 
 /* ======================================================================
-   kill_process()  -  Kill a SD process */
+   kill_process()  -  Kill a SD process                                   */
 
 Private void kill_process(USER_ENTRY* uptr) {
   int16_t user_no;
@@ -197,8 +188,6 @@ Private void kill_process(USER_ENTRY* uptr) {
 
   user_no = uptr->uid;
   pid = uptr->pid;
-
-  /* Check that the process actually exists */
 
   if (process_exists(pid)) {
     uptr->events |= (uptr->flags & USR_LOGOUT) ? EVT_LOGOUT : EVT_TERMINATE;
@@ -217,7 +206,7 @@ void cleanup() {
   int16_t u;
   int16_t user_no;
   int pid;
-  char username[MAX_USERNAME_LEN + 1]; /* Login user name */
+  char username[MAX_USERNAME_LEN + 1];
   char errmsg[80 + 1];
 
   if (!attach_shared_memory()) {
@@ -227,13 +216,14 @@ void cleanup() {
 
   if (!get_semaphores(FALSE, errmsg)) {
     fprintf(stderr, "Cannot access semaphores.\n");
+    unbind_sysseg();
     return;
   }
 
-  StartExclusive(FILE_TABLE_LOCK, 59); /* TODO: Magic numbers are bad, mmkay? */
-  StartExclusive(REC_LOCK_SEM, 59);
-  StartExclusive(GROUP_LOCK_SEM, 59);
-  StartExclusive(SHORT_CODE, 59);
+  StartExclusive(FILE_TABLE_LOCK, CLOPTS_LOCK_CLEANUP);
+  StartExclusive(REC_LOCK_SEM, CLOPTS_LOCK_CLEANUP);
+  StartExclusive(GROUP_LOCK_SEM, CLOPTS_LOCK_CLEANUP);
+  StartExclusive(SHORT_CODE, CLOPTS_LOCK_CLEANUP);
 
   for (u = 1; u <= sysseg->max_users; u++) {
     uptr = UPtr(u);
@@ -258,7 +248,8 @@ void cleanup() {
 }
 
 /* ======================================================================
-   suspend_resume()                                                       */
+   suspend_resume()  -  Set or clear SSF_SUSPEND (admin CLI).
+   No semaphore: acceptable for admin tooling; concurrent sd may race.    */
 
 void suspend_resume(bool suspend) {
   if (!attach_shared_memory()) {
@@ -277,6 +268,8 @@ void suspend_resume(bool suspend) {
 /* ====================================================================== */
 
 Private bool process_exists(int pid) {
+  if (pid <= 0)
+    return FALSE;
   return (!kill(pid, 0) || (errno == EPERM));
 }
 
@@ -285,80 +278,61 @@ Private bool process_exists(int pid) {
 Private void remove_user(USER_ENTRY* uptr) {
   int16_t i;
   int16_t user_no;
-  /* int32_t pid; value set but never used. */
   FILE_ENTRY* fptr;
   RLOCK_ENTRY* lptr;
   GLOCK_ENTRY* gptr;
   u_int16_t* ufm;
 
   user_no = uptr->uid;
-  /* pid = uptr->pid; value set but never used. */
 
-  /* Give away process locks */
+  /* Clear task locks held by this user (use uid, not process.user_no). */
 
   for (i = 0; i < 64; i++) {
-    if (sysseg->task_locks[i] == process.user_no)
+    if (sysseg->task_locks[i] == user_no)
       sysseg->task_locks[i] = 0;
   }
 
-  /* Give away file locks */
-
   for (i = 1; i <= sysseg->used_files; i++) {
     fptr = FPtr(i);
-    if (fptr->ref_ct != 0) /* File entry is in use */
-    {
+    if (fptr->ref_ct != 0) {
       if (abs(fptr->file_lock) == user_no) {
         fptr->file_lock = 0;
         clear_waiters(-i);
-        // 0538       (fptr->ref_ct)--;   /* Must have been open to us */
       }
     }
   }
-
-  /* Give away record locks */
 
   for (i = 1; i <= sysseg->numlocks; i++) {
     lptr = RLPtr(i);
 
     if ((lptr->hash != 0) && (lptr->owner == user_no)) {
-      /* We have found a lock to release */
       (RLPtr(lptr->hash)->count)--;
       (sysseg->rl_count)--;
       (FPtr(lptr->file_id)->lock_count)--;
-      lptr->hash = 0; /* Free this cell */
+      lptr->hash = 0;
       if (lptr->waiters)
         clear_waiters(i);
     }
   }
 
-  /* Give away group locks */
-
   for (i = 1; i <= sysseg->num_glocks; i++) {
     gptr = GLPtr(i);
 
     if ((gptr->hash != 0) && (gptr->owner == user_no)) {
-      /* We have found a lock to release */
       (GLPtr(gptr->hash)->count)--;
-      gptr->hash = 0; /* Free this cell */
+      gptr->hash = 0;
     }
   }
-
-  /* Give away file table entries */
 
   if (!(sysseg->flags & SSF_NO_FILE_CLEANUP)) {
     for (i = 1; i <= sysseg->numfiles; i++) {
       ufm = UFMPtr(uptr, i);
       if (*ufm) {
-        /* The following must allow for a reference count of -1 which
-           indicates exclusive access to the file.                    */
-
         fptr = FPtr(i);
         fptr->ref_ct = abs(fptr->ref_ct) - *ufm;
       }
     }
   }
-
-  /* Release user table entry */
 
   ReleaseLicence(uptr);
 }

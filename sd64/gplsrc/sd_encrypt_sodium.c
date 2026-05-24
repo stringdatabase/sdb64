@@ -19,6 +19,9 @@
  * 
  * START-HISTORY:
  * 30 Jul 2024 MAB add SD_ENCRYPT_SODIUM.C
+ * 24 May 26 - Code reviewed and updated by Claude AI
+ * END-HISTORY
+ *
  * START-DESCRIPTION:
  * 
  *  Encryption, Decryptoin and encoding using libsodium package
@@ -97,20 +100,52 @@
 #include "sd.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <sodium.h>
 
 #include "keys.h"
 
+#define SDME_MIN_CIPHER_LEN \
+  (crypto_secretbox_MACBYTES + crypto_secretbox_NONCEBYTES)
+
+char* sd_salt(void);
 char* sd_KeyFromPW(char* mypassword, char* mysalt);
-
-void sd_encrypt(int encode_type, char *key, char *data);
-void sd_decrypt(int encode_type, char *key, char *data);
-
-
-int sdme_encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key, unsigned char **cipher_out, size_t *cipher_out_len);
-int sdme_decrypt(unsigned char *cipher_in, int cipher_in_len, unsigned char *key, unsigned char **plantext_out);
+void sd_encrypt(int encode_type, char* key, char* data);
+void sd_decrypt(int encode_type, char* key, char* data);
+int sdme_encrypt(unsigned char* plaintext, int plaintext_len, unsigned char* key,
+                 unsigned char** cipher_out, size_t* cipher_out_len);
+int sdme_decrypt(unsigned char* cipher_in, int cipher_in_len, unsigned char* key,
+                 unsigned char** plaintext_out);
 
 Private void sdme_err_rsp(int errnbr);
+
+static bool sdme_valid_encode_type(int encode_type) {
+  return encode_type == SD_EncodeHX || encode_type == SD_Encode64;
+}
+
+static char* sdme_fetch_stack_string(DESCRIPTOR* descr) {
+  STRING_CHUNK* str;
+  int32_t len;
+  size_t buf_sz;
+  char* buf;
+
+  k_get_string(descr);
+  str = descr->data.str.saddr;
+  len = (str == NULL) ? 0 : str->string_len;
+  buf_sz = (size_t)len + 1;
+  buf = malloc(buf_sz);
+  if (buf == NULL)
+    k_error(sysmsg(10005));
+  if (len == 0) {
+    buf[0] = '\0';
+  } else {
+    int32_t copied = k_get_c_string(descr, buf, (int)(buf_sz - 1));
+
+    if (copied < 0)
+      k_error(sysmsg(10004));
+  }
+  return buf;
+}
 
 #ifdef dumphex
 void dump_hex_buff(unsigned char buf[], unsigned int len)
@@ -123,24 +158,31 @@ void dump_hex_buff(unsigned char buf[], unsigned int len)
 
 /* ====================================================================== */
 
-/* Create unique salt and return base64 encoded  (caller mustr free!!!)   */
-char* sd_salt(){
-
+/* Create unique salt and return base64 encoded (caller must free with free()) */
+char* sd_salt(void) {
   unsigned char salt[crypto_pwhash_SALTBYTES];
-  char* saltb64;    /* returned salt buffer */
-  
-  /* random bytes provides us a random salt */
+  char* saltb64;
+  size_t enc_len;
+
+  process.status = 0;
+
+  if (sodium_init() == -1) {
+    process.status = SD_SodInit_Err;
+    return NULL;
+  }
+
   randombytes_buf(salt, sizeof salt);
 
-  /* create buffer for returned salt */
-  saltb64 = malloc(sodium_base64_ENCODED_LEN(sizeof salt, sodium_base64_VARIANT_ORIGINAL)); /* encoded salt buffer */
-
-  if (saltb64 == NULL){
+  enc_len =
+      sodium_base64_ENCODED_LEN(sizeof salt, sodium_base64_VARIANT_ORIGINAL);
+  saltb64 = malloc(enc_len);
+  if (saltb64 == NULL) {
     process.status = SD_Mem_Err;
     return NULL;
   }
 
-  sodium_bin2base64(saltb64, sodium_base64_ENCODED_LEN(sizeof salt, sodium_base64_VARIANT_ORIGINAL), salt, sizeof salt,sodium_base64_VARIANT_ORIGINAL);
+  sodium_bin2base64(saltb64, enc_len, salt, sizeof salt,
+                    sodium_base64_VARIANT_ORIGINAL);
   return saltb64;
 }
 
@@ -151,314 +193,138 @@ char* sd_salt(){
 /* Create key from password and base64 encoded salt */
 /* returns b64 encoded (must be freed by caller!!!) */
 char* sd_KeyFromPW(char* mypassword, char* mysalt) {
-
-  #define KEY_LEN crypto_secretbox_KEYBYTES
+#define KEY_LEN crypto_secretbox_KEYBYTES
 
   unsigned char salt[crypto_pwhash_SALTBYTES];
   unsigned char key[KEY_LEN];
-  char* keyb64;    /* returned key buffer */
+  char* keyb64;
   size_t bin_len;
+  size_t enc_len;
+  size_t passwdlen;
 
-  process.status = 0;  
+  process.status = 0;
 
-  /* all important libsodium initialization */
+  if (mypassword == NULL || mysalt == NULL) {
+    process.status = SD_Decode_Err;
+    return NULL;
+  }
+
+  passwdlen = strlen(mypassword);
+  if (passwdlen > crypto_pwhash_PASSWD_MAX) {
+    process.status = SD_KeyLen_Err;
+    return NULL;
+  }
+
   if (sodium_init() == -1) {
     process.status = SD_SodInit_Err;
     return NULL;
   }
 
-  /* create buffer for returned key */
-  keyb64 = sodium_malloc(sodium_base64_ENCODED_LEN(KEY_LEN, sodium_base64_VARIANT_ORIGINAL));     /* encoded key buffer */
-  if (keyb64 == NULL){
+  enc_len =
+      sodium_base64_ENCODED_LEN(KEY_LEN, sodium_base64_VARIANT_ORIGINAL);
+  keyb64 = sodium_malloc(enc_len);
+  if (keyb64 == NULL) {
     process.status = SD_Mem_Err;
     return NULL;
   }
 
-  /* convert passed encoded salt to bin */
-  if (sodium_base642bin(salt, crypto_pwhash_SALTBYTES, mysalt, strlen(mysalt), NULL, &bin_len, NULL,sodium_base64_VARIANT_ORIGINAL) != 0) {
-  /* decode failed */
+  if (sodium_base642bin(salt, sizeof salt, mysalt, strlen(mysalt), NULL, &bin_len,
+                       NULL, sodium_base64_VARIANT_ORIGINAL) != 0 ||
+      bin_len != sizeof salt) {
     process.status = SD_Decode_Err;
-    keyb64[0] = '\0';
-    return keyb64;  
+    sodium_free(keyb64);
+    return NULL;
   }
 
-  /* create the key from passed password and salt */
-  if (crypto_pwhash
-      (key, sizeof key, mypassword, strlen(mypassword), salt,
-      crypto_pwhash_OPSLIMIT_INTERACTIVE, crypto_pwhash_MEMLIMIT_INTERACTIVE,
-      crypto_pwhash_ALG_DEFAULT) != 0) {
-      /* pwhash failed,                                    */  
-      /* usual cause is out of memory, return empty string */
-      keyb64[0] = '\0';
-  } else {
-      sodium_bin2base64(keyb64, sodium_base64_ENCODED_LEN(KEY_LEN, sodium_base64_VARIANT_ORIGINAL), key, KEY_LEN,sodium_base64_VARIANT_ORIGINAL);
-    
+  if (crypto_pwhash(key, sizeof key, mypassword, (unsigned long long)passwdlen,
+                    salt,
+                    crypto_pwhash_OPSLIMIT_INTERACTIVE,
+                    crypto_pwhash_MEMLIMIT_INTERACTIVE,
+                    crypto_pwhash_ALG_DEFAULT) != 0) {
+    process.status = SD_Mem_Err;
+    sodium_free(keyb64);
+    return NULL;
   }
+
+  sodium_bin2base64(keyb64, enc_len, key, KEY_LEN,
+                    sodium_base64_VARIANT_ORIGINAL);
   return keyb64;
+#undef KEY_LEN
 }
 
 /* ====================================================================== */
 
-void op_encrypt() {
-/*    encrypted_text = SDENCRYPT(Data,KeyToUse,Encoding) 
-      Stack:
-        +=============================++=============================+
-        +       STACK On Entry        ++       STACK On Exit         +
-        +=============================++=============================+
-estack> +    next available descr     ++    next available descr     +
-        +=============================++=============================+
-        +  descriptor w/ integer      ++  Addr to descr for RTNVAL   +
-        +      Encoding               ++                             +
-        +=============================++=============================+
-        + Addr to descriptor for Arg  ++   
-        +      KeyToUse               ++
-        +=============================++
-        + Addr to descriptor for Arg  ++
-        +      Data                   ++           
-        +=============================++
-*/       
-
-  int32_t key_len;
-  int32_t keybf_sz;
-  char* key_buffer;                       /* buffer for passed key string  */
-  int32_t data_len;
-  int32_t databf_sz;
-  char* data_buffer;                       /* buffer for passed key string  */
-  STRING_CHUNK* str;
-  int16_t encodeType;
-
+void op_encrypt(void) {
   DESCRIPTOR* descr;
-  
-  /* set the process.status flag to  "successful"      */
-  /* User can retrieve this status with the BASIC function STATUS()*/
-    process.status = 0;
-    
-  /* Get Encoding  */
-  descr = e_stack - 1;   /* e_stack - 1 points to key descriptor */
+  int16_t encodeType;
+  char* key_buffer;
+  char* data_buffer;
+
+  process.status = 0;
+
+  descr = e_stack - 1;
   GetInt(descr);
   encodeType = (int16_t)(descr->data.value);
-  k_pop(1);   /* after pop() e_stack - 1 points to descr which holds KeyToUse  */   
+  k_pop(1);
 
-  /* Get Key string */
+  if (!sdme_valid_encode_type(encodeType)) {
+    sdme_err_rsp(SD_EDType_Err);
+    return;
+  }
+
   descr = e_stack - 1;
-  k_get_string(descr);
-  str = descr->data.str.saddr;
-  /* is there something there? */
-  if (str == NULL){
-    key_len = 0;  
-    keybf_sz = 1;              /* room for string terminator */
-  }else{
-	 key_len =  str->string_len;
-     keybf_sz  =  key_len+1;  /* room for string terminator */
-  }
-  
-  /* allocate space for val string */
-  key_buffer = malloc(keybf_sz * sizeof(char));
-  if (key_buffer == NULL){
-  /* so here is a question, what to do if we cannot allocate memory?
-     Looking thru the code SD sometimes checks and other times does not.
-	 We will end execution of program and attempt to report error  */
-     k_error(sysmsg(10005));   /* Insufficient memory for buffer allocation */
-	 /* We never come back from k_error */
-  }
+  key_buffer = sdme_fetch_stack_string(descr);
+  k_dismiss();
 
-  /* move the passed argument string to our buffer */
-  if (key_len == 0){
-	  key_buffer[0] = '\0';
-  } else {
-   /* rem string length returned by k_get_c_string excludes terminator in count!*/ 
-      key_len = k_get_c_string(descr, key_buffer, key_len);
-  }
-  
-  k_dismiss();   /* done with passed arg  descriptor */
-                 /* Things to note                   */  
-                 /* we use dismiss() instead of pop() because this is a string */ 
-                 /* which may be made up of a linked list of string blocks     */
-                 /* Using pop would not free the string blocks                 */
-                 /* After dismiss() e_stack  points to descr which will receive RTNVAL */
-                 
-/* Get data string */
   descr = e_stack - 1;
-  k_get_string(descr);
-  str = descr->data.str.saddr;
-  /* is there something there? */
-  if (str == NULL){
-    data_len = 0;  
-    databf_sz = 1;              /* room for string terminator */
-  }else{
-	 data_len =  str->string_len;
-     databf_sz  =  data_len+1;  /* room for string terminator */
-  }
-  
-  /* allocate space for val string */
-  data_buffer = malloc(databf_sz * sizeof(char));
-  if (data_buffer == NULL){
-  /* so here is a question, what to do if we cannot allocate memory?
-     Looking thru the code SD sometimes checks and other times does not.
-	 We will end execution of program and attempt to report error  */
-     k_error(sysmsg(10005));   /* Insufficient memory for buffer allocation */
-	 /* We never come back from k_error */
-  }
+  data_buffer = sdme_fetch_stack_string(descr);
+  k_dismiss();
 
-  /* move the passed argument string to our buffer */
-  if (data_len == 0){
-	  data_buffer[0] = '\0';
-  } else {
-   /* rem string length returned by k_get_c_string excludes terminator in count!*/ 
-      data_len = k_get_c_string(descr, data_buffer, data_len);
-  }
-  
-  k_dismiss();   /* done with passed arg  descriptor */
+  sd_encrypt(encodeType, key_buffer, data_buffer);
 
-/* encrypt the data */
-
-  sd_encrypt(encodeType,key_buffer,data_buffer);
-
-/* release buffers */
-
-  if (key_buffer != NULL){
-    free(key_buffer);    
-  }
-  
-  if (data_buffer != NULL){
-    free(data_buffer);    
-  }
-
-return;
-
+  free(key_buffer);
+  free(data_buffer);
 }
 
 /* ====================================================================== */
 
-void op_decrypt() {
-/*    decrypted_text = SDDECRYPT(Data,KeyToUse,Encoding) 
-      Stack:
-        +=============================++=============================+
-        +       STACK On Entry        ++       STACK On Exit         +
-        +=============================++=============================+
-estack> +    next available descr     ++    next available descr     +
-        +=============================++=============================+
-        +  descriptor w/ integer      ++  Addr to descr for RTNVAL   +
-        +      Encoding               ++                             +
-        +=============================++=============================+
-        + Addr to descriptor for Arg  ++   
-        +      KeyToUse               ++
-        +=============================++
-        + Addr to descriptor for Arg  ++
-        +      Data                   ++           
-        +=============================++
-*/       
-
-  int32_t key_len;
-  int32_t keybf_sz;
-  char* key_buffer;                       /* buffer for passed key string  */
-  int32_t data_len;
-  int32_t databf_sz;
-  char* data_buffer;                       /* buffer for passed key string  */
-  STRING_CHUNK* str;
-  int16_t encodeType;
-
+void op_decrypt(void) {
   DESCRIPTOR* descr;
-  
-  /* set the process.status flag to  "successful"      */
-  /* User can retrieve this status with the BASIC function STATUS()*/
-    process.status = 0;
-    
-  /* Get Encoding  */
-  descr = e_stack - 1;   /* e_stack - 1 points to key descriptor */
+  int16_t encodeType;
+  char* key_buffer;
+  char* data_buffer;
+
+  process.status = 0;
+
+  descr = e_stack - 1;
   GetInt(descr);
   encodeType = (int16_t)(descr->data.value);
-  k_pop(1);   /* after pop() e_stack - 1 points to descr which holds KeyToUse  */   
+  k_pop(1);
 
-  /* Get Key string */
+  if (!sdme_valid_encode_type(encodeType)) {
+    sdme_err_rsp(SD_EDType_Err);
+    return;
+  }
+
   descr = e_stack - 1;
-  k_get_string(descr);
-  str = descr->data.str.saddr;
-  /* is there something there? */
-  if (str == NULL){
-    key_len = 0;  
-    keybf_sz = 1;              /* room for string terminator */
-  }else{
-	 key_len =  str->string_len;
-     keybf_sz  =  key_len+1;  /* room for string terminator */
-  }
-  
-  /* allocate space for val string */
-  key_buffer = malloc(keybf_sz * sizeof(char));
-  if (key_buffer == NULL){
-  /* so here is a question, what to do if we cannot allocate memory?
-     Looking thru the code SD sometimes checks and other times does not.
-	 We will end execution of program and attempt to report error  */
-     k_error(sysmsg(10005));   /* Insufficient memory for buffer allocation */
-	 /* We never come back from k_error */
-  }
+  key_buffer = sdme_fetch_stack_string(descr);
+  k_dismiss();
 
-  /* move the passed argument string to our buffer */
-  if (key_len == 0){
-	  key_buffer[0] = '\0';
-  } else {
-   /* rem string length returned by k_get_c_string excludes terminator in count!*/ 
-      key_len = k_get_c_string(descr, key_buffer, key_len);
-  }
-  
-  k_dismiss();   /* done with passed arg  descriptor */
-                 
-/* Get data string */
   descr = e_stack - 1;
-  k_get_string(descr);
-  str = descr->data.str.saddr;
-  /* is there something there? */
-  if (str == NULL){
-    data_len = 0;  
-    databf_sz = 1;              /* room for string terminator */
-  }else{
-	 data_len =  str->string_len;
-     databf_sz  =  data_len+1;  /* room for string terminator */
-  }
-  
-  /* allocate space for val string */
-  data_buffer = malloc(databf_sz * sizeof(char));
-  if (data_buffer == NULL){
-  /* so here is a question, what to do if we cannot allocate memory?
-     Looking thru the code SD sometimes checks and other times does not.
-	 We will end execution of program and attempt to report error  */
-     k_error(sysmsg(10005));   /* Insufficient memory for buffer allocation */
-	 /* We never come back from k_error */
-  }
+  data_buffer = sdme_fetch_stack_string(descr);
+  k_dismiss();
 
-  /* move the passed argument string to our buffer */
-  if (data_len == 0){
-	  data_buffer[0] = '\0';
-  } else {
-   /* rem string length returned by k_get_c_string excludes terminator in count!*/ 
-      data_len = k_get_c_string(descr, data_buffer, data_len);
-  }
-  
-  k_dismiss();   /* done with passed arg  descriptor */
+  sd_decrypt(encodeType, key_buffer, data_buffer);
 
-/* decrypt the data */
-
-  sd_decrypt(encodeType,key_buffer,data_buffer);
-
-/* release buffers */
-
-  if (key_buffer != NULL){
-    free(key_buffer);    
-  }
-  
-  if (data_buffer != NULL){
-    free(data_buffer);    
-  }
-
-return;
-
+  free(key_buffer);
+  free(data_buffer);
 }
 
 /* ====================================================================== */
 
 /*  function encrypts data using key (which is encoded, based on encode_type) 
 and encodes encrypted data based on encode_type */
-void sd_encrypt(int encode_type, char *key, char *data) {
+void sd_encrypt(int encode_type, char* key, char* data) {
   unsigned char dckey[crypto_secretbox_KEYBYTES];  /* decoded key buffer  */
   unsigned char *cipher_buf;
   char *encode_out;
@@ -472,17 +338,22 @@ void sd_encrypt(int encode_type, char *key, char *data) {
   encode_out = NULL;
   cipher_buf = NULL;
 
-  /* set the process.status flag to  "successful"      */
-  /* User can retrieve this status with the BASIC function STATUS()*/
   process.status = 0;
 
-  /* all important libsodium initialization */
-  if (sodium_init() == -1) {
-    sdme_err_rsp(SD_SodInit_Err);  /* initialization error */
-    return ;
+  if (key == NULL || data == NULL) {
+    sdme_err_rsp(SD_KeyLen_Err);
+    return;
   }
 
-  /*Evaluate Encode Type */
+  if (!sdme_valid_encode_type(encode_type)) {
+    sdme_err_rsp(SD_EDType_Err);
+    return;
+  }
+
+  if (sodium_init() == -1) {
+    sdme_err_rsp(SD_SodInit_Err);
+    return;
+  }
 
   switch (encode_type) {
 	  
@@ -517,11 +388,11 @@ void sd_encrypt(int encode_type, char *key, char *data) {
       }
 
       /* will the encode operation exceed max string?? */
-      if ((cipher_buf_len * 2) > MAX_STRING_SIZE){
-		    free(key);
-		    free(data); 
-        sodium_free(cipher_buf);		  
-        k_error(sysmsg(10004));   /* Operation exceeds MAX_STRING_SIZE */
+      if ((cipher_buf_len * 2) > (size_t)MAX_STRING_SIZE) {
+        free(key);
+        free(data);
+        sodium_free(cipher_buf);
+        k_error(sysmsg(10004)); /* does not return */
       }
 
       /* allocate our encode buffer*/
@@ -581,11 +452,11 @@ void sd_encrypt(int encode_type, char *key, char *data) {
       /* will the encode operation exceed max string?? */
       /* rem sodium_base64_ENCODED_LEN includes a spot for the trailing /0 */
       encode_sz = sodium_base64_ENCODED_LEN(cipher_buf_len, sodium_base64_VARIANT_ORIGINAL);
-      if ( encode_sz > MAX_STRING_SIZE) { 
-		    free(key);
-		    free(data); 
-        sodium_free(cipher_buf);		  
-        k_error(sysmsg(10004));   /* Operation exceeds MAX_STRING_SIZE */
+      if (encode_sz > (size_t)MAX_STRING_SIZE) {
+        free(key);
+        free(data);
+        sodium_free(cipher_buf);
+        k_error(sysmsg(10004)); /* does not return */
       }
 
       /* allocate our encode buffer*/
@@ -623,7 +494,7 @@ return;
 
 /*  function performs decryption of data using key key 
     data and key are encoded, based on encode_type */
-void sd_decrypt(int encode_type, char *key, char *data) {
+void sd_decrypt(int encode_type, char* key, char* data) {
   unsigned char dckey[crypto_secretbox_KEYBYTES];
   unsigned char *cipher_buf;
   unsigned char *plaintext_buf;
@@ -634,36 +505,43 @@ void sd_decrypt(int encode_type, char *key, char *data) {
   size_t encrypted_sz;
   
   cipher_buf = NULL;
+  plaintext_buf = NULL;
 
-  /* set the process.status flag to  "successful"      */
-  /* User can retrieve this status with the BASIC function STATUS()*/
   process.status = 0;
 
-  /* all important libsodium initialization */
-  if (sodium_init() == -1) {
-    sdme_err_rsp(SD_SodInit_Err);  /* initialization error */
-    return ;
+  if (key == NULL || data == NULL) {
+    sdme_err_rsp(SD_KeyLen_Err);
+    return;
   }
 
-  /*Evaluate Function KEY */
+  if (!sdme_valid_encode_type(encode_type)) {
+    sdme_err_rsp(SD_EDType_Err);
+    return;
+  }
+
+  if (sodium_init() == -1) {
+    sdme_err_rsp(SD_SodInit_Err);
+    return;
+  }
 
   switch (encode_type) {
 
     case SD_EncodeHX: /* Decrypt Hex encoded data text with encoded Key key returning decrypted text  */
 
-      encrypted_sz = strlen(data);    /* size of the encoded encrypted string passed*/
+      encrypted_sz = strlen(data);
       /* rem this encryption method has appended to the end of the string: 
          1) the authentication tag of size  crypto_secretbox_MACBYTES
          2) the nonce of size crypto_secretbox_NONCEBYTES 
          All hex encoded.
          If the string to decode then decrypt is smaller than (crypto_secretbox_MACBYTES + crypto_secretbox_NONCEBYTES) *2)
         Something is not right, error out*/
-      if (encrypted_sz < (crypto_secretbox_MACBYTES + crypto_secretbox_NONCEBYTES) *2){
+      if (encrypted_sz < (size_t)SDME_MIN_CIPHER_LEN * 2 ||
+          (encrypted_sz % 2) != 0) {
         sdme_err_rsp(SD_Decrypt_Err);
         break;
       }
 
-      key_len = strlen(key);  /* encoded key length */
+      key_len = strlen(key);
       /* valid key lenght (rem encoded in hex so 2X the expected sixe)*/
       if (key_len != crypto_secretbox_KEYBYTES *2){
         sdme_err_rsp(SD_KeyLen_Err);
@@ -677,16 +555,15 @@ void sd_decrypt(int encode_type, char *key, char *data) {
         break;
       }
   
-      /* need a buffer to hold decoded, encrypted bytes, which SHOULD be 1/2 the size of the Hex Encoded Encrypted Text */
-      bin_len = (encrypted_sz / 2) + 1;
+      bin_len = encrypted_sz / 2;
       cipher_buf = sodium_malloc(bin_len);
-      if (cipher_buf == NULL){
+      if (cipher_buf == NULL) {
         sdme_err_rsp(SD_Mem_Err);
-        break;  
+        break;
       }
-      
-      /* decode the encoded encrypted text */
-      if (sodium_hex2bin(cipher_buf, encrypted_sz / 2, data, encrypted_sz, NULL, &bin_len, NULL) != 0) {
+
+      if (sodium_hex2bin(cipher_buf, bin_len, data, encrypted_sz, NULL, &bin_len,
+                         NULL) != 0) {
         sodium_free(cipher_buf);
         cipher_buf = NULL;
         sdme_err_rsp(SD_Decode_Err);
@@ -704,19 +581,17 @@ void sd_decrypt(int encode_type, char *key, char *data) {
 
       /* decrypt the encrypted byte buffer */
 
-      if (sdme_decrypt(cipher_buf, bin_len, dckey, &plaintext_buf) != 0) {
+      if (sdme_decrypt(cipher_buf, (int)bin_len, dckey, &plaintext_buf) != 0) {
         sodium_free(cipher_buf);
         cipher_buf = NULL;
         sodium_free(plaintext_buf);
         plaintext_buf = NULL;
         sdme_err_rsp(SD_Decrypt_Err);
-        break; 
+        break;
       }
- 
-     /* we made it, text back to caller */
-      k_put_c_string((char *)plaintext_buf, e_stack); /* sets descr as type string and encrypted and encoded text it */
+
+      k_put_c_string((char*)plaintext_buf, e_stack);
       e_stack++;
-      /* and free up our buffers */
       sodium_free(cipher_buf);
       cipher_buf = NULL;
       sodium_free(plaintext_buf);
@@ -781,25 +656,22 @@ void sd_decrypt(int encode_type, char *key, char *data) {
 
       /* decrypt the encrypted byte buffer */
 
-      if (sdme_decrypt(cipher_buf, bin_len, dckey, &plaintext_buf) != 0) {
+      if (sdme_decrypt(cipher_buf, (int)bin_len, dckey, &plaintext_buf) != 0) {
         sodium_free(cipher_buf);
         cipher_buf = NULL;
         sodium_free(plaintext_buf);
         plaintext_buf = NULL;
         sdme_err_rsp(SD_Decrypt_Err);
-        break; 
+        break;
       }
- 
-     /* we made it, text back to caller */
-      k_put_c_string((char *)plaintext_buf, e_stack); /* sets descr as type string and encrypted and encoded text it */
+
+      k_put_c_string((char*)plaintext_buf, e_stack);
       e_stack++;
-      /* and free up our buffers */
       sodium_free(cipher_buf);
       cipher_buf = NULL;
       sodium_free(plaintext_buf);
       plaintext_buf = NULL;
       break;
-
 
     default:
       /* unknown encode type */
@@ -824,12 +696,16 @@ Private void sdme_err_rsp(int errNbr){
 
 /* Encrypt plaintest using key returning cipher_out
    Caller is responsible for freeing cipher_out buffer! */
-int sdme_encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key, unsigned char **cipher_out_buf, size_t * cipher_out_len) {
-  unsigned char nonce[crypto_secretbox_NONCEBYTES]; /* buffer for nonce (Initialization Vector IV by any other name)*/
+int sdme_encrypt(unsigned char* plaintext, int plaintext_len, unsigned char* key,
+                 unsigned char** cipher_out_buf, size_t* cipher_out_len) {
+  unsigned char nonce[crypto_secretbox_NONCEBYTES];
   size_t cipher_len;
-  unsigned char *cipher_out;
+  unsigned char* cipher_out;
 
-  /* Using random bytes to create our nonce (used only once) */
+  if (plaintext == NULL || key == NULL || cipher_out_buf == NULL ||
+      cipher_out_len == NULL || plaintext_len < 0)
+    return SD_Encrypt_Err;
+
   randombytes_buf(nonce, crypto_secretbox_NONCEBYTES);
   #ifdef dumphex
   printf("nonce:\r\n");
@@ -862,9 +738,8 @@ int sdme_encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key
   dump_hex_buff(cipher_out, cipher_len);
   #endif
 
-  /* caller needs to know the size of cipher output and its location */
-  * cipher_out_len = cipher_len;
-  * cipher_out_buf = cipher_out;
+  *cipher_out_len = cipher_len;
+  *cipher_out_buf = cipher_out;
 
   return 0;
 }
@@ -874,39 +749,39 @@ int sdme_encrypt(unsigned char *plaintext, int plaintext_len, unsigned char *key
 /* Decrypt cipher_in using key returning plantext_out
    Caller is responsible for freeing plantext_out buffer! */
 
-int sdme_decrypt(unsigned char *cipher_in, int cipher_in_len, unsigned char *key, unsigned char **plantext_out_ptr) {
-  unsigned char nonce[crypto_secretbox_NONCEBYTES]; /* buffer for nonce (Initialization Vector IV by any other name)*/
-  unsigned char *plaintext_out;
-  unsigned int plaintext_len;
-  unsigned int cipher_len;
+int sdme_decrypt(unsigned char* cipher_in, int cipher_in_len, unsigned char* key,
+                 unsigned char** plaintext_out) {
+  unsigned char nonce[crypto_secretbox_NONCEBYTES];
+  unsigned char* plaintext_buf;
+  size_t cipher_len;
+  size_t plaintext_len;
 
-  /* Remeber SDMEE_Encrypt appends the nonce to the end of the cipher output, do not what to add to decrypted output */
-  cipher_len = cipher_in_len - crypto_secretbox_NONCEBYTES;
+  if (cipher_in == NULL || key == NULL || plaintext_out == NULL ||
+      cipher_in_len < 0 || (size_t)cipher_in_len < SDME_MIN_CIPHER_LEN)
+    return SD_Decrypt_Err;
 
-  /* Also remember cipher_len is the length of this authentication tag + encrypted message */
-  /* We want the actual message size*/
+  cipher_len = (size_t)cipher_in_len - crypto_secretbox_NONCEBYTES;
+  if (cipher_len < crypto_secretbox_MACBYTES)
+    return SD_Decrypt_Err;
+
   plaintext_len = cipher_len - crypto_secretbox_MACBYTES;
+  if (plaintext_len > (size_t)MAX_STRING_SIZE)
+    return SD_Decrypt_Err;
 
-  /* allocate space for the plaintext output, add room for string terminator */
-  plaintext_out = (unsigned char *)sodium_malloc(plaintext_len+1);
-  if (plaintext_out == NULL) {
+  plaintext_buf = (unsigned char*)sodium_malloc(plaintext_len + 1);
+  if (plaintext_buf == NULL)
     return SD_Mem_Err;
-  }
 
-  /* pull off the nonce from the end of the cipher */
   memcpy(nonce, cipher_in + cipher_len, crypto_secretbox_NONCEBYTES);
 
-  /* decode our cihper */
-  if (crypto_secretbox_open_easy(plaintext_out, cipher_in, (unsigned long long)cipher_len, nonce, key) == 0) {
-    /* success, add in string terminator */
-    plaintext_out[plaintext_len] = '\0';
-    *plantext_out_ptr = plaintext_out;
-  } else { 
-    /* failed, free memory */ 
-    sodium_free(plaintext_out);
-    plaintext_out = NULL;
+  if (crypto_secretbox_open_easy(plaintext_buf, cipher_in,
+                                 (unsigned long long)cipher_len, nonce,
+                                 key) != 0) {
+    sodium_free(plaintext_buf);
     return SD_Decrypt_Err;
   }
 
+  plaintext_buf[plaintext_len] = '\0';
+  *plaintext_out = plaintext_buf;
   return 0;
 }

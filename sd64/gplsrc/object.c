@@ -18,9 +18,12 @@
  *
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
+ *
+ * Object code cache (LRU), load/unload, invalidation on LOGTO, and HSM.
  *
  * END-DESCRIPTION
  *
@@ -87,6 +90,35 @@ u_int32_t SwapLong(u_int32_t value) {
 Private bool discard(void);
 Private void hsm_log(OBJECT* obj);
 
+#define MAX_OBJECT_BYTES (32 * 1024 * 1024)
+
+static bool read_exact(OSFILE fu, char* buf, int nbytes) {
+  int got;
+
+  if (buf == NULL || nbytes < 0)
+    return FALSE;
+  got = Read(fu, buf, nbytes);
+  return (got == nbytes);
+}
+
+static void object_lru_to_head(OBJECT* obj) {
+  if (obj == NULL || obj == object_head)
+    return;
+
+  if (obj->next != NULL)
+    obj->next->prev = obj->prev;
+  else
+    object_tail = obj->prev;
+
+  if (obj->prev != NULL)
+    obj->prev->next = obj->next;
+
+  obj->next = object_head;
+  object_head->prev = obj;
+  object_head = obj;
+  obj->prev = NULL;
+}
+
 /* ======================================================================
    load_object  -  Load an object item                                    */
 
@@ -102,25 +134,18 @@ void* load_object(char* name, bool abort_on_error) {
   DESCRIPTOR pathname_descr;
   u_int16_t flags;
 
+  if (name == NULL || name[0] == '\0') {
+    if (abort_on_error)
+      k_error(sysmsg(1125), (name != NULL) ? name : "");
+    return NULL;
+  }
+
   /* Search object chain to see if already loaded */
 
   for (obj = object_head; obj != NULL; obj = obj->next) {
     if ((!(obj->flags & OBJ_INVALID)) &&
         (strcmp(name, obj->code.ext_hdr.prog.program_name) == 0)) {
-      /* Move item to head of lru chain */
-
-      if (obj != object_head) {
-        if (obj->next != NULL)
-          obj->next->prev = obj->prev;
-        else
-          object_tail = obj->prev;
-
-        obj->prev->next = obj->next;
-        obj->next = object_head;
-        object_head->prev = obj;
-        object_head = obj;
-        obj->prev = NULL;
-      }
+      object_lru_to_head(obj);
 
       if (hsm)
         (obj->calls)++;
@@ -183,23 +208,28 @@ void* load_object(char* name, bool abort_on_error) {
 
     /* Try private catalogue */
     /* converted to snprintf() - gwb 22Feb20 */
-    if (snprintf(obj_path, MAX_PATHNAME_LEN + 1, "%s%c%s", private_catalogue, 
-            DS, mapped_name) >= (MAX_PATHNAME_LEN + 1)) {
-       /* TODO: this should be sent to the system log. */          
-       k_error("Overflowed directory/pathname length in load_object()!");
-       return NULL;
+    if (snprintf(obj_path, MAX_PATHNAME_LEN + 1, "%s%c%s", private_catalogue,
+                 DS, mapped_name) >= (MAX_PATHNAME_LEN + 1)) {
+      if (abort_on_error)
+        k_error("Overflowed directory/pathname length in load_object()!");
+      return NULL;
     }
     obj_fu = dio_open(obj_path, DIO_READ);
     if (ValidFileHandle(obj_fu))
       goto found;
   }
   /* converted to snprintf() -gwb 22Feb20 */
-  if (snprintf(obj_path, MAX_PATHNAME_LEN + 1, "%s%cgcat%c%s", sysseg->sysdir, 
-            DS, DS, mapped_name) >= (MAX_PATHNAME_LEN + 1)) {
-     /* TODO: this should be sent to the system log. */          
-     k_error("Overflowed directory/pathname length in load_object()!");
-     return NULL;
-   }
+  if (sysseg == NULL) {
+    if (abort_on_error)
+      k_error(sysmsg(1125), name);
+    return NULL;
+  }
+  if (snprintf(obj_path, MAX_PATHNAME_LEN + 1, "%s%cgcat%c%s", sysseg->sysdir,
+               DS, DS, mapped_name) >= (MAX_PATHNAME_LEN + 1)) {
+    if (abort_on_error)
+      k_error("Overflowed directory/pathname length in load_object()!");
+    return NULL;
+  }
   obj_fu = dio_open(obj_path, DIO_READ);
   if (ValidFileHandle(obj_fu)) {
     flags |= OBJ_GLOBAL;
@@ -214,11 +244,11 @@ void* load_object(char* name, bool abort_on_error) {
 found:
   /* Object found  - read header */
 
-  if (Read(obj_fu, (char*)(&obj_header), OBJECT_HEADER_SIZE) < 0) {
+  if (!read_exact(obj_fu, (char*)(&obj_header), OBJECT_HEADER_SIZE)) {
+    CloseFile(obj_fu);
     if (abort_on_error)
-      k_error(sysmsg(1126), name); /* TODO: Magic numbers are bad, mmkay? */
-    else
-      return NULL;
+      k_error(sysmsg(1126), name);
+    return NULL;
   }
 
   switch (obj_header.magic) {
@@ -231,10 +261,17 @@ found:
       object_bytes = SwapLong(obj_header.object_size);
       break;
     default:
+      CloseFile(obj_fu);
       if (abort_on_error)
-        k_error(sysmsg(1127), name); /* TODO: Magic numbers are bad, mmkay? */
-      else
-        return NULL;
+        k_error(sysmsg(1127), name);
+      return NULL;
+  }
+
+  if (object_bytes <= 0 || object_bytes > MAX_OBJECT_BYTES) {
+    CloseFile(obj_fu);
+    if (abort_on_error)
+      k_error(sysmsg(1127), name);
+    return NULL;
   }
 
   /* Consider discards if too much loaded.  May have items with 0 ref ct */
@@ -250,20 +287,34 @@ found:
   object_items++;
   object_total += object_bytes;
   obj = (OBJECT*)k_alloc(22, OBJHDRSIZE + object_bytes);
+  if (obj == NULL) {
+    object_items--;
+    object_total -= object_bytes;
+    CloseFile(obj_fu);
+    if (abort_on_error)
+      k_error(sysmsg(1128), name);
+    return NULL;
+  }
 
   obj->cp_time = 0;
   obj->calls = (hsm) ? 1 : 0;
   obj->flags = flags;
 
   Seek(obj_fu, 0, SEEK_SET);
-  if (Read(obj_fu, (char*)(&(obj->code)), object_bytes) < 0) {
+  if (!read_exact(obj_fu, (char*)(&(obj->code)), object_bytes)) {
+    object_items--;
+    object_total -= object_bytes;
     k_free(obj);
-    k_error(sysmsg(1128), name); /* TODO: Magic numbers are bad, mmkay? */
+    CloseFile(obj_fu);
+    if (abort_on_error)
+      k_error(sysmsg(1128), name);
+    return NULL;
   }
 
-  if (convert) {
+  CloseFile(obj_fu);
+
+  if (convert)
     convert_object_header(&(obj->code));
-  }
 
   obj->code.ext_hdr.prog.refs = 0;
 
@@ -271,7 +322,8 @@ found:
      necessary for runfiles and locally catalogued items but we might as
      well do it for everything.                                            */
 
-  strcpy(obj->code.ext_hdr.prog.program_name, name);
+  snprintf(obj->code.ext_hdr.prog.program_name, MAX_PROGRAM_NAME_LEN + 1, "%s",
+           name);
 
   if (is_runfile)
     obj->code.id = -(next_id++); /* Run files have negative ids */
@@ -286,7 +338,6 @@ found:
   obj->prev = NULL;
   object_head = obj;
 
-  CloseFile(obj_fu);
   return (void*)(&(obj->code));
 }
 
@@ -335,6 +386,8 @@ void op_unload() {
    is_global() - Is object code from global catalogue?                    */
 
 bool is_global(void* obj_hdr) {
+  if (obj_hdr == NULL)
+    return FALSE;
   return (((OBJECT*)(((char*)obj_hdr) - OBJHDRSIZE))->flags & OBJ_GLOBAL) != 0;
 }
 
@@ -343,6 +396,9 @@ bool is_global(void* obj_hdr) {
 
 void unload_object(void* obj_hdr) {
   OBJECT* obj;
+
+  if (obj_hdr == NULL)
+    return;
 
   obj = (OBJECT*)(((char*)obj_hdr) - OBJHDRSIZE);
 
@@ -368,7 +424,7 @@ void unload_object(void* obj_hdr) {
   /* Give away memory */
 
   object_items--;
-  object_total -= ((OBJECT_HEADER*)obj_hdr)->object_size;
+  object_total -= obj->code.object_size;
   k_free(obj);
 }
 
@@ -543,12 +599,16 @@ Private void hsm_log(OBJECT* obj) {
 
   /* Not found - Make a new entry */
 
-  bytes = sizeof(HSM) + strlen(obj->code.ext_hdr.prog.program_name);
+  bytes = (int)(offsetof(HSM, name) +
+                strlen(obj->code.ext_hdr.prog.program_name) + 1);
   p = (HSM*)k_alloc(91, bytes);
+  if (p == NULL)
+    goto exit_hsm_log;
   p->next = hsm_head;
   hsm_head = p;
 
-  strcpy((char*)(p->name), obj->code.ext_hdr.prog.program_name);
+  snprintf((char*)(p->name), (size_t)(bytes - offsetof(HSM, name)), "%s",
+           obj->code.ext_hdr.prog.program_name);
   p->cp_time = obj->cp_time;
   p->calls = obj->calls;
 
@@ -619,7 +679,6 @@ STRING_CHUNK* hsm_dump() {
     }
   }
 
-  str = NULL;
   ts_init(&str, 256);
 
   for (p = hsm_head; p != NULL; p = p->next) {

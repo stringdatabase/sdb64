@@ -23,6 +23,7 @@
  * 31 Dec 23 SD launch - prior history suppressed 
  
 
+ * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -264,15 +265,20 @@ void op_dtx() {
 
   descr = e_stack - 1;
   GetInt(descr);
-  n = sprintf(value, "%x", descr->data.value);
+  n = snprintf(value, sizeof(value), "%x", (unsigned int)descr->data.value);
+  if (n < 0)
+    n = 0;
 
   p = s;
   if (n < min_width) {
-    memset(p, '0', min_width - n);
-    p += min_width - n;
+    int pad = min_width - n;
+    if (pad > (int)sizeof(s) - 1)
+      pad = (int)sizeof(s) - 1;
+    memset(p, '0', (size_t)pad);
+    p += pad;
   }
 
-  strcpy(p, value);
+  snprintf(p, sizeof(s) - (size_t)(p - s), "%s", value);
   k_put_c_string(s, descr);
 }
 
@@ -1416,8 +1422,8 @@ void op_timedate() {
 
   /* Build result string */
 
-  sprintf(s, "%02d:%02d:%02d %s", (int)hour, (int)min, (int)sec,
-          day_to_ddmmmyyyy((timenow / 86400L) + 732));
+  snprintf(s, sizeof(s), "%02d:%02d:%02d %s", (int)hour, (int)min, (int)sec,
+           day_to_ddmmmyyyy((timenow / 86400L) + 732));
   UpperCaseString(s);
 
   InitDescr(e_stack, STRING);
