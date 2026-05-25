@@ -20,10 +20,7 @@
  * 
  * START-HISTORY:
  * rev 0.9.0 Jan 25 mab initial commit
-  * 24 May 26 - Code reviewed and updated by Claude AI
- * END-HISTORY
- *
- * START-DESCRIPTION:
+  * START-DESCRIPTION:
  *
  *
  * END-DESCRIPTION

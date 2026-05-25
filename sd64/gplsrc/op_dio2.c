@@ -18,7 +18,6 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
- * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -351,7 +350,6 @@ void op_fileinfo() {
           goto set_float;
         } else
           n = -1;
-        /* fall through */
 
       case FL_PRI_BYTES: /* 1016  Physical size of primary subfile */
         if (dynamic) {
@@ -659,7 +657,7 @@ void op_ospath() {
         }
         n--;
       } while (!access(name, 0));
-      snprintf(name, MAX_PATHNAME_LEN + 1, "D%07d", n);
+      sprintf(name, "D%07d", n);
       k_put_c_string(name, e_stack);
       e_stack++;
       goto exit_op_pathinfo;
@@ -738,7 +736,7 @@ void op_ospath() {
           if (stat(name, &stat_buff))
             continue;
 
-          snprintf(name + 1, MAX_PATHNAME_LEN, "%s", dp->d_name);
+          strcpy(name + 1, dp->d_name);
 #ifdef CASE_INSENSITIVE_FILE_SYSTEM
           UpperCaseString(name + 1);
 #endif
@@ -800,9 +798,9 @@ void op_ospath() {
           process.status = ER_PARAMS;  /* Invalid parameters */
         }
   
-        free_extract_string(owner_name);
-        free_extract_string(group_name);
-        free_extract_string(chown_path);
+        if (owner_name!= NULL) free(owner_name);
+        if (group_name!= NULL) free(group_name);
+        if (chown_path!= NULL) free(chown_path);
       }else{
         status = 0;
         process.status = ER_PARAMS;  /* Invalid parameters */
@@ -941,7 +939,7 @@ bool delete_path(char* path) {
     if (dfu == NULL)
       goto exit_delete_path;
 
-    snprintf(parent_path, sizeof(parent_path), "%s", path);
+    strcpy(parent_path, path);
     parent_len = strlen(parent_path);
     if (parent_path[parent_len - 1] == DS)
       parent_path[parent_len - 1] = '\0';
@@ -1008,12 +1006,9 @@ bool fullpath(char* path, /* Out (can be same as input path buffer) */
     pathnames. Use a temporary buffer and then copy the data back to the
     caller's buffer.                                                      */
 
-  if (path == NULL || name == NULL)
-    return FALSE;
-
   ok = (sdrealpath(name, buff) != NULL);
-  if (ok)
-    snprintf(path, MAX_PATHNAME_LEN + 1, "%s", buff);
+
+  strcpy(path, buff);
 
   return ok;
 }
@@ -1026,44 +1021,34 @@ bool make_path(char* tgt) {
   char new_path[MAX_PATHNAME_LEN + 1];
   char* p;
   char* q;
-  char* comp;
   struct stat statbuf;
-  size_t cur_len;
-  size_t comp_len;
 
-  if (tgt == NULL)
-    return FALSE;
-
-  snprintf(path, sizeof(path), "%s", tgt);
+  strcpy(path, tgt); /* Make local copy as we will use strtok() */
 
   p = path;
+
   q = new_path;
 
-  if (*p == DS) {
+  if (*p == DS) /* 0355 */
+  {
     *(q++) = DS;
     p++;
   }
   *q = '\0';
 
-  while ((comp = strtok(p, DSS)) != NULL) {
-    cur_len = strlen(new_path);
-    comp_len = strlen(comp);
-    if (cur_len + comp_len + 1 >= sizeof(new_path))
-      return FALSE;
-    memcpy(new_path + cur_len, comp, comp_len + 1);
+  while ((q = strtok(p, DSS)) != NULL) {
+    strcat(new_path, q);
 
-    if (stat(new_path, &statbuf)) {
+    if (stat(new_path, &statbuf)) /* Directory does not exist */
+    {
       if (MakeDirectory(new_path) != 0)
         return FALSE;
-    } else if (!(statbuf.st_mode & S_IFDIR)) {
+    } else if (!(statbuf.st_mode & S_IFDIR)) /* Exists but not as a directory */
+    {
       return FALSE;
     }
 
-    cur_len = strlen(new_path);
-    if (cur_len + 1 >= sizeof(new_path))
-      return FALSE;
-    new_path[cur_len] = DS;
-    new_path[cur_len + 1] = '\0';
+    strcat(new_path, DSS);
     p = NULL;
   }
 

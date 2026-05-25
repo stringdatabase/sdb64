@@ -19,7 +19,6 @@
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
  * rev 0.9.0 Jan 25 mab change dyn file prefix to % 
- * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -191,21 +190,9 @@ void op_delseq() {
       goto exit_op_delseq;
     }
 
-    {
-      size_t flen = strlen(file_name);
-
-      if (flen > 0 && file_name[flen - 1] != DS) {
-        if (flen + 1 >= sizeof(file_name))
-          goto exit_op_delseq;
-        file_name[flen++] = DS;
-        file_name[flen] = '\0';
-      }
-      if (flen + strlen(rec_name) >= sizeof(file_name)) {
-        process.status = ER_LENGTH;
-        goto exit_op_delseq;
-      }
-      snprintf(file_name + flen, sizeof(file_name) - flen, "%s", rec_name);
-    }
+    if (file_name[strlen(file_name) - 1] != DS)
+      strcat(file_name, DSS);
+    strcat(file_name, rec_name);
   }
 
   /* Check file exists */
@@ -513,8 +500,8 @@ Private void openseq(bool map_name) {
 
     if (is_port(file_name)) /* Opening a port */
     {
-      snprintf(pathname, sizeof(pathname), "%s", file_name);
-      snprintf(fullpathname, sizeof(fullpathname), "%s", file_name);
+      strcpy(pathname, file_name);
+      strcpy(fullpathname, file_name);
       fu = openport(pathname);
       if (fu < 0) {
         process.status = ER_PNF;
@@ -524,7 +511,7 @@ Private void openseq(bool map_name) {
       flags |= SQ_PORT;
     } else {
       fullpath(fullpathname, file_name);
-      snprintf(file_name, sizeof(file_name), "%s", fullpathname);
+      strcpy(file_name, fullpathname);
 
       /* 0220 Now disect the name to create a file_name and record_name pair */
 
@@ -538,19 +525,12 @@ Private void openseq(bool map_name) {
       }
 
       *p = '\0';
-      snprintf(record_name, sizeof(record_name), "%s", p + 1);
-      snprintf(unmapped_name, sizeof(unmapped_name), "%s", record_name);
+      strcpy(record_name, (p + 1));
+      strcpy(unmapped_name, record_name);
       rec_name_len = strlen(record_name);
 
       if (strchr(file_name, DS) == NULL) {
-        size_t flen = strlen(file_name);
-
-        if (flen + 1 >= sizeof(file_name)) {
-          process.status = ER_LENGTH;
-          goto exit_op_openseq;
-        }
-        file_name[flen] = DS;
-        file_name[flen + 1] = '\0';
+        strcat(file_name, DSS);
       }
     }
   }
@@ -653,7 +633,7 @@ Private void openseq(bool map_name) {
           k_free(fvar); /* Give away file variable */
           k_deadlock();
         }
-        /* fall through */
+        /* **** FALL THROUGH **** */
 
       case -1: /* Lock table is full */
       default: /* Conflicting lock is held by another user */
@@ -716,7 +696,7 @@ Private void openseq(bool map_name) {
     process.status = -ER_MEM;
     goto exit_op_openseq;
   }
-  snprintf(sq_file->pathname, strlen(fullpathname) + 1, "%s", fullpathname);
+  strcpy(sq_file->pathname, fullpathname);
 
   if (!(flags & SQ_NOTFL)) {
     /* Save unmapped record name in the file variable */

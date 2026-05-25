@@ -18,7 +18,6 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
- * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -351,7 +350,7 @@ void op_enter() {
       --(((OBJECT_HEADER*)(descr->data.subr.object))->ext_hdr.prog.refs);
       descr->data.str.saddr = descr->data.subr.saddr;
 
-      /* fall through */
+      /* **** FALL THROUGH **** */
 
     case STRING:
       if (k_get_c_string(descr, call_name, MAX_PROGRAM_NAME_LEN) <= 0) {

@@ -19,7 +19,6 @@
  * START-HISTORY:
  * rev 0.9.0 Jan 25 mab catch null key id in op_sortdata()
  * 31 Dec 23 SD launch - prior history suppressed
- * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -143,8 +142,7 @@ void op_sortclr() {
       k_error(sysmsg(1480), pcfg.sortworkdir, errno);
     }
 
-    prefix_len = (int)snprintf(prefix, sizeof(prefix), "~SDS%d.",
-                               (int)process.user_no);
+    prefix_len = sprintf(prefix, "~SDS%d.", (int)process.user_no);
 
     while ((dp = readdir(dfu)) != NULL) {
       if (memcmp(dp->d_name, prefix, prefix_len) == 0) {

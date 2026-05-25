@@ -18,7 +18,6 @@
  *
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
- * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -111,10 +110,10 @@ DH_FILE* dh_open(char path[]) {
   /* Open primary subfile */
   /* replaced sprintf() -gwb 22Feb20 */
   /* 0.9.0 */
-  if (snprintf(pathname, MAX_PATHNAME_LEN + 1, "%s%c%%0", filename, DS) >=
-      (MAX_PATHNAME_LEN + 1)) {
-    dh_err = DHE_NAME_TOO_LONG;
-    goto exit_dh_open;
+  if (snprintf(pathname, MAX_PATHNAME_LEN + 1, "%s%c%%0", filename, DS) >= (MAX_PATHNAME_LEN + 1)) {
+    /* TODO: this should be added to the system log file. */
+     k_error("Overflowed directory/filename path length in dh_open()!");
+     goto exit_dh_open;
   }
   if (access(pathname, 2))
     read_only = TRUE;
@@ -157,13 +156,6 @@ DH_FILE* dh_open(char path[]) {
     goto exit_dh_open;
   }
 
-  if (!dh_validate_header_params(header.group_size, header.params.min_modulus,
-                                 header.params.modulus,
-                                 header.params.mod_value)) {
-    dh_err = DHE_PSFH_FAULT;
-    goto exit_dh_open;
-  }
-
   /* Check if this file may contain a record id longer than the maximum
      we can support.  The longest_id element of the DH_PARAMS structure
      is set to the length of the longest id written to the file.  This
@@ -178,10 +170,10 @@ DH_FILE* dh_open(char path[]) {
   /* Open overflow subfile */
   /* converted to snprintf() -gwb 22Feb20 */
   /* rev 0.9.0 */
-  if (snprintf(pathname, MAX_PATHNAME_LEN + 1, "%s%c%%1", filename, DS) >=
-      (MAX_PATHNAME_LEN + 1)) {
-    dh_err = DHE_NAME_TOO_LONG;
-    goto exit_dh_open;
+  if (snprintf(pathname, MAX_PATHNAME_LEN + 1, "%s%c%%1", filename, DS) >= (MAX_PATHNAME_LEN + 1)) {
+    /* TODO: this should be added to the system log file. */
+     k_error("Overflowed directory/filename path length in dh_open()!");
+     goto exit_dh_open;
   }
   if (access(pathname, 2))
     read_only = TRUE;
@@ -351,10 +343,6 @@ DH_FILE* dh_open(char path[]) {
           /* Fetch I-type from separate node */
 
           ibuff = (char*)k_alloc(53, DH_AK_NODE_SIZE);
-          if (ibuff == NULL) {
-            dh_err = DHE_NO_MEM;
-            goto exit_dh_open;
-          }
           do {
             if (!dh_read_group(dh_file, subfile, ak_node_num, ibuff,
                                DH_AK_NODE_SIZE)) {
@@ -363,8 +351,6 @@ DH_FILE* dh_open(char path[]) {
 
             n = ((DH_ITYPE_NODE*)ibuff)->used_bytes -
                 offsetof(DH_ITYPE_NODE, data);
-            if (n < 0 || n > (DH_AK_NODE_SIZE - (int)offsetof(DH_ITYPE_NODE, data)))
-              n = DH_AK_NODE_SIZE - (int)offsetof(DH_ITYPE_NODE, data);
             ts_copy((char*)(((DH_ITYPE_NODE*)ibuff)->data), n);
             ak_node_num = GetAKFwdLink(dh_file, ((DH_ITYPE_NODE*)ibuff)->next);
           } while (ak_node_num);
@@ -444,11 +430,7 @@ exit_dh_open:
 int32_t dh_modulus(DH_FILE* dh_file) {
   FILE_ENTRY* fptr;
 
-  if (dh_file == NULL)
-    return 0;
   fptr = FPtr(dh_file->file_id);
-  if (fptr == NULL)
-    return 0;
   return fptr->params.modulus;
 }
 

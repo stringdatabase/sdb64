@@ -18,7 +18,6 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
- * 24 May 26 - Code reviewed and updated by Claude AI
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -110,7 +109,7 @@ void op_common() {
   creating_common = TRUE;
 
   if ((name_len == 1) && (*block_name == '$')) {
-    name_len = snprintf(block_name, sizeof(block_name), "$%d", (int)cproc_level);
+    name_len = sprintf(block_name, "$%d", (int)cproc_level);
   }
 
   /* Important - The is_persistent_vars and initialise_zero flags must
@@ -180,7 +179,7 @@ void op_common() {
       str_hdr->ref_ct = 1;
       str_hdr->string_len = name_len;
       str_hdr->bytes = name_len;
-      snprintf(str_hdr->data, (size_t)name_len + 1, "%s", block_name);
+      strcpy(str_hdr->data, block_name);
     }
     pc += 3;
   } else /* Common block already exists */
@@ -574,8 +573,7 @@ void op_inmata() {
     (e_stack++)->data.value = rows;
   } else /* Two dimension */
   {
-    s_len = snprintf(s, sizeof(s), "%d%c%d", (int)rows, (char)VALUE_MARK,
-                     (int)cols);
+    s_len = sprintf(s, "%d%c%d", rows, (char)VALUE_MARK, cols);
 
     s_hdr = s_alloc((int32_t)s_len, &actual_size);
 
@@ -1310,7 +1308,6 @@ Private void a_dimension(bool pick_style, bool set_zero) {
 
     case PMATRIX:
       k_error(sysmsg(1136)); /* Cannot redimension a Pick style matrix */
-      break;
 
     default: /* Unassigned or converting some other type */
       if (pick_style && (rows == 0) && (cols == 0)) /* 0390 */
