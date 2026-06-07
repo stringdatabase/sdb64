@@ -19,6 +19,7 @@
  * to do- add STATUS() = 0 successful call, or  STATUS() = 1 unsuccessful call
  * 
  * START-HISTORY:
+ * rev 1.0-3 mab move #include "sdext_python_inc.h"  to first include
  * rev 0.9-2 Mar 25 mab add sdext_pyobj direct control of python dictionary object
  * rev 0.9.0 Jan 25 mab use install script created file sdext_python_inc.h to tell us where to find python headers
  * 11 Aug 2024 mab add PyErr_Print() to file and string script execution failure
@@ -55,13 +56,11 @@
  * START-CODE
  */
 
-
+#include "sdext_python_inc.h"  /* NOTE! this file is created by the install script !!! */
 #include "sd.h"
 #include <linux/limits.h>
 #include <libgen.h>            /* needed for basename function */ 
-      
 
-#include "sdext_python_inc.h"  /* NOTE! this file is created by the install script !!! */
 #include "keys.h"
 
 int PyDictCrte(char* dictname);

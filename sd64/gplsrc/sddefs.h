@@ -17,6 +17,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
  * 
  * START-HISTORY:
+ * rev 1.0-3 mab only define _XOPEN_SOURCE if not previously defined
  * 31 Dec 23 SD launch - prior history suppressed
  * 02 Jul 24 mab define max string size.
  * 06 Aug 24 mab define sdext max arg 
@@ -41,7 +42,10 @@
 #define FALLBACK
 #define HOT_SPOT_MONITOR
 
-#define _XOPEN_SOURCE 700
+#ifndef _XOPEN_SOURCE
+  #define _XOPEN_SOURCE 700
+#endif
+  
 #define _XOPEN_CRYPT
 #include <unistd.h>
 

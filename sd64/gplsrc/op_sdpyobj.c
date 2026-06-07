@@ -18,6 +18,7 @@
  * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA. 
  * 
  * START-HISTORY:
+ * rev 1.0-3 mab move #include "sdext_python_inc.h"  to first include
  * rev 0.9-2 Apr 25 mab op_sd_pyobj
  * END-HISTORY
  *
@@ -36,12 +37,10 @@
  * START-CODE
  */
 
-
+#include "sdext_python_inc.h"  /* NOTE! this file is created by the install script !!! */
 #include <linux/limits.h>
 
-
 #include "sd.h"
-#include "sdext_python_inc.h"  /* NOTE! this file is created by the install script !!! */
 #include "keys.h"
 
 /* defined in sdext_py.c */
