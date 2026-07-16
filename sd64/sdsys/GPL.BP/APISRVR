@@ -24,16 +24,27 @@
 *               always run in secure mode
 * 28 Jul 24 mab remove enter.package / exit.package (commands not supported)
 * rev 0.9.0 Jan 25 mab test for user member of account on logto
-* rev 1.0-3 mab use logmsg for debug logging
+* rev 1.0-3 mab use logmsg for debug logging, add log command and status results
+*               reformat code and change vb. labels to api.
 * END-HISTORY
 *
 *
 * START-DESCRIPTION:
 *
-* All actions return:
+* All actions return via call to writepkt (op.writepkt):
+*    bytes
 *    0 - 1   server error status (see below)
 *    2 - 5   status()
 *    6+      action specific data
+* Note op.writepkt adds the total packet length to the beginning of the packet sent,
+*      and read_packet() in sdclilib.c 1st reads into structure:
+*      struct {
+*      int32_t packet_length;
+*      int16_t server_error ALIGN2;
+*      int32_t status ALIGN2;
+*      } in_packet_header; 
+*      Thus setting up the total data the c api (sdclilib.c) is expecting and status (server.error, status())
+*
 *
 * All numbers in the client packets are low byte first regardless of the
 * server platform byte ordering.
@@ -51,7 +62,7 @@ $define SV$LOCKED           4    ;* Took locked clause
 
 $define MAX.ARG.COUNT     255
 
-$define APILOGGING 0    ;* 0 = no log, 1 = log
+$define APILOGGING 0    ;* 0 = no log, 1 = log, >1 extra logging (full packet)
 
 $internal
 program apisrvr
@@ -210,204 +221,213 @@ loop
    cproc.date = date()
    cproc.time = time()
 
-   on action + 1 gosub vb.illegal.action,
-   vb.quit,           ;*   1   Quit
-   vb.geterror,       ;*   2   Get extended error text
-   vb.account,        ;*   3   Set account
-   vb.open,           ;*   4   Open file
-   vb.close,          ;*   5   Close file
-   vb.read,           ;*   6   Read record (READ)
-   vb.readl,          ;*   7   Read record (READL)
-   vb.readlw,         ;*   8   Read record (READL, waiting)
-   vb.readu,          ;*   9   Read record (READU)
-   vb.readuw,         ;*  10   Read record (READU, waiting)
-   vb.select,         ;*  11   Select file
-   vb.readnext,       ;*  12   Read next id from select list
-   vb.clearselect,    ;*  13   Clear select list
-   vb.readlist,       ;*  14   Read select list
-   vb.release,        ;*  15   Release lock
-   vb.write,          ;*  16   Write record
-   vb.writeu,         ;*  17   Write record, retaining lock
-   vb.delete,         ;*  18   Delete record
-   vb.deleteu,        ;*  19   Delete record, retaining lock
-   vb.call,           ;*  20   Call catalogued subroutine
-   vb.execute,        ;*  21   Execute command
-   vb.respond,        ;*  22   Response to input
-   vb.endcommand,     ;*  23   End command
-   vb.login,          ;*  24   Network login
-   vb.local.login,    ;*  25   SDLocal login
-   vb.selectindex,    ;*  26   Select index
-   vb.illegal.action, ;*  27   Enter licensed package - not supported
-   vb.illegal.action, ;*  28   Exit licensed package  - not supported
-   vb.open.sdnet,     ;*  29   Open SDNet file
-   vb.lock.record,    ;*  30   Lock a record
-   vb.clearfile,      ;*  31   Clearfile
-   vb.filelock,       ;*  32   Get file lock
-   vb.fileunlock,     ;*  33   Release file lock
-   vb.recordlocked,   ;*  34   Test lock
-   vb.indices1,       ;*  35   Fetch information about indices
-   vb.indices2,       ;*  36   Fetch information about an index
-   vb.selectlist,     ;*  37   Select file and return list
-   vb.selectindexv,   ;*  38   Select index, returning indexed values
-   vb.selectindexk,   ;*  39   Select index, returning keys for value
-   vb.fileinfo,       ;*  40   Perform FILEINFO() action
-   vb.readv,          ;*  41   READV and variants
-   vb.setleft,        ;*  42   Set index at extreme left
-   vb.setright,       ;*  43   Set index at extreme right
-   vb.selectleft,     ;*  44   Scan index to left
-   vb.selectright,    ;*  45   Scan index to right
-   vb.mark.mapping,   ;*  46   Enable/disable mark mapping
-   vb.illegal.action
+   on action + 1 gosub api.illegal.action,
+   api.quit,           ;*   1   Quit
+   api.geterror,       ;*   2   Get extended error text
+   api.account,        ;*   3   Set account
+   api.open,           ;*   4   Open file
+   api.close,          ;*   5   Close file
+   api.read,           ;*   6   Read record (READ)
+   api.readl,          ;*   7   Read record (READL)
+   api.readlw,         ;*   8   Read record (READL, waiting)
+   api.readu,          ;*   9   Read record (READU)
+   api.readuw,         ;*  10   Read record (READU, waiting)
+   api.select,         ;*  11   Select file
+   api.readnext,       ;*  12   Read next id from select list
+   api.clearselect,    ;*  13   Clear select list
+   api.readlist,       ;*  14   Read select list
+   api.release,        ;*  15   Release lock
+   api.write,          ;*  16   Write record
+   api.writeu,         ;*  17   Write record, retaining lock
+   api.delete,         ;*  18   Delete record
+   api.deleteu,        ;*  19   Delete record, retaining lock
+   api.call,           ;*  20   Call catalogued subroutine
+   api.execute,        ;*  21   Execute command
+   api.respond,        ;*  22   Response to input
+   api.endcommand,     ;*  23   End command
+   api.login,          ;*  24   Network login
+   api.local.login,    ;*  25   SDLocal login
+   api.selectindex,    ;*  26   Select index
+   api.illegal.action, ;*  27   Enter licensed package - not supported
+   api.illegal.action, ;*  28   Exit licensed package  - not supported
+   api.open.sdnet,     ;*  29   Open SDNet file
+   api.lock.record,    ;*  30   Lock a record
+   api.clearfile,      ;*  31   Clearfile
+   api.filelock,       ;*  32   Get file lock
+   api.fileunlock,     ;*  33   Release file lock
+   api.recordlocked,   ;*  34   Test lock
+   api.indices1,       ;*  35   Fetch information about indices
+   api.indices2,       ;*  36   Fetch information about an index
+   api.selectlist,     ;*  37   Select file and return list
+   api.selectindexv,   ;*  38   Select index, returning indexed values
+   api.selectindexk,   ;*  39   Select index, returning keys for value
+   api.fileinfo,       ;*  40   Perform FILEINFO() action
+   api.readv,          ;*  41   READV and variants
+   api.setleft,        ;*  42   Set index at extreme left
+   api.setright,       ;*  43   Set index at extreme right
+   api.selectleft,     ;*  44   Scan index to left
+   api.selectright,    ;*  45   Scan index to right
+   api.mark.mapping,   ;*  46   Enable/disable mark mapping
+   api.illegal.action
 
    st = status()
 return.status.set: ;* Return to here if ST already set
 
    if server.error = SV$ON.ERROR then response = @abort.message
 
+* 1.0-3 when logging add command and status 
+   if logging then
+     logmsg '>command: ': action  
+     logmsg '> server.error: ': server.error
+     logmsg '> st: ': st
+     logmsg '> pkt: ':iconv(server.error, 'ISL'):iconv(st, 'ILL')
+   end
+
    if logging > 1 then
       s = oconv(iconv(server.error, 'ISL'):iconv(st, 'ILL'):response, 'MX0C')
       logmsg '< ' : s[1,4] : ' ' : s[5,8] : ' ' : s[13,1000] 
    end
 
+   
    writepkt iconv(server.error, 'ISL'):iconv(st, 'ILL'):response
 until done
 repeat
 
 abort.vbsrvr:
-return to abort.vbsrvr
+    return to abort.vbsrvr
 
 connection.failed:
-server.error = SV$ON.ERROR
-st = status()
-writepkt iconv(server.error, 'ISL'):iconv(st, 'ILL'):@abort.message
-goto abort.vbsrvr
+    server.error = SV$ON.ERROR
+    st = status()
+    writepkt iconv(server.error, 'ISL'):iconv(st, 'ILL'):@abort.message
+    goto abort.vbsrvr
 
 * ======================================================================
 
 reset.environment:
-i = ospath("", os$flush.cache)
-
-cleardata               ;* Clear any unused DATA queue entries
-
-printer close on -3     ;* Close all printers at this or higher level
-printer off
-heading ""              ;* Ensure no heading or...
-footing ""              ;* ...footing on default print unit
-
-inline.prompts = ""     ;* Cast off inline prompts...
-inline.responses = ""   ;* ...and responses
-
-i = kernel(K$CPROC.LEVEL,0)
-delete.common '$':i   ;* Delete unnamed common
-
-return
+    i = ospath("", os$flush.cache)
+    
+    cleardata               ;* Clear any unused DATA queue entries
+    
+    printer close on -3     ;* Close all printers at this or higher level
+    printer off
+    heading ""              ;* Ensure no heading or...
+    footing ""              ;* ...footing on default print unit
+    
+    inline.prompts = ""     ;* Cast off inline prompts...
+    inline.responses = ""   ;* ...and responses
+    
+    i = kernel(K$CPROC.LEVEL,0)
+    delete.common '$':i   ;* Delete unnamed common
+    
+    return
 
 * ======================================================================
 
-vb.illegal.action:
-server.error = SV$ERROR
-error.msg = "Illegal action code (" : action : ")"
-return
+api.illegal.action:
+    server.error = SV$ERROR
+    error.msg = "Illegal action code (" : action : ")"
+    return
 
 * ======================================================================
 * SrvrQuit  -  Disconnect server
 
-vb.quit:
-done = @true
-return
+api.quit:
+    done = @true
+    return
 
 * ======================================================================
 * SrvrGetError  -  Return extended error text
 
-vb.geterror:
-response = error.msg
-return
+api.geterror:
+    response = error.msg
+    return
 
 * ======================================================================
 * SrvrAccount  -  Logto named account
 * In:  account name or path
 
-vb.account:
-* Run the ON.LOGTO paragraph, if it exists
-
-readv i from @voc,'ON.LOGTO',0 on error null
-then execute 'ON.LOGTO' trapping aborts capturing response
-
-new.account = upcase(cmnd)
-
-if logging then
-  logmsg '> Connect to account: ':new.account 
-end
-
-
-old.account.path = account.path
-
-if len(new.account) < 1 or len(new.account) > MAX.ACCOUNT.NAME.LEN then
-   server.error = SV$ERROR
-   error.msg = sysmsg(5037) ;* Invalid account name
-   goto revert.to.old.account
-end
-
-account.path = new.account
-if index(new.account, @ds, 1) = 0 then
-   openpath @sdsys:@ds:'ACCOUNTS' to acc.f then
-      read acc.rec from acc.f, new.account then
-         account.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
-      end
-      close acc.f
-   end
-end
-
-* rev 0.9.0 * is user member of account?   
-if  not(is_grp_member(@logname,acc.rec<ACC$GROUP>)) then
-    server.error = SV$ERROR
-    error.msg = sysmsg(10003) ;* User not allowed in requested account
-    abort.message = error.msg
-    goto revert.to.old.account 
-end
-
-if not(ospath(account.path, OS$CD)) then
-   server.error = SV$ERROR
-   error.msg = sysmsg(5019, account.path) ;* Unable to change to directory %1
-   goto revert.to.old.account
-end
-
-openpath "VOC" to new.voc else
-   server.error = SV$ERROR
-   error.msg = sysmsg(5163) ;* Directory is not a SD account
-   goto revert.to.old.account
-end
-
-i = ospath("", os$flush.cache)
-
-account.path = ospath("", os$cwd)     ;* Ensure @PATH is absolute path
-initial.account.path = account.path   ;* Make WHO show only one element
-who = new.account
-
-voc = new.voc
-
-* 0452 Set up the private catalogue pathname
-
-private.catalogue = 'cat'
-read voc.rec from voc, "$PRIVATE.CATALOGUE" then
-   if upcase(voc.rec[1,1]) = 'X' then private.catalogue = voc.rec<2>
-end
-
-i = kernel(K$PRIVATE.CATALOGUE, private.catalogue)
-
-* Run the LOGIN paragraph, if it exists
-
-readv i from @voc,'LOGIN',0 on error null
-then execute 'LOGIN' trapping aborts capturing response
-
-return
+api.account:
+    * Run the ON.LOGTO paragraph, if it exists
+    
+    readv i from @voc,'ON.LOGTO',0 on error null
+    then execute 'ON.LOGTO' trapping aborts capturing response
+    
+    new.account = upcase(cmnd)
+    
+    if logging then
+        logmsg '> Connect to account: ':new.account 
+    end
+    
+    
+    old.account.path = account.path
+    
+    if len(new.account) < 1 or len(new.account) > MAX.ACCOUNT.NAME.LEN then
+        server.error = SV$ERROR
+        error.msg = sysmsg(5037) ;* Invalid account name
+        goto revert.to.old.account
+    end
+    
+    account.path = new.account
+    if index(new.account, @ds, 1) = 0 then
+        openpath @sdsys:@ds:'ACCOUNTS' to acc.f then
+            read acc.rec from acc.f, new.account then
+                account.path = parse.pathname.tokens(acc.rec<ACC$PATH>)
+            end
+            close acc.f
+        end
+    end
+    
+    * rev 0.9.0 * is user member of account?   
+    if  not(is_grp_member(@logname,acc.rec<ACC$GROUP>)) then
+        server.error = SV$ERROR
+        error.msg = sysmsg(10003) ;* User not allowed in requested account
+        abort.message = error.msg
+        goto revert.to.old.account 
+    end
+    
+    if not(ospath(account.path, OS$CD)) then
+        server.error = SV$ERROR
+        error.msg = sysmsg(5019, account.path) ;* Unable to change to directory %1
+        goto revert.to.old.account
+    end
+    
+    openpath "VOC" to new.voc else
+        server.error = SV$ERROR
+        error.msg = sysmsg(5163) ;* Directory is not a SD account
+        goto revert.to.old.account
+    end
+    
+    i = ospath("", os$flush.cache)
+    
+    account.path = ospath("", os$cwd)     ;* Ensure @PATH is absolute path
+    initial.account.path = account.path   ;* Make WHO show only one element
+    who = new.account
+    
+    voc = new.voc
+    
+    * 0452 Set up the private catalogue pathname
+    
+    private.catalogue = 'cat'
+    read voc.rec from voc, "$PRIVATE.CATALOGUE" then
+        if upcase(voc.rec[1,1]) = 'X' then private.catalogue = voc.rec<2>
+    end
+    
+    i = kernel(K$PRIVATE.CATALOGUE, private.catalogue)
+    
+    * Run the LOGIN paragraph, if it exists
+    
+    readv i from @voc,'LOGIN',0 on error null
+    then execute 'LOGIN' trapping aborts capturing response
+    
+    return
 
 revert.to.old.account:
-if not(ospath(old.account.path, OS$CD)) then
-   server.error = SV$ERROR
-   error.msg = sysmsg(5162) ;* Fatal error : Cannot return to previous account
-   return to abort.vbsrvr
-end
+    if not(ospath(old.account.path, OS$CD)) then
+        server.error = SV$ERROR
+        error.msg = sysmsg(5162) ;* Fatal error : Cannot return to previous account
+        return to abort.vbsrvr
+    end
 
 return
 
@@ -416,126 +436,127 @@ return
 * In:  fname
 * Out: fileno (short integer)
 
-vb.open:
-if kernel(K$SDNET, -1)  or config("SDCLIENT") # 0 then
-   abort.message = sysmsg(5262) ;* File access is disabled
-   server.error = SV$ON.ERROR
-   return
-end
+api.open:
+    if kernel(K$SDNET, -1)  or config("SDCLIENT") # 0 then
+        abort.message = sysmsg(5262) ;* File access is disabled
+        server.error = SV$ON.ERROR
+        return
+    end
+    
+    * Locate a spare file table entry
+    
+    n = inmat(files)
+    
+    for i = 1 to n
+        if not(fileinfo(files(i), FL$OPEN)) then goto api.open.continue
+    next i
+    
+    * Extend file table
+    
+    dim files(n + 50)
+    i = n + 1
+    
+api.open.continue:
+    * Open file to file table entry i
+    
+    open cmnd to files(i)
+    on error server.error = SV$ON.ERROR
+    then
+        if bitand(fileinfo(files(i), FL$FLAGS), FL$FLAGS.TRUSTED) then
+            server.error = SV$ELSE
+        end else
+            response = iconv(i, 'ISL')
+        end
+    end
+    else server.error = SV$ELSE
+    
+    return
 
-* Locate a spare file table entry
+* ======================================================================
+* Close file
+* In:  fileno (short integer)
+* Out:
 
-n = inmat(files)
+api.close:
+    fno = oconv(cmnd[1,2], 'ISL')
+    gosub check.file
+    if err then return
+    
+    close files(fno)   ;* 0346
+    
+    return
 
-for i = 1 to n
-   if not(fileinfo(files(i), FL$OPEN)) then goto vb.open.continue
-next i
+* ======================================================================
+* Read record
+* In:  fileno (short integer)
+*      id
+* Out: record
 
-* Extend file table
+api.read:
+   fno = oconv(cmnd[1,2], 'ISL')
+   gosub check.file
+   if err then return
 
-dim files(n + 50)
-i = n + 1
-
-vb.open.continue:
-* Open file to file table entry i
-
-open cmnd to files(i)
-on error server.error = SV$ON.ERROR
-then
-   if bitand(fileinfo(files(i), FL$FLAGS), FL$FLAGS.TRUSTED) then
-      server.error = SV$ELSE
-      end else
-         response = iconv(i, 'ISL')
-      end
-   end
-   else server.error = SV$ELSE
-
-      return
-
-      * ======================================================================
-      * Close file
-      * In:  fileno (short integer)
-      * Out:
-
-vb.close:
-      fno = oconv(cmnd[1,2], 'ISL')
-      gosub check.file
-      if err then return
-
-      close files(fno)   ;* 0346
-
-      return
-
-      * ======================================================================
-      * Read record
-      * In:  fileno (short integer)
-      *      id
-      * Out: record
-
-vb.read:
-      fno = oconv(cmnd[1,2], 'ISL')
-      gosub check.file
-      if err then return
-
-      id = cmnd[3,99]
-      read rec from files(fno), id
-      on error
+   id = cmnd[3,99]
+   read rec from files(fno), id
+   on error
       server.error = SV$ON.ERROR
    end then
       response = rec
    end else
       server.error = SV$ELSE
-      end
+   end
 
-      return
+   return
 
-      * ======================================================================
-      * Read record with shared lock
-      * In:  fileno (short integer)
-      *      id
-      * Out: record
+* ======================================================================
+* Read record with shared lock
+* In:  fileno (short integer)
+*      id
+* Out: record
 
-vb.readl:
-      fno = oconv(cmnd[1,2], 'ISL')
-      gosub check.file
-      if err then return
+api.readl:
+   fno = oconv(cmnd[1,2], 'ISL')
+   gosub check.file
+   if err then return
 
-      id = cmnd[3,99]
-      readl rec from files(fno), id
-      on error
+   id = cmnd[3,99]
+   readl rec from files(fno), id
+   on error
       server.error = SV$ON.ERROR
    end locked
       server.error = SV$LOCKED
-      end then
-         response = rec
-      end else
-         server.error = SV$ELSE
-         end
+   end then
+      response = rec
+   end else
+      server.error = SV$ELSE
+   end
 
-         return
+   return
 
-         * ======================================================================
-         * Read record with shared lock, waiting if locked
-         * In:  fileno (short integer)
-         *      id
-         * Out: record
 
-vb.readlw:
-         fno = oconv(cmnd[1,2], 'ISL')
-         gosub check.file
-         if err then return
+* ======================================================================
+* Read record with shared lock, waiting if locked
+* In:  fileno (short integer)
+*      id
+* Out: record
 
-         id = cmnd[3,99]
-         readl rec from files(fno), id
-         on error
-         server.error = SV$ON.ERROR
-      end then
-         response = rec
-      end else
-         server.error = SV$ELSE
-         end
+api.readlw:
+   fno = oconv(cmnd[1,2], 'ISL')
+   gosub check.file
+   if err then return
 
-         return
+   id = cmnd[3,99]
+   readl rec from files(fno), id
+   on error
+      server.error = SV$ON.ERROR
+   end then
+      response = rec
+   end else
+      server.error = SV$ELSE
+   end
+
+   return
 
          * ======================================================================
          * Read record with exclusive lock
@@ -543,924 +564,890 @@ vb.readlw:
          *      id
          * Out: record
 
-vb.readu:
-         fno = oconv(cmnd[1,2], 'ISL')
-         gosub check.file
-         if err then return
+* ======================================================================
+* Read record with exclusive lock
+* In:  fileno (short integer)
+*      id
+* Out: record
 
-         id = cmnd[3,99]
-         readu rec from files(fno), id
-         on error
+api.readu:
+   fno = oconv(cmnd[1,2], 'ISL')
+   gosub check.file
+   if err then return
+
+   id = cmnd[3,99]
+   readu rec from files(fno), id
+   on error
+      server.error = SV$ON.ERROR
+   end locked
+      server.error = SV$LOCKED
+   end then
+      response = rec
+   end else
+      server.error = SV$ELSE
+   end
+
+   return
+
+* ======================================================================
+* Read record with exclusive lock, waiting if locked
+* In:  fileno (short integer)
+*      id
+* Out: record
+
+api.readuw:
+   fno = oconv(cmnd[1,2], 'ISL')
+   gosub check.file
+   if err then return
+
+   id = cmnd[3,99]
+   readu rec from files(fno), id
+   on error
+      server.error = SV$ON.ERROR
+   end then
+      response = rec
+   end else
+      server.error = SV$ELSE
+   end
+
+   return
+
+* ======================================================================
+* Select file
+* In:  file no  (short int)
+*      list no  (short int)
+
+api.select:
+   fno = oconv(cmnd[1,2], 'ISL')
+   gosub check.file
+   if err then return
+
+   listno = oconv(cmnd[3,2], 'ISL')
+   gosub check.list
+   if err then return
+
+   select files(fno) to listno
+
+   return
+
+* ======================================================================
+* Read next entry from select list
+* In:  listno (short integer)
+* Out: id
+
+api.readnext:
+   listno = oconv(cmnd[1,2], 'ISL')
+   gosub check.list
+   if err then return
+
+   readnext response from listno else server.error = SV$ELSE
+
+   return
+
+* ======================================================================
+* Clear select list
+* In:  listno (short integer)
+
+api.clearselect:
+   listno = oconv(cmnd[1,2], 'ISL')
+   gosub check.list
+   if err then return
+
+   clearselect listno
+
+   return
+
+* ======================================================================
+* Read select list
+* In:  listno (short integer)
+
+api.readlist:
+   listno = oconv(cmnd[1,2], 'ISL')
+   gosub check.list
+   if err then return
+
+   readlist response from listno else response = ''
+
+   return
+
+* ======================================================================
+* Release lock
+* In:  fileno (short integer)
+*      id
+
+api.release:
+   fno = oconv(cmnd[1,2], 'ISL')
+   if fno then               ;* 0249
+      gosub check.file
+      if err then return
+   end
+
+   id = cmnd[3,99]
+
+   begin case
+      case fno = 0
+         release
+
+      case id = ''
+         release files(fno)
+
+      case 1
+         release files(fno), id
+   end case
+
+   return
+
+* ======================================================================
+* Write record
+* In:  fileno (short integer)
+*      id_len (short integer)
+*      id
+*      data
+
+api.write:
+    fno = oconv(cmnd[1,2], 'ISL')
+    gosub check.file
+    if err then return
+    
+    id.len = oconv(cmnd[3,2], 'ISL')
+    id = cmnd[5,id.len]
+    
+    write cmnd[5 + id.len, 99999999] to files(fno), id
+    on error server.error = SV$ON.ERROR
+    
+    return
+    
+* ======================================================================
+* Write record, retaiining lock
+* In:  fileno (short integer)
+*      id_len (short integer)
+*      id
+*      data
+
+api.writeu:
+   fno = oconv(cmnd[1,2], 'ISL')
+   gosub check.file
+   if err then return
+
+   id.len = oconv(cmnd[3,2], 'ISL')
+   id = cmnd[5,id.len]
+
+   writeu cmnd[5 + id.len, 99999999] to files(fno), id
+   on error server.error = SV$ON.ERROR
+
+   return
+
+* ======================================================================
+* Delete record
+* In:  fileno (short integer)
+*      id
+
+api.delete:
+   fno = oconv(cmnd[1,2], 'ISL')
+   gosub check.file
+   if err then return
+
+   id = cmnd[3,99]
+   delete files(fno), id
+   on error server.error = SV$ON.ERROR
+
+   return
+
+* ======================================================================
+* Delete record, retaining lock
+* In:  fileno (short integer)
+*      id
+
+api.deleteu:
+   fno = oconv(cmnd[1,2], 'ISL')
+   gosub check.file
+   if err then return
+
+   id = cmnd[3,99]
+
+   deleteu files(fno), id
+   on error server.error = SV$ON.ERROR
+
+   return
+
+* ======================================================================
+* Call catalogued subroutine
+* In:  subr name len (short integer)
+*      subr name (rounded to 2 byte boundary)
+*      arg count (short integer)
+*      arg len (long integer)
+*      arg data (rounded to 2 byte boundary)
+*
+* Out: arg no (short integer)   Always in ascending arg no order
+*      arg len (long integer)
+*      arg data (rounded to 2 byte boundary)
+
+api.call:
+   name.len = oconv(cmnd[1,2], 'ISL')
+   if name.len < 1 or name.len > MAX.CALL.NAME.LEN then
+      abort.message = sysmsg(5263) ;* Invalid call name
+      server.error = SV$ON.ERROR
+      return
+   end
+   subr.name = cmnd[3,name.len]
+   pos = 3 + name.len + bitand(name.len, 1)
+   arg.count = oconv(cmnd[pos,2], 'ISL')
+   pos += 2
+   * Are we allowed to run this program?
+   obj.flags = load.object(subr.name)
+   if subr.name[1,1] = '$' or config("SDCLIENT") = 2 or kernel(K$SDNET, -1) then
+      if not(bitand(obj.flags, HDR.SDCALL.ALLOWED)) then
+         abort.message = sysmsg(5264, subr.name) ;* %1 cannot be called from a SDClient session
          server.error = SV$ON.ERROR
-      end locked
-         server.error = SV$LOCKED
-         end then
-            response = rec
-         end else
-            server.error = SV$ELSE
-            end
-
-            return
-
-            * ======================================================================
-            * Read record with exclusive lock, waiting if locked
-            * In:  fileno (short integer)
-            *      id
-            * Out: record
-
-vb.readuw:
-            fno = oconv(cmnd[1,2], 'ISL')
-            gosub check.file
-            if err then return
-
-            id = cmnd[3,99]
-            readu rec from files(fno), id
-            on error
-            server.error = SV$ON.ERROR
-         end then
-            response = rec
-         end else
-            server.error = SV$ELSE
-            end
-
-            return
-
-            * ======================================================================
-            * Select file
-            * In:  file no  (short int)
-            *      list no  (short int)
-
-vb.select:
-            fno = oconv(cmnd[1,2], 'ISL')
-            gosub check.file
-            if err then return
-
-            listno = oconv(cmnd[3,2], 'ISL')
-            gosub check.list
-            if err then return
-
-            select files(fno) to listno
-
-            return
-
-            * ======================================================================
-            * Read next entry from select list
-            * In:  listno (short integer)
-            * Out: id
-
-vb.readnext:
-            listno = oconv(cmnd[1,2], 'ISL')
-            gosub check.list
-            if err then return
-
-            readnext response from listno else server.error = SV$ELSE
-
-               return
-
-               * ======================================================================
-               * Clear select list
-               * In:  listno (short integer)
-
-vb.clearselect:
-               listno = oconv(cmnd[1,2], 'ISL')
-               gosub check.list
-               if err then return
-
-               clearselect listno
-
-               return
-
-               * ======================================================================
-               * Read select list
-               * In:  listno (short integer)
-
-vb.readlist:
-               listno = oconv(cmnd[1,2], 'ISL')
-               gosub check.list
-               if err then return
-
-               readlist response from listno else response = ''
-
-               return
-
-               * ======================================================================
-               * Release lock
-               * In:  fileno (short integer)
-               *      id
-
-vb.release:
-               fno = oconv(cmnd[1,2], 'ISL')
-               if fno then               ;* 0249
-                  gosub check.file
-                  if err then return
-               end
-
-               id = cmnd[3,99]
-
-               begin case
-                  case fno = 0
-                     release
-
-                  case id = ''
-                     release files(fno)
-
-                  case 1
-                     release files(fno), id
-               end case
-
-               return
-
-               * ======================================================================
-               * Write record
-               * In:  fileno (short integer)
-               *      id_len (short integer)
-               *      id
-               *      data
-
-vb.write:
-               fno = oconv(cmnd[1,2], 'ISL')
-               gosub check.file
-               if err then return
-
-               id.len = oconv(cmnd[3,2], 'ISL')
-               id = cmnd[5,id.len]
-
-               write cmnd[5 + id.len, 99999999] to files(fno), id
-               on error server.error = SV$ON.ERROR
-
-               return
-
-               * ======================================================================
-               * Write record, retaiining lock
-               * In:  fileno (short integer)
-               *      id_len (short integer)
-               *      id
-               *      data
-
-vb.writeu:
-               fno = oconv(cmnd[1,2], 'ISL')
-               gosub check.file
-               if err then return
-
-               id.len = oconv(cmnd[3,2], 'ISL')
-               id = cmnd[5,id.len]
-
-               writeu cmnd[5 + id.len, 99999999] to files(fno), id
-               on error server.error = SV$ON.ERROR
-
-               return
-
-               * ======================================================================
-               * Delete record
-               * In:  fileno (short integer)
-               *      id
-
-vb.delete:
-               fno = oconv(cmnd[1,2], 'ISL')
-               gosub check.file
-               if err then return
-
-               id = cmnd[3,99]
-               delete files(fno), id
-               on error server.error = SV$ON.ERROR
-
-               return
-
-               * ======================================================================
-               * Delete record, retaining lock
-               * In:  fileno (short integer)
-               *      id
-
-vb.deleteu:
-               fno = oconv(cmnd[1,2], 'ISL')
-               gosub check.file
-               if err then return
-
-               id = cmnd[3,99]
-
-               deleteu files(fno), id
-               on error server.error = SV$ON.ERROR
-
-               return
-
-               * ======================================================================
-               * Call catalogued subroutine
-               * In:  subr name len (short integer)
-               *      subr name (rounded to 2 byte boundary)
-               *      arg count (short integer)
-               *      arg len (long integer)
-               *      arg data (rounded to 2 byte boundary)
-               *
-               * Out: arg no (short integer)   Always in ascending arg no order
-               *      arg len (long integer)
-               *      arg data (rounded to 2 byte boundary)
-
-vb.call:
-               name.len = oconv(cmnd[1,2], 'ISL')
-               if name.len < 1 or name.len > MAX.CALL.NAME.LEN then
-                  abort.message = sysmsg(5263) ;* Invalid call name
-                  server.error = SV$ON.ERROR
-                  return
-               end
-
-               subr.name = cmnd[3,name.len]
-               pos = 3 + name.len + bitand(name.len, 1)
-
-               arg.count = oconv(cmnd[pos,2], 'ISL')
-               pos += 2
-
-               * Are we allowed to run this program?
-
-               obj.flags = load.object(subr.name)
-               if subr.name[1,1] = '$' or config("SDCLIENT") = 2 or kernel(K$SDNET, -1) then
-                  if not(bitand(obj.flags, HDR.SDCALL.ALLOWED)) then
-                     abort.message = sysmsg(5264, subr.name) ;* %1 cannot be called from a SDClient session
-                     server.error = SV$ON.ERROR
-                  end
-               end
-
-               if arg.count then
-                  mat args = ''
-                  for i = 1 to arg.count
-                     arg.len = oconv(cmnd[pos,4], 'ILL')
-                     pos += 4
-                     args(i) = cmnd[pos,arg.len]
-                     pos += arg.len + bitand(arg.len, 1)
-                  next i
-
-                  callv @subr.name, arg.count, args
-
-                  * Now return values of changed arguments (if any)
-
-                  for i = 1 to arg.count
-                     if changed(args(i)) then
-                        response := iconv(i, 'ISL') : iconv(len(args(i)), 'ILL') : args(i)
-                        if bitand(len(args(i)), 1) then response := ' '
-                     end
-                  next i
-               end else
-                  call @subr.name
-               end
-
-               gosub reset.environment
-
-               return
-
-               * ======================================================================
-               * Execute command
-               * In:  Command string
-               * Out: Command output
-
-vb.execute:
-               if config("SDCLIENT") # 0  or kernel(K$SDNET, -1) then
-                  abort.message = sysmsg(5265) ;* Command execution is disabled
-                  server.error = SV$ON.ERROR
-                  return
-               end
-
-               execute cmnd capturing response
-               st = @system.return.code
-               return to return.status.set
-
-               * ======================================================================
-               * Response to input
-               * In:  Command string
-               * Should never happen as client end should detect this
-
-vb.respond:
-               server.error = SV$ERROR
-               error.msg = sysmsg(5266) ;* Response to prompt sent when no prompt outstanding
-               return
-
-               * ======================================================================
-               * End command
-               * Should never happen as client end should detect this
-
-vb.endcommand:
-               server.error = SV$ERROR
-               error.msg = sysmsg(5267) ;* End command request sent when no prompt outstanding
-               return
-
-               * ======================================================================
-               * Login user 
-               * In:  username len (short integer)
-               *      username padded to 2 byte multiple
-               *      password len (short integer)
-               *      password padded to 2 byte multiple
-
-vb.login:
-*              * dsm 20240612 openpath @sdsys:@ds:'$LOGINS' to lgn.f else
-*              * dsm 20240612    abort.message = sysmsg(6050) ;* Cannot open $LOGINS register
-*              * dsm 20240612    server.error = SV$ON.ERROR
-*              * dsm 20240612    return
-*              * dsm 20240612 end
-
-               * mab 20240219 read security.rec from lgn.f, '$SECURE' then
-               * mab 20240219    i = kernel(K$SECURE, security.rec<1>)
-               * mab 20240219 end
-
-               * mab 20240219 if kernel(K$SECURE, -1) or not(system(91)) then
-
-               * Extract user name
-
-               n = oconv(cmnd[1,2], 'ISL')
-               if n < 1 or n > MAX.USERNAME.LEN or cmnd[3,1] = '$' then
-                  abort.message = sysmsg(5017) ;* Invalid user name or password
-                  server.error = SV$ON.ERROR
-                  goto exit.vb.login
-               end
-
-               username = cmnd[3,n]
-               pos = 3 + n + bitand(n, 1)
-
-               * Extract password
-
-               n = oconv(cmnd[pos,2], 'ISL')
-               if n > MAX.USERNAME.LEN then
-                  abort.message = sysmsg(5017) ;* Invalid user name or password
-                  server.error = SV$ON.ERROR
-                  goto exit.vb.login
-               end
-
-               password = cmnd[pos+2,n]
-               pos = 3 + n + bitand(n, 1)
-
-               * rem we execute login regardless of APILOGIN flag (its how we set usr and grp id) 
-               * rem basic function login calles OP_login in op_kernel.c which:
-               *   calls linuxio.c login_user()
-               *   populates uptr->username and process.username
-               if login(username, password) then
-
-                  if config('APILOGIN') then
-                  * we required user to enter a user name to connect (over and above the ssh tunnel validation)
-                  * so change the logname to reflect 
-                      logname = username
-                  end else
-                  * we do not require a valid user name validate against user creating tunnel
-                     username = kernel(K$USERNAME, 0)
-                  end
-                  * require entry of valid sd username? (rem connection from ssh tunnel, so user already validated)
-                  * readu lgn.rec from lgn.f, username else null 
-                  * 20240219 mab user must be member of sdusers   
-                  if logging then
-                      logmsg '>  vb.login username: ' : username  
-                  end        
-                  if  not(is_grp_member(username,'sdusers')) then
-                     server.error = SV$ON.ERROR
-                     abort.message = sysmsg(5009) ;* This user is not registered for SD use
-                  
-                     if logging then
-                       logmsg '>  username: ' : username : 'not in sdusers' 
-                     end
-                     goto exit.vb.login
-                  end
-                  
-                  * dsm 20240612 lgn.rec<LGN$DATE> = date()
-                  * dsm 20240612 lgn.rec<LGN$TIME> = time()
-                  * dsm 20240612 recordlocku lgn.f, username
-                  * dsm 20240612 write lgn.rec to lgn.f, username
-
-                  * dsm 20240612i = kernel(K$ADMINISTRATOR,lgn.rec<LGN$ADMIN>)
-               end else
-                  server.error = SV$ON.ERROR
-                  abort.message = sysmsg(5017) ;* Invalid user name or password
-                  sleep 3
-                  if logging then
-                      logmsg '>  username: ' : username : ' invalid'  
-                  end
-               end
-               * mab 20240219  end else      ;* System is insecure - no username/password checks
-               * mab 20240219     i = kernel(K$ADMINISTRATOR,1)    ;* All users are administrators
-               * mab 20240219  end
-
-exit.vb.login:
-               * dsm 20240612 close lgn.f
-               if server.error = SV$OK then logged.in = @true
-               else done = @true
-
-               return
-
-               * ======================================================================
-               * Login user for SDLocal connection
-
-vb.local.login:
-              * dsm 20240612 openpath @sdsys:@ds:'$LOGINS' to lgn.f else
-              * dsm 20240612    abort.message = sysmsg(6050) ;* Cannot open $LOGINS register
-              * dsm 20240612    server.error = SV$ON.ERROR
-              * dsm 20240612    return
-              * dsm 20240612 end
-
-               * mab 20240219  read security.rec from lgn.f, '$SECURE' then
-               * mab 20240219     = kernel(K$SECURE, security.rec<1>)
-               * mab 20240219  end
-
-               username = logname
-
-               * mab 20240219 if kernel(K$SECURE, -1) then
-               * dsm 20240612 readu lgn.rec from lgn.f, username else null
-               * 20240219 mab user must be member of sdusers           
-               if  not(is_grp_member(username,'sdusers')) then
-                     server.error = SV$ON.ERROR
-                     abort.message = sysmsg(5009) ;* This user is not registered for SD use
-                     goto exit.vb.local.login
-               end
-
-               * dsm 20240612 lgn.rec<LGN$DATE> = date()
-               * dsm 20240612 lgn.rec<LGN$TIME> = time()
-               * dsm 20240612 recordlocku lgn.f, username
-               * dsm 20240612 write lgn.rec to lgn.f, username
-
-               logname = username
-               * dsm 20240612 i = kernel(K$ADMINISTRATOR,lgn.rec<LGN$ADMIN>)
-               * mab 20240219    end else      ;* System is insecure
-               * mab 20240219      i = kernel(K$ADMINISTRATOR,1)    ;* All users are administrators
-               * mab 20240219    end
-
-exit.vb.local.login:
-               * dsm 20240612close lgn.f
-               if server.error = SV$OK then logged.in = @true
-               else done = @true
-
-               return
-
-               * ======================================================================
-               * Select index
-               * In:  file no  (short int)
-               *      list no  (short int)
-               *      index name len (short int)
-               *      index name (padded to 2 byte interval)
-               *      index value len (short int)
-               *      index value (padded to 2 byte interval)
-
-vb.selectindex:
-               fno = oconv(cmnd[1,2], 'ISL')
-               gosub check.file
-               if err then return
-
-               listno = oconv(cmnd[3,2], 'ISL')
-               gosub check.list
-               if err then return
-
-               * Extract index name
-
-               pos = 5
-               n = oconv(cmnd[pos,2], 'ISL')
-               pos += 2
-               index.name = cmnd[pos, n]
-               pos += n + bitand(n, 1)
-
-               * Extract index value
-
-               n = oconv(cmnd[pos,2], 'ISL')
-               pos += 2
-               index.value = cmnd[pos, n]
-
-               selectindex index.name, index.value from files(fno) to listno
-
-               return
-
-                     * ======================================================================
-                     * Open file SDNet file
-                     * In:  Account name;filename
-                     * Out: fileno (short integer)
-
-vb.open.sdnet:
-                     if not(bitand(config('NETFILES'), 2)) then
-                        set.status ER$XREMOTE
-                        server.error = SV$ELSE
-                           return
-                        end
-
-                        * Use of this operation identifies the process as a SDNet user.
-                        * Set the appropriate process flag so that LISTU etc show this.
-
-                        i = kernel(K$SDNET, 1)
-
-                        * Locate a spare file table entry
-
-                        n = inmat(files)
-
-                        for i = 1 to n
-                           if not(fileinfo(files(i), FL$OPEN)) then goto vb.open.sdnet.continue
-                        next i
-
-                        * Extend file table
-
-                        dim files(n + 50)
-                        i = n + 1
-
-vb.open.sdnet.continue:
-
-                        * Open file to file table entry i
-
-                        acc = field(cmnd, ';', 1)   ;* Account name or path
-                        file = field(cmnd, ';', 1)  ;* File name
-
-                        openpath @sdsys:@ds:'ACCOUNTS' to acc.f then
-                           read acc.rec from acc.f, acc then
-                              acc = parse.pathname.tokens(acc.rec<ACC$PATH>)
-                           end
-                           close acc.f
-                        end
-
-                        qvoc.path = acc:@ds:'VOC'
-                        openpath qvoc.path to qvoc.f else
-                           server.error = SV$ELSE
-                              return
-                           end
-
-                           file = field(cmnd, ';', 2)
-                           if file[1,5] = 'DICT ' then
-                              j = 3
-                              file = file[6,999]
-                           end else
-                              j = 2
-                           end
-
-                           read voc.rec from qvoc.f, file else null
-                           close qvoc.f
-
-                           if voc.rec[1,1] # 'F' then
-                              set.status ER$VNF
-                              server.error = SV$ELSE
-                                 return
-                              end
-
-                              path = voc.rec<j>
-                              if path = '' then
-                                 set.status ER$NPN
-                                 server.error = SV$ELSE
-                                    return
-                                 end
-
-                                 if upcase(path[1,6]) = '@SDSYS' then path = @sdsys:path[7,9999]
-
-                                 if path[1,1] # @ds then
-                                    * Convert voc item to absolute path
-                                    path = acc : @ds : path
-                                 end
-
-                                 openpath path to files(i)
-                                 on error server.error = SV$ON.ERROR
-                                 then
-                                    if bitand(fileinfo(files(i), FL$FLAGS), FL$FLAGS.TRUSTED) then
-                                       server.error = SV$ELSE
-                                       end else
-                                          response = iconv(i, 'ISL')
-                                       end
-                                    end
-                                    else server.error = SV$ELSE
-
-                                       return
-
-                                       * ======================================================================
-                                       * Lock record
-                                       * In:  fileno (short integer)
-                                       *      flags (short integer)    0x0001 = Update lock, 0x0002 = no wait.
-                                       *      id
-
-vb.lock.record:
-                                       fno = oconv(cmnd[1,2], 'ISL')
-                                       gosub check.file
-                                       if err then return
-
-                                       flags = oconv(cmnd[3,2], 'ISL')
-
-                                       id = cmnd[5,99]
-
-                                       begin case
-                                          case flags = 0
-                                             recordlockl files(fno), id
-                                          case flags = 1
-                                             recordlocku files(fno), id
-                                          case flags = 2
-                                             recordlockl files(fno), id locked server.error = SV$LOCKED
-                                             case flags = 3
-                                                recordlocku files(fno), id locked server.error = SV$LOCKED
-                                             end case
-
-                                             return
-
-                                             * ======================================================================
-                                             * Clear file
-                                             * In:  fileno (short integer)
-                                             * Out:
-
-vb.clearfile:
-                                             fno = oconv(cmnd[1,2], 'ISL')
-                                             gosub check.file
-                                             if err then return
-
-                                             clearfile files(i)
-
-                                             return
-
-                                             * ======================================================================
-                                             * Get file lock
-                                             * In:  fileno (short integer)
-                                             *      Wait?  (short integer)
-                                             * Out:
-
-vb.filelock:
-                                             fno = oconv(cmnd[1,2], 'ISL')
-                                             wait = oconv(cmnd[3,2], 'ISL')
-                                             gosub check.file
-                                             if err then return
-
-                                             if wait then
-                                                filelock files(i)
-                                             end else
-                                                filelock files(i) locked server.error = SV$LOCKED
-                                                end
-
-                                                return
-
-                                                * ======================================================================
-                                                * Release file lock
-                                                * In:  fileno (short integer)
-                                                * Out:
-
-vb.fileunlock:
-                                                fno = oconv(cmnd[1,2], 'ISL')
-                                                gosub check.file
-                                                if err then return
-
-                                                fileunlock files(i)
-
-                                                return
-
-                                                * ======================================================================
-                                                * Test lock
-                                                * In:  fileno (short integer)
-                                                *      id
-
-vb.recordlocked:
-                                                fno = oconv(cmnd[1,2], 'ISL')
-                                                gosub check.file
-                                                if err then return
-
-                                                id = cmnd[3,99]
-                                                i = recordlocked(files(fno), id)
-                                                st = status()
-                                                response = iconv(i, 'ILL');
-                                                set.status st
-
-                                                return
-
-                                                * ======================================================================
-                                                * Fetch information about indices
-                                                * In:  fileno (short integer)
-
-vb.indices1:
-                                                fno = oconv(cmnd[1,2], 'ISL')
-                                                gosub check.file
-                                                if err then return
-
-                                                response = indices(files(fno))
-
-                                                return
-
-                                                * ======================================================================
-                                                * Fetch information about indices
-                                                * In:  fileno (short integer)
-                                                *      Index name
-
-vb.indices2:
-                                                fno = oconv(cmnd[1,2], 'ISL')
-                                                gosub check.file
-                                                if err then return
-
-                                                response = indices(files(fno), cmnd[3,99])
-
-                                                return
-
-                                                * ======================================================================
-                                                * Select file and return list
-                                                * In:  fileno (short integer)
-
-vb.selectlist:
-                                                fno = oconv(cmnd[1,2], 'ISL')
-                                                gosub check.file
-                                                if err then return
-
-                                                select files(fno) to 11
-                                                readlist response from 11 else null
-
-                                                return
-
-                                                * ======================================================================
-                                                * Select index, returning indexed values
-                                                * In:  fileno (short integer)
-                                                *      index name
-
-vb.selectindexv:
-                                                fno = oconv(cmnd[1,2], 'ISL')
-                                                gosub check.file
-                                                if err then return
-
-                                                index.name = cmnd[3,999]
-                                                selectindex cmnd[3,99] from files(fno) to 11
-                                                readlist response from 11 else null
-
-                                                return
-
-                                                * ======================================================================
-                                                * Select index, returning keys for indexed value
-                                                * In:  fileno (short integer)
-                                                *      index name len (short integer)
-                                                *      index name
-                                                *      indexed value
-
-vb.selectindexk:
-                                                fno = oconv(cmnd[1,2], 'ISL')
-                                                gosub check.file
-                                                if err then return
-
-                                                i = oconv(cmnd[3,2], 'ISL')
-                                                index.name = cmnd[5,i]
-
-                                                selectindex index.name, cmnd[5+i,999] from files(fno) to 11
-                                                readlist response from 11 else null
-
-                                                return
-
-                                                * ======================================================================
-                                                * Perform FILEINFO() action
-                                                * In:  fileno (short integer)
-                                                *      key (long integer)
-
-vb.fileinfo:
-                                                fno = oconv(cmnd[1,2], 'ISL')
-                                                gosub check.file
-                                                if err then return
-
-                                                i = oconv(cmnd[3,4], 'ILL')
-                                                response = fileinfo(files(fno), i)
-
-                                                return
-
-                                                * ======================================================================
-                                                * READV and variants
-                                                * In:  fileno (short integer)
-                                                *      flags  (short integer) 1 = update lock, 2 = shared lock, 4 = no wait
-                                                *      field no (long integer)
-                                                *      id
-                                                * Out: record data
-
-vb.readv:
-                                                fno = oconv(cmnd[1,2], 'ISL')
-                                                gosub check.file
-                                                if err then return
-
-                                                flags = oconv(cmnd[3,2], 'ISL')
-                                                field_no = oconv(cmnd[5,4], 'ILL')
-
-                                                id = cmnd[9,99]
-
-                                                begin case
-                                                   case flags = 0
-                                                      readv rec from files(fno), id, field_no
-                                                      on error server.error = SV$ON.ERROR
-                                                      then response = rec
-                                                      else server.error = SV$ELSE
-
-                                                      case flags = 1
-                                                         readvu rec from files(fno), id, field_no
-                                                         on error server.error = SV$ON.ERROR
-                                                         then response = rec
-                                                         else server.error = SV$ELSE
-
-                                                         case flags = 2
-                                                            readvl rec from files(fno), id, field_no
-                                                            on error server.error = SV$ON.ERROR
-                                                            then response = rec
-                                                            else server.error = SV$ELSE
-
-                                                            case flags = 5
-                                                               readvu rec from files(fno), id, field_no
-                                                               on error server.error = SV$ON.ERROR
-                                                               locked server.error = SV$LOCKED
-                                                                  then response = rec
-                                                                  else server.error = SV$ELSE
-
-                                                                  case flags = 6
-                                                                     readvl rec from files(fno), id, field_no
-                                                                     on error server.error = SV$ON.ERROR
-                                                                     locked server.error = SV$LOCKED
-                                                                        then response = rec
-                                                                        else server.error = SV$ELSE
-                                                                     end case
-
-                                                                     return
-
-                                                                     * ======================================================================
-                                                                     * SetLeft
-                                                                     * In:  fileno (short integer)
-                                                                     *      index name
-
-vb.setleft:
-                                                                     fno = oconv(cmnd[1,2], 'ISL')
-                                                                     gosub check.file
-                                                                     if err then return
-
-                                                                     setleft cmnd[3,999] from files(fno)
-
-                                                                     return
-
-                                                                     * ======================================================================
-                                                                     * SetRight
-                                                                     * In:  fileno (short integer)
-                                                                     *      index name
-
-vb.setright:
-                                                                     fno = oconv(cmnd[1,2], 'ISL')
-                                                                     gosub check.file
-                                                                     if err then return
-
-                                                                     setright cmnd[3,999] from files(fno)
-
-                                                                     return
-
-                                                                     * ======================================================================
-                                                                     * SelectLeft
-                                                                     * In:  fileno (short integer)
-                                                                     *      list no (short integer)
-                                                                     *      index name
-
-vb.selectleft:
-                                                                     fno = oconv(cmnd[1,2], 'ISL')
-                                                                     gosub check.file
-                                                                     if err then return
-
-                                                                     listno = oconv(cmnd[3,2], 'ISL')
-
-                                                                     selectleft cmnd[5,999] from files(fno) setting response to listno
-
-                                                                     return
-
-                                                                     * ======================================================================
-                                                                     * SelectRight
-                                                                     * In:  fileno (short integer)
-                                                                     *      list no (short integer)
-                                                                     *      index name
-
-vb.selectright:
-                                                                     fno = oconv(cmnd[1,2], 'ISL')
-                                                                     gosub check.file
-                                                                     if err then return
-
-                                                                     listno = oconv(cmnd[3,2], 'ISL')
-
-                                                                     selectright cmnd[5,999] from files(fno) setting response to listno
-
-                                                                     * ======================================================================
-                                                                     * MarkMapping
-                                                                     * In:  fileno (short integer)
-                                                                     *      state (short integer)
-
-vb.mark.mapping:
-                                                                     fno = oconv(cmnd[1,2], 'ISL')
-                                                                     gosub check.file
-                                                                     if err then return
-
-                                                                     mark.mapping files(fno), oconv(cmnd[3,2], 'ISL')
-
-                                                                     return
-
-                                                                     * ======================================================================
+      end
+   end
+   if arg.count then
+      mat args = ''
+      for i = 1 to arg.count
+         arg.len = oconv(cmnd[pos,4], 'ILL')
+         pos += 4
+         args(i) = cmnd[pos,arg.len]
+         pos += arg.len + bitand(arg.len, 1)
+      next i
+      callv @subr.name, arg.count, args
+      * Now return values of changed arguments (if any)
+      for i = 1 to arg.count
+         if changed(args(i)) then
+            response := iconv(i, 'ISL') : iconv(len(args(i)), 'ILL') : args(i)
+            if bitand(len(args(i)), 1) then response := ' '
+         end
+      next i
+   end else
+      call @subr.name
+   end
+   gosub reset.environment
+   return
+
+* ======================================================================
+* Execute command
+* In:  Command string
+* Out: Command output
+
+api.execute:
+   if config("SDCLIENT") # 0  or kernel(K$SDNET, -1) then
+      abort.message = sysmsg(5265) ;* Command execution is disabled
+      server.error = SV$ON.ERROR
+      return
+   end
+
+   execute cmnd capturing response
+   st = @system.return.code
+   return to return.status.set
+
+* ======================================================================
+* Response to input
+* In:  Command string
+* Should never happen as client end should detect this
+
+api.respond:
+   server.error = SV$ERROR
+   error.msg = sysmsg(5266) ;* Response to prompt sent when no prompt outstanding
+   return
+
+* ======================================================================
+* End command
+* Should never happen as client end should detect this
+
+api.endcommand:
+   server.error = SV$ERROR
+   error.msg = sysmsg(5267) ;* End command request sent when no prompt outstanding
+   return
+
+* ======================================================================
+* Login user 
+* In:  username len (short integer)
+*      username padded to 2 byte multiple
+*      password len (short integer)
+*      password padded to 2 byte multiple
+
+api.login:
+
+   * Extract user name
+
+   n = oconv(cmnd[1,2], 'ISL')
+   if n < 1 or n > MAX.USERNAME.LEN or cmnd[3,1] = '$' then
+      abort.message = sysmsg(5017) ;* Invalid user name or password
+      server.error = SV$ON.ERROR
+      goto exit.api.login
+   end
+
+   username = cmnd[3,n]
+   pos = 3 + n + bitand(n, 1)
+
+   * Extract password
+
+   n = oconv(cmnd[pos,2], 'ISL')
+   if n > MAX.USERNAME.LEN then
+      abort.message = sysmsg(5017) ;* Invalid user name or password
+      server.error = SV$ON.ERROR
+      goto exit.api.login
+   end
+
+   password = cmnd[pos+2,n]
+   pos = 3 + n + bitand(n, 1)
+
+   * rem we execute login regardless of APILOGIN flag (its how we set usr and grp id) 
+   * rem basic function login calles OP_login in op_kernel.c which:
+   *   calls linuxio.c login_user()
+   *   populates uptr->username and process.username
+   if login(username, password) then
+
+      if config('APILOGIN') then
+      * we required user to enter a user name to connect (over and above the ssh tunnel validation)
+      * so change the logname to reflect 
+          logname = username
+      end else
+      * we do not require a valid user name validate against user creating tunnel
+         username = kernel(K$USERNAME, 0)
+      end
+
+      * 20240219 mab user must be member of sdusers   
+      if logging then
+          logmsg '>  api.login username: ' : username  
+      end        
+      if  not(is_grp_member(username,'sdusers')) then
+         server.error = SV$ON.ERROR
+         abort.message = sysmsg(5009) ;* This user is not registered for SD use
+      
+         if logging then
+           logmsg '>  username: ' : username : 'not in sdusers' 
+         end
+         goto exit.api.login
+      end
+      
+   end else
+      server.error = SV$ON.ERROR
+      abort.message = sysmsg(5017) ;* Invalid user name or password
+      sleep 3
+      if logging then
+          logmsg '>  username: ' : username : ' invalid'  
+      end
+   end
+
+
+exit.api.login:
+
+   if server.error = SV$OK then logged.in = @true
+   else done = @true
+
+   return
+
+* ======================================================================
+* Login user for SDLocal connection
+
+api.local.login:
+
+   username = logname
+ 
+   * 20240219 mab user must be member of sdusers           
+   if  not(is_grp_member(username,'sdusers')) then
+         server.error = SV$ON.ERROR
+         abort.message = sysmsg(5009) ;* This user is not registered for SD use
+         goto exit.api.local.login
+   end
+   logname = username
+
+exit.api.local.login:
+
+   if server.error = SV$OK then logged.in = @true
+   else done = @true
+
+   return
+
+* ======================================================================
+* Select index
+* In:  file no  (short int)
+*      list no  (short int)
+*      index name len (short int)
+*      index name (padded to 2 byte interval)
+*      index value len (short int)
+*      index value (padded to 2 byte interval)
+
+api.selectindex:
+   fno = oconv(cmnd[1,2], 'ISL')
+   gosub check.file
+   if err then return
+
+   listno = oconv(cmnd[3,2], 'ISL')
+   gosub check.list
+   if err then return
+
+   * Extract index name
+
+   pos = 5
+   n = oconv(cmnd[pos,2], 'ISL')
+   pos += 2
+   index.name = cmnd[pos, n]
+   pos += n + bitand(n, 1)
+
+   * Extract index value
+
+   n = oconv(cmnd[pos,2], 'ISL')
+   pos += 2
+   index.value = cmnd[pos, n]
+
+   selectindex index.name, index.value from files(fno) to listno
+
+   return
+
+* ======================================================================
+* Open file SDNet file
+* In:  Account name;filename
+* Out: fileno (short integer)
+
+api.open.sdnet:
+   if not(bitand(config('NETFILES'), 2)) then
+      set.status ER$XREMOTE
+      server.error = SV$ELSE
+      return
+   end
+
+   * Use of this operation identifies the process as a SDNet user.
+   * Set the appropriate process flag so that LISTU etc show this.
+
+   i = kernel(K$SDNET, 1)
+
+   * Locate a spare file table entry
+
+   n = inmat(files)
+
+   for i = 1 to n
+      if not(fileinfo(files(i), FL$OPEN)) then goto api.open.sdnet.continue
+   next i
+
+   * Extend file table
+
+   dim files(n + 50)
+   i = n + 1
+
+api.open.sdnet.continue:
+
+   * Open file to file table entry i
+
+   acc = field(cmnd, ';', 1)   ;* Account name or path
+   file = field(cmnd, ';', 1)  ;* File name
+
+   openpath @sdsys:@ds:'ACCOUNTS' to acc.f then
+      read acc.rec from acc.f, acc then
+         acc = parse.pathname.tokens(acc.rec<ACC$PATH>)
+      end
+      close acc.f
+   end
+
+   qvoc.path = acc:@ds:'VOC'
+   openpath qvoc.path to qvoc.f else
+      server.error = SV$ELSE
+      return
+   end
+
+   file = field(cmnd, ';', 2)
+   if file[1,5] = 'DICT ' then
+      j = 3
+      file = file[6,999]
+   end else
+       j = 2
+   end
+
+   read voc.rec from qvoc.f, file else null
+   close qvoc.f
+
+   if voc.rec[1,1] # 'F' then
+      set.status ER$VNF
+      server.error = SV$ELSE
+      return
+   end
+
+   path = voc.rec<j>
+   if path = '' then
+      set.status ER$NPN
+      server.error = SV$ELSE
+      return
+   end
+
+   if upcase(path[1,6]) = '@SDSYS' then path = @SDSYS:path[7,9999]
+
+   if system(91) then   ;* Windows
+      if path[1,1] # @ds and path[2,2] # ':':@ds then
+         * Convert voc item to absolute path
+         if path[1,2] = ':' then  ;* Drive letter present
+            path = path[1,2] : acc : @ds : path[3,99999]
+         end else                  ;* No drive letter present
+            path = acc : @ds : path
+         end
+      end
+   end else             ;* Linux
+      if path[1,1] # @ds then
+         * Convert voc item to absolute path
+         path = acc : @ds : path
+      end
+   end
+
+   openpath path to files(i)
+   on error server.error = SV$ON.ERROR
+   then
+      if bitand(fileinfo(files(i), FL$FLAGS), FL$FLAGS.TRUSTED) then
+         server.error = SV$ELSE
+      end else
+         response = iconv(i, 'ISL')
+      end
+   end
+   else server.error = SV$ELSE
+
+   return
+
+
+* ======================================================================
+* Lock record
+* In:  fileno (short integer)
+*      flags (short integer)    0x0001 = Update lock, 0x0002 = no wait.
+*      id
+
+api.lock.record:
+   fno = oconv(cmnd[1,2], 'ISL')
+   gosub check.file
+   if err then return
+
+   flags = oconv(cmnd[3,2], 'ISL')
+
+   id = cmnd[5,99]
+
+   begin case
+      case flags = 0
+         recordlockl files(fno), id
+      case flags = 1
+         recordlocku files(fno), id
+      case flags = 2
+         recordlockl files(fno), id locked server.error = SV$LOCKED
+         case flags = 3
+            recordlocku files(fno), id locked server.error = SV$LOCKED
+   end case
+
+   return
+
+ * ======================================================================
+ * Clear file
+ * In:  fileno (short integer)
+ * Out:
+
+api.clearfile:
+    fno = oconv(cmnd[1,2], 'ISL')
+    gosub check.file
+    if err then return
+
+    clearfile files(i)
+
+    return
+
+* ======================================================================
+* Get file lock
+* In:  fileno (short integer)
+*      Wait?  (short integer)
+* Out:
+
+api.filelock:
+    fno = oconv(cmnd[1,2], 'ISL')
+    wait = oconv(cmnd[3,2], 'ISL')
+    gosub check.file
+    if err then return
+ 
+    if wait then
+       filelock files(i)
+    end else
+       filelock files(i) locked server.error = SV$LOCKED
+    end
+ 
+    return
+
+* ======================================================================
+* Release file lock
+* In:  fileno (short integer)
+* Out:
+
+api.fileunlock:
+    fno = oconv(cmnd[1,2], 'ISL')
+    gosub check.file
+    if err then return
+ 
+    fileunlock files(i)
+ 
+    return
+
+* ======================================================================
+* Test lock
+* In:  fileno (short integer)
+*      id
+
+api.recordlocked:
+   fno = oconv(cmnd[1,2], 'ISL')
+   gosub check.file
+   if err then return
+
+   id = cmnd[3,99]
+   i = recordlocked(files(fno), id)
+   st = status()
+   response = iconv(i, 'ILL');
+   set.status st
+
+   return
+
+* ======================================================================
+* Fetch information about indices
+* In:  fileno (short integer)
+
+api.indices1:
+    fno = oconv(cmnd[1,2], 'ISL')
+    gosub check.file
+    if err then return
+ 
+    response = indices(files(fno))
+ 
+    return
+
+* ======================================================================
+* Fetch information about indices
+* In:  fileno (short integer)
+*      Index name
+
+api.indices2:
+   fno = oconv(cmnd[1,2], 'ISL')
+   gosub check.file
+   if err then return
+ 
+   response = indices(files(fno), cmnd[3,99])
+ 
+   return
+
+* ======================================================================
+* Select file and return list
+* In:  fileno (short integer)
+
+api.selectlist:
+    fno = oconv(cmnd[1,2], 'ISL')
+    gosub check.file
+    if err then return
+
+    select files(fno) to 11
+    readlist response from 11 else null
+
+    return
+
+* ======================================================================
+* Select index, returning indexed values
+* In:  fileno (short integer)
+*      index name
+
+api.selectindexv:
+   fno = oconv(cmnd[1,2], 'ISL')
+   gosub check.file
+   if err then return
+
+   index.name = cmnd[3,999]
+   selectindex cmnd[3,99] from files(fno) to 11
+   readlist response from 11 else null
+
+   return
+
+* ======================================================================
+* Select index, returning keys for indexed value
+* In:  fileno (short integer)
+*      index name len (short integer)
+*      index name
+*      indexed value
+
+api.selectindexk:
+   fno = oconv(cmnd[1,2], 'ISL')
+   gosub check.file
+   if err then return
+
+   i = oconv(cmnd[3,2], 'ISL')
+   index.name = cmnd[5,i]
+
+   selectindex index.name, cmnd[5+i,999] from files(fno) to 11
+   readlist response from 11 else null
+
+   return
+
+* ======================================================================
+* Perform FILEINFO() action
+* In:  fileno (short integer)
+*      key (long integer)
+
+api.fileinfo:
+   fno = oconv(cmnd[1,2], 'ISL')
+   gosub check.file
+   if err then return
+
+   i = oconv(cmnd[3,4], 'ILL')
+   response = fileinfo(files(fno), i)
+
+   return
+
+* ======================================================================
+* READV and variants
+* In:  fileno (short integer)
+*      flags  (short integer) 1 = update lock, 2 = shared lock, 4 = no wait
+*      field no (long integer)
+*      id
+* Out: record data
+
+api.readv:
+    fno = oconv(cmnd[1,2], 'ISL')
+    gosub check.file
+    if err then return
+
+    flags = oconv(cmnd[3,2], 'ISL')
+    field_no = oconv(cmnd[5,4], 'ILL')
+
+    id = cmnd[9,99]
+
+    begin case
+        case flags = 0
+            readv rec from files(fno), id, field_no
+            on error server.error = SV$ON.ERROR
+            then response = rec
+            else server.error = SV$ELSE
+
+        case flags = 1
+            readvu rec from files(fno), id, field_no
+            on error server.error = SV$ON.ERROR
+            then response = rec
+            else server.error = SV$ELSE
+
+        case flags = 2
+            readvl rec from files(fno), id, field_no
+            on error server.error = SV$ON.ERROR
+            then response = rec
+            else server.error = SV$ELSE
+
+        case flags = 5
+            readvu rec from files(fno), id, field_no
+            on error server.error = SV$ON.ERROR
+            locked server.error = SV$LOCKED
+            then response = rec
+            else server.error = SV$ELSE
+
+        case flags = 6
+            readvl rec from files(fno), id, field_no
+            on error server.error = SV$ON.ERROR
+            locked server.error = SV$LOCKED
+            then response = rec
+            else server.error = SV$ELSE
+    end case
+        
+    return
+
+* ======================================================================
+* SetLeft
+* In:  fileno (short integer)
+*      index name
+
+api.setleft:
+    fno = oconv(cmnd[1,2], 'ISL')
+    gosub check.file
+    if err then return
+
+    setleft cmnd[3,999] from files(fno)
+
+    return
+
+* ======================================================================
+* SetRight
+* In:  fileno (short integer)
+*      index name
+
+api.setright:
+    fno = oconv(cmnd[1,2], 'ISL')
+    gosub check.file
+    if err then return
+
+    setright cmnd[3,999] from files(fno)
+
+    return
+
+* ======================================================================
+* SelectLeft
+* In:  fileno (short integer)
+*      list no (short integer)
+*      index name
+
+api.selectleft:
+    fno = oconv(cmnd[1,2], 'ISL')
+    gosub check.file
+    if err then return
+
+    listno = oconv(cmnd[3,2], 'ISL')
+
+    selectleft cmnd[5,999] from files(fno) setting response to listno
+
+    return
+
+* ======================================================================
+* SelectRight
+* In:  fileno (short integer)
+*      list no (short integer)
+*      index name
+
+api.selectright:
+    fno = oconv(cmnd[1,2], 'ISL')
+    gosub check.file
+    if err then return
+    
+    listno = oconv(cmnd[3,2], 'ISL')
+    
+    selectright cmnd[5,999] from files(fno) setting response to listno
+    
+* ======================================================================
+* MarkMapping
+* In:  fileno (short integer)
+*      state (short integer)
+
+api.mark.mapping:
+    fno = oconv(cmnd[1,2], 'ISL')
+    gosub check.file
+    if err then return
+    
+    mark.mapping files(fno), oconv(cmnd[3,2], 'ISL')
+    
+    return
+    
+* ======================================================================
 check.file:
-                                                                     err = @true
+    err = @true
+    
+    if fno < 1 or fno > inmat(files) then      ;* Invalid file number
+    server.error = SV$ERROR
+    error.msg = sysmsg(5268) ;* Invalid file number
+    return
+    end
+    
+    if not(fileinfo(files(fno), FL$OPEN)) then ;* File not open
+    server.error = SV$ERROR
+    error.msg = sysmsg(5268) ;* Invalid file number
+    return
+    end
+    
+    err = @false
+    return
+    
 
-                                                                     if fno < 1 or fno > inmat(files) then      ;* Invalid file number
-                                                                        server.error = SV$ERROR
-                                                                        error.msg = sysmsg(5268) ;* Invalid file number
-                                                                        return
-                                                                     end
-
-                                                                     if not(fileinfo(files(fno), FL$OPEN)) then ;* File not open
-                                                                        server.error = SV$ERROR
-                                                                        error.msg = sysmsg(5268) ;* Invalid file number
-                                                                        return
-                                                                     end
-
-                                                                     err = @false
-                                                                     return
-
-
-                                                                     * ======================================================================
+* ======================================================================
 check.list:
-                                                                     err = @true
-
-                                                                     if listno < 0 or listno > 10 then      ;* Invalid list number   0225
-                                                                        server.error = SV$ERROR
-                                                                        error.msg = sysmsg(5269) ;* Invalid select list number
-                                                                        return
-                                                                     end
-
-                                                                     err = @false
-                                                                     return
-                                                                  end
-
+    err = @true
+    
+    if listno < 0 or listno > 10 then      ;* Invalid list number   0225
+    server.error = SV$ERROR
+    error.msg = sysmsg(5269) ;* Invalid select list number
+    return
+    end
+    
+    err = @false
+    return
 
 
-                                                                  * END-CODE
+end
+* END-CODE
