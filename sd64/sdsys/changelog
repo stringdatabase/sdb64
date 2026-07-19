@@ -8,7 +8,78 @@ Version 1.0-3
            so by default it must be a valid user.
            Also causes Apache spawned process to fail, but doesn't if run from test c program ??
  
+         sdclilib logic error?
+           sdclilib and APISRVR transfer data between each other via packets written and read either over pipes 
+             or sockets. An example of the process from the sdclilib side is as follows:
+             Assume we are processing a read record request from a client (SDRead)
+             SDRead calls
+                read_record which will call message_pair as
+                if (!message_pair()){   <-- remember this issue pointed out below
+                  goto exit_read
+                }
+                .
+                .
+                
+                message_pair:
+                if (write_packet(type, data, bytes)) {
+                  return GetResponse();
+                }
+                return FALSE;
+                
+                GetReponse:
+                  if (!read_packet())
+                    return FALSE;
+                  if (session[session_idx].server_error == SV_ERROR) {
+                    strcpy(session[session_idx].sderror, "Unable to retrieve error text");
+                    write_packet(SrvrGetError, NULL, 0);
+                    if (read_packet())
+                      strcpy(session[session_idx].sderror, buff->data.error.text);
+                    return FALSE;
+                  }
+                  return TRUE;
+                  
+                 read_packet:
+                   reads the packet from the pipe or socket AND
+                   sets server_error and sd_status based on the packet sent from APISRVR                   
 
+            Issue: 
+             1) If server_error is set by APISRVR, GetReponse performs a SrvrGetError request, 
+                which will get the extended error text. Problem is read_packet will reset server.error and sd_status
+                based on the success or failure of the SrvrGetError request. 
+                So now you have the error text but lost the actual error and status code.
+             2) GetReponse returns false (unsuccessful) when there is server error (SV_ERROR).
+                In the read_record function this results in a jump to exit_read, skipping over the code
+                that checks server_error status and results in the value assigned to err being undefined.
+                
+             Proposed solution:
+               Do not treat an SV_ERROR status code returned from APISRVR as a message_pair failure.
+               Most likely the original intent of message_pair returning false would be for this to indicate an actual communication error
+               between the sdclilib and APISRVR.
+
+                GetReponse:
+                int old_status;
+                  if (!read_packet())
+                    return FALSE;
+                  if (session[session_idx].server_error == SV_ERROR) {
+                    // save original error code
+                    old_status = session[session_idx].sd_status;
+                    strcpy(session[session_idx].sderror, "Unable to retrieve error text");
+                    write_packet(SrvrGetError, NULL, 0);
+                    if (read_packet()){
+                      strcpy(session[session_idx].sderror, buff->data.error.text);
+                      // restore original SV_ERROR
+                      session[session_idx].server_error = SV_ERROR;
+                      session[session_idx].sd_status = old_status;
+                      return TRUE;
+                    } else {
+                      return FALSE;
+                    }
+                  }
+                  return TRUE;
+               
+
+               In read_record initialize var status to zero to prevent undefined value, or add additional error codes to
+                Server error status values 6 = message_pair error, 7 = context_error and set as appropriate? 
 
 Version 1.0-2
 -------------

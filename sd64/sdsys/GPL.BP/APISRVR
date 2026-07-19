@@ -24,8 +24,9 @@
 *               always run in secure mode
 * 28 Jul 24 mab remove enter.package / exit.package (commands not supported)
 * rev 0.9.0 Jan 25 mab test for user member of account on logto
-* rev 1.0-3 mab use logmsg for debug logging, add log command and status results
-*               reformat code and change vb. labels to api.
+* rev 1.0-3 mab Use logmsg for debug logging, add log command and status results
+*               Reformat code and change vb. labels to api.
+*               Add ER$INV.NBR
 * END-HISTORY
 *
 *
@@ -168,7 +169,7 @@ end else   ;* Abort
    echo on
    hush off
 
-   if abort.code = K$LOGOUT then goto abort.vbsrvr
+   if abort.code = K$LOGOUT then goto abort.apisrvr
 
    server.error = SV$ON.ERROR
    st = status()
@@ -197,7 +198,7 @@ loop
    cmnd = readpkt()
    if cmnd = '' then
       logmsg sysmsg(5271) ;* Connection to client lost
-      goto abort.vbsrvr
+      goto abort.apisrvr
    end
 
    if logging > 1 then
@@ -280,7 +281,8 @@ return.status.set: ;* Return to here if ST already set
      logmsg '>command: ': action  
      logmsg '> server.error: ': server.error
      logmsg '> st: ': st
-     logmsg '> pkt: ':iconv(server.error, 'ISL'):iconv(st, 'ILL')
+     s = oconv(iconv(server.error, 'ISL'):iconv(st, 'ILL'):response, 'MX0C')
+     logmsg '> pkt: ': s[1,4] : ' ' : s[5,8] : ' ' : s[13,10]
    end
 
    if logging > 1 then
@@ -293,14 +295,14 @@ return.status.set: ;* Return to here if ST already set
 until done
 repeat
 
-abort.vbsrvr:
-    return to abort.vbsrvr
+abort.apisrvr:
+    return to abort.apisrvr
 
 connection.failed:
     server.error = SV$ON.ERROR
     st = status()
     writepkt iconv(server.error, 'ISL'):iconv(st, 'ILL'):@abort.message
-    goto abort.vbsrvr
+    goto abort.apisrvr
 
 * ======================================================================
 
@@ -426,7 +428,7 @@ revert.to.old.account:
     if not(ospath(old.account.path, OS$CD)) then
         server.error = SV$ERROR
         error.msg = sysmsg(5162) ;* Fatal error : Cannot return to previous account
-        return to abort.vbsrvr
+        return to abort.apisrvr
     end
 
 return
@@ -1421,12 +1423,14 @@ check.file:
     
     if fno < 1 or fno > inmat(files) then      ;* Invalid file number
     server.error = SV$ERROR
+    set.status ER$INV.NBR
     error.msg = sysmsg(5268) ;* Invalid file number
     return
     end
     
     if not(fileinfo(files(fno), FL$OPEN)) then ;* File not open
     server.error = SV$ERROR
+    set.status ER$INV.NBR
     error.msg = sysmsg(5268) ;* Invalid file number
     return
     end
