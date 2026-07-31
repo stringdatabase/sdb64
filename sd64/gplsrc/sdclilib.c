@@ -24,7 +24,9 @@
  *                Not sure made any sense, local connect is forked from running sd process,
  *                   so by default it must be a valid user.
  *                Also causes Apache spawned process to fail, but doesn't if run from test c program ??
- *
+ *                Do not treat an SV_ERROR status code returned from APISRVR as a message_pair failure.
+ *                Most likely the original intent of message_pair returning false would be for this to indicate an actual communication error
+ *                  between the sdclilib and APISRVR.
  *  Warning: sdclilib does not maintian a storage area for Getarg parameters for each session.
  *  Using Callx will "overwrite" the previous Callx parameters regardless of session number.
  *  A solution would be to add the return call buffers to the session structure....
@@ -2819,6 +2821,7 @@ Private void delete_record(int16_t mode, int fno, char* id) {
     memcpy(packet.id, id, id_len);
 
     if (!message_pair(mode, (char*)&packet, id_len + 2)) {
+      session[session_idx].server_error = SV_EMSG_PAIR;
       goto exit_delete;
     }
   }
@@ -2854,9 +2857,12 @@ Private char* read_record(int fno, char* id, int* err, int mode) {
     char id[MAX_ID_LEN];
   } ALIGN2 packet;
 
-  if (context_error(CX_CONNECTED))
+  if (context_error(CX_CONNECTED)){
+    session[session_idx].server_error = SV_ECONTXT;
+    status = SV_ECONTXT;
     goto exit_read;
-
+  }
+  
   id_len = strlen(id);
   if ((id_len < 1) || (id_len > MAX_ID_LEN)) {
     session[session_idx].sd_status = ER_IID;
@@ -2868,6 +2874,8 @@ Private char* read_record(int fno, char* id, int* err, int mode) {
   memcpy(packet.id, id, id_len);
 
   if (!message_pair(mode, (char*)&packet, id_len + 2)) {
+    session[session_idx].server_error = SV_EMSG_PAIR;
+    status = SV_EMSG_PAIR;  
     goto exit_read;
   }
 
@@ -2910,9 +2918,11 @@ Private void write_record(int16_t mode, int16_t fno, char* id, char* data) {
     char id[1];
   } ALIGN2;
 
-  if (context_error(CX_CONNECTED))
+  if (context_error(CX_CONNECTED)){
+    session[session_idx].server_error = SV_ECONTXT;
     goto exit_write;
-
+  }
+  
   id_len = strlen(id);
   if ((id_len < 1) || (id_len > MAX_ID_LEN)) {
     Abort("Illegal record id", FALSE);
@@ -2979,20 +2989,26 @@ exit_write:
 /* ====================================================================== */
 
 Private bool GetResponse() {
+  int old_status;
   if (!read_packet())
     return FALSE;
-
   if (session[session_idx].server_error == SV_ERROR) {
+    // save original error code
+    old_status = session[session_idx].sd_status;
     strcpy(session[session_idx].sderror, "Unable to retrieve error text");
     write_packet(SrvrGetError, NULL, 0);
-    if (read_packet())
+    if (read_packet()){
       strcpy(session[session_idx].sderror, buff->data.error.text);
-    return FALSE;
+      // restore original SV_ERROR
+      session[session_idx].server_error = SV_ERROR;
+      session[session_idx].sd_status = old_status;
+      return TRUE;
+    } else {
+      return FALSE;
+    }
   }
-
   return TRUE;
 }
-
 /* ====================================================================== */
 
 Private void Abort(char* msg, bool use_response) {
