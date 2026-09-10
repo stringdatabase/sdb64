@@ -8,7 +8,7 @@ SD should cohabit peacefully with existing openQM and ScarletDME installations a
 
 The current version of the SD repository contains no binary bits.  All features are available for auditing.  Binary files are only created during the install.
 
-To install on one of the supported systems, use the installsd.sh script found at https://codeberg.org/stringdatabase/sd-scripts/archive/refs/heads/main.zip or, if git is installed on your computer enter in a terminal session - "git clone https://codeberg.org/stringdatabase/sd-scripts", cd to the newly created sd-scripts directory, enter - "chmod 774 *.sh", and then run the installsd.sh script.
+To install on one of the supported systems, use the installsd.sh script found at https://github.com/stringdatabase/sd-scripts/archive/refs/heads/main.zip or, if git is installed on your computer enter in a terminal session - "git clone https://github.com/stringdatabase/sd-scripts", cd to the newly created sd-scripts directory, enter - "chmod 774 *.sh", and then run the installsd.sh script.
 
 To install SD, just download and extract the scripts, make the scripts executable if needed and then run installsd.sh. The installer will handle installation of required packages, downloading and compiling of source, installation of SD into the proper directories and deletion of the temporary files. 
 
