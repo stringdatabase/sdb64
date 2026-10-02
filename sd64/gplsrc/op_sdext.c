@@ -254,6 +254,13 @@ void op_sdext() {
   /* embedding Python functions*/
       sdext_py(key, SDMEArgArray[0], NULL, NULL);
       break;
+    case SD_PyGuiWinUpdate:
+        if (argCnt != 3){
+          sdme_err_rsp(SD_EXT_ARG_CNT);     /* we need 2 args for this to work */
+        }else{
+          sdext_py(SD_PyGuiWinUpdate, SDMEArgArray[0], SDMEArgArray[1], SDMEArgArray[2]);
+        }
+      break;
     #endif  
 
 

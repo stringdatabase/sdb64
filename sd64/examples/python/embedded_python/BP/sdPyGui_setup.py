@@ -17,11 +17,16 @@ layout = [
             [sg.Text('User Name', size=(12)), sg.Input(key='-UNAME-', size=(25))],
             [sg.Text('DOB', size=(12)), sg.Input(key='-DOB-', size=(25))],
             [sg.Text('Account', size=(12)), sg.Input(key='-ACCOUNT-', size=(25))],
+            [sg.Multiline("Initial text\n", size=(40, 5), key="-TEXTBX-", autoscroll=True)],
             [sg.Button('Ok')]
             ]
 
 window = sg.Window('Simple Inputs', layout, element_justification='r',finalize=True)
-
+#
+# rem print(window.key_dict.keys()) to list keys in window
+# dict_keys(['-UNAME-', '-DOB-', '-ACCOUNT-', 'Ok'])
+# • Replace all text: Pass a new string into the update() method to clear the old content and show the new text.
+# • Append new text: Use window["key"].update("additional text", append=True) to add new lines to the bottom without deleting # existing text.
 
 window.TKroot.update_idletasks()
 window.TKroot.update()

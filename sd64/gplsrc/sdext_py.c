@@ -129,6 +129,9 @@ static SD_EVENT *sd_event_dequeue(void);
 static void sd_event_drain_wakeup(void);
 static int sd_py_gui_step(void);
 static int sd_py_poll(void);
+static int sd_py_update_key_value_in_window(PyObject *module, const char *window_title,
+                              const char *key_name, const char *new_text);
+
 
 int sd_python_event_fd(void)
 {
@@ -407,6 +410,104 @@ static int sd_py_poll(void)
 
   return 0;
 }
+
+/* FreeSimpleGui window update function
+ creates the window object for window named "window_title", looks up Key_name in `AllKeysDict`, gets the element, changes its value to new_text, and then calls `update()` on that element.
+Sample call:
+PyObject *mod = PyImport_ImportModule("FreeSimpleGUI");
+if (mod != NULL) {
+    sd_pyupdate_key_value_in_window(mod, "My Window", "my_key", "new text");
+    Py_DECREF(mod);
+} else {
+    PyErr_Print();
+    return SD_PyErr_NoFreeGui;
+}
+*/    
+static int sd_py_update_key_value_in_window(PyObject *module, const char *window_title,
+                              const char *key_name, const char *new_text)
+{
+    PyObject *window_cls = PyObject_GetAttrString(module, "Window");
+    if (window_cls == NULL) {
+        PyErr_Print();
+        return SD_PyErr_GuiWinClass;
+    }
+
+    PyObject *title = PyUnicode_FromString(window_title);
+    if (title == NULL) {
+        Py_DECREF(window_cls);
+        return SD_PyErr_CreStr;
+    }
+
+    // Equivalent to: win = Window(title)
+    PyObject *win = PyObject_CallFunctionObjArgs(window_cls, title, NULL);
+    Py_DECREF(title);
+    Py_DECREF(window_cls);
+
+    if (win == NULL) {
+        PyErr_Print();
+        return SD_PyErr_GuiWinNOF;
+    }
+
+    // Build a fake element or use an existing one in the actual window logic
+    // This is just the lookup part. In a real app, the key must already exist.
+    PyObject *all_keys = PyObject_GetAttrString(win, "AllKeysDict");
+    if (all_keys == NULL) {
+        Py_DECREF(win);
+        PyErr_Print();
+        return SD_PyErr_ObjAttrNOF;
+    }
+
+    if (!PyDict_Check(all_keys)) {
+        PyErr_SetString(PyExc_TypeError, "AllKeysDict is not a dictionary");
+        Py_DECREF(all_keys);
+        Py_DECREF(win);
+        return SD_PyErr_NotDict;
+    }
+
+    PyObject *key = PyUnicode_FromString(key_name);
+    if (key == NULL) {
+        Py_DECREF(all_keys);
+        Py_DECREF(win);
+        return SD_PyErr_CreStr;
+    }
+
+    PyObject *element = PyDict_GetItem(all_keys, key);
+    // rem PyDict_GetItem does not create a new reference. It returns a borrowed reference //
+    Py_DECREF(key);
+
+    if (element == NULL) {
+        PyErr_Format(PyExc_KeyError, "Key not found in AllKeysDict: %s", key_name);
+        Py_DECREF(all_keys);
+        Py_DECREF(win);
+        return SD_PyEr_Key;
+    }
+
+    PyObject *value = PyUnicode_FromString(new_text);
+    if (value == NULL) {
+        Py_DECREF(all_keys);
+        Py_DECREF(win);
+        return SD_PyErr_CreStr;
+    }
+
+    // Equivalent to: element.update(new_text)
+    PyObject *result = PyObject_CallMethod(element, "update", "O", value);
+    Py_DECREF(value);
+
+    if (result == NULL) {
+        PyErr_Print();
+        Py_DECREF(all_keys);
+        Py_DECREF(win);
+        return SD_PyErr_CallMethod;
+    }
+
+    Py_DECREF(result);
+    Py_DECREF(all_keys);
+    Py_DECREF(win);
+
+    return 0;
+}
+
+
 int sdext_py_finalize(void){
       if (Py_IsInitialized()) {  /* only finalize if previously initialized */
         sd_event_queue_shutdown();
@@ -528,7 +629,25 @@ void sdext_py(int key, char* Arg, char* Arg2, char* Arg3 ){
       }
       break;
 
-
+    case SD_PyGuiWinUpdate:
+      if (Py_IsInitialized()){
+        // FreeSimpleGUI must have been imported in script 
+        PyObject *mod = PyImport_ImportModule("FreeSimpleGUI");
+        if (mod != NULL) {
+          // Arg: "My Window", Arg2: "my_key", Arg3: "new text"
+          myResult = sd_py_update_key_value_in_window(mod, Arg, Arg2, Arg3);
+          Py_DECREF(mod);
+        } else {
+          PyErr_Print();
+          myResult = SD_PyErr_NoFreeGui;
+        }
+      } else {
+        myResult = SD_PyEr_NotInit;
+      }
+      process.status = myResult;
+      InitDescr(e_stack, INTEGER);
+      (e_stack++)->data.value = (int32_t)myResult;
+      break;
 
     case SD_PyRunStr:   /* Take the string in Arg passed from op_sdme_ext (from SDME.EXT Arg value) and run in python interpreter  */
                          

@@ -1,6 +1,7 @@
 import time
 import tkinter as tk
 import _tkinter
+import json
 
 _gui_closed = False
 _close_event_sent = False
@@ -46,7 +47,8 @@ def gui_step(max_events=32, max_milliseconds=5):
        _close_event_sent = True
        sd.post_event("window", "closed")
     elif event == 'Ok':
-        payload = '{"-UNAME-" : "' + values['-UNAME-'] + '" , ' + '"-DOB-" : "' + values['-DOB-']+ '" , ' + '"-ACCOUNT-" : "' +values['-ACCOUNT-'] +'"}'
+#        payload = '{"-UNAME-" : "' + values['-UNAME-'] + '" , ' + '"-DOB-" : "' + values['-DOB-']+ '" , ' + '"-ACCOUNT-" : "' +values['-ACCOUNT-'] +'"}'
+        payload = json.dumps(values)
         sd.post_event(event,payload)
     elif event != '__TIMEOUT__':   
        sd.post_event("event", event) 
