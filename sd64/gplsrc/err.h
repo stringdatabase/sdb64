@@ -345,7 +345,7 @@
 #define SD_PyErr_EventTooBig -12044  /* Python event is too large */
 #define SD_PyErr_GuiError    -12045  /* Python GUI step failed */
 #define SD_PyErr_NoFreeGui   -12046  /* could not find FreeSimpleGui module */
-#define SD_PyErr_GuiWinClass -12047  /* could not load Window class from passed module  */
-#define SD_PyErr_GuiWinNOF   -12048  /* Window not found (from title) */ 
+#define SD_PyErr_MainScope   -12047  /* could not load Python's __main__ scope  */
+#define SD_PyErr_GuiWinNOF   -12048  /* Window not found (from object name) */ 
 #define SD_PyErr_CallMethod  -12049  /* calling objects method failed */ 
 /* END-CODE */

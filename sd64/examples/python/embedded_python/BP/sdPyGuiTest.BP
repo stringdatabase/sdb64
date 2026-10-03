@@ -7,14 +7,15 @@ EQUATE SD.PY.FINAL TO 2001
 EQUATE SD.PY.RUN.FILE TO 2011
 EQUATE SD.PY.GUI.STEP TO 2020
 EQUATE SD.PY.POLL TO 2021
+EQUATE SD_PyGuiWinUpdate To 2030
 
 * rem to point these to where you save the python scripts
-SETUP.FILE = "/home/sd/user_accounts/mabull/BP/sdPyGui_setup.py"
-STEP.FILE = "/home/sd/user_accounts/mabull/BP/sdPyGui_step.py"
+SETUP.FILE = "/home/sd/user_accounts/<your account>/BP/sdPyGui_setup.py"
+STEP.FILE = "/home/sd/user_accounts/<your account>/BP/sdPyGui_step.py"
 
 STATUS.VALUE = SDEXT("", 0, SD.PY.INIT)
 IF STATUS() # 0 THEN
-    PRINT "Python initialization failed: ":STATUS()
+    crt "Python initialization failed: ":STATUS()
     STOP
 END
 
@@ -23,7 +24,7 @@ CRT "Setup gui_step function"
 
 STATUS.VALUE = SDEXT(STEP.FILE, 0,SD.PY.RUN.FILE)
 IF STATUS() # 0 THEN
-    PRINT "Tkinter step setup failed: ":STATUS()
+    crt "Tkinter step setup failed: ":STATUS()
     GOTO SHUTDOWN
 END
 
@@ -31,7 +32,7 @@ CRT "Setup Gui Window"
 
 STATUS.VALUE = SDEXT(SETUP.FILE, 0, SD.PY.RUN.FILE)
 IF STATUS() # 0 THEN
-    PRINT "Tkinter setup failed: ":STATUS()
+    crt "Tkinter setup failed: ":STATUS()
     GOTO SHUTDOWN
 END
 
@@ -43,12 +44,13 @@ LOOP WHILE DONE = 0
     counter += 1
     STATUS.VALUE = SDEXT("", 0, SD.PY.GUI.STEP)
     IF STATUS() # 0 THEN
-        PRINT "Tkinter step failed: ":STATUS()
+        crt "Tkinter step failed: ":STATUS()
         DONE = 1
     END ELSE
         EVENT = SDEXT("", 0, SD.PY.POLL)
         IF STATUS() = 0 THEN
             EVENT.NAME = FIELD(EVENT,@FM, 1)
+            * just prove that the cooperative scheduler is coming back at a regular interval 
             if EVENT.NAME = '__TIMEOUT__' then
               if counter > 1000 then
                 crt '1000 timeouts'
@@ -56,9 +58,18 @@ LOOP WHILE DONE = 0
               end
             end else
               EVENT.DATA = FIELD(EVENT,@FM, 2)
-              PRINT "GUI EVENT"
-              PRINT "  NAME: ":EVENT.NAME
-              PRINT "  DATA: ":EVENT.DATA
+              crt "GUI EVENT"
+              crt "  NAME: ":EVENT.NAME
+              * there is a size limit to the payload, perhaps only send the key values then get them from python one at a time?
+              crt "  DATA: ":EVENT.DATA
+              
+              * populate the Gui text box with the passed payload info
+              UpdateArgs = "window"       ;* object name of window created with  "window = sg.Window(....)
+              UpdateArgs<2> = "-TEXTBX-"  ;* key to Gui Object we want to change 
+              UpdateArgs<3> = EVENT.DATA  ;* data we want to set the objects text propert to
+              result = SDEXT(UpdateArgs,1,SD_PyGuiWinUpdate)
+              crt "window update result: ":result
+              
               IF EVENT.NAME = "window" AND EVENT.DATA = "closed" THEN
                 DONE = 1
               END
@@ -71,5 +82,5 @@ SHUTDOWN:
 *  Rem we do not want to shutdown between runs
 ** crt 'shutting down'
 **STATUS.VALUE = SDEXT("shutdown", 0, SD.PY.FINAL)
-PRINT "SD Tkinter demo ended: ":STATUS.VALUE
+crt "SD Tkinter demo ended: ":STATUS.VALUE
 END

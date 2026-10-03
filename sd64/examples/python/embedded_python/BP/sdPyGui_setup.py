@@ -5,6 +5,7 @@ import sys
 #                                             FreeSimpleGUI must be either locally installed and add path or use a virtual environment.
 #                                            (Create an isolated environment using python3 -m venv .venv, to activate it, and run pip safely inside it).
 import FreeSimpleGUI as sg
+import json
 import sd
 
 
@@ -21,7 +22,7 @@ layout = [
             [sg.Button('Ok')]
             ]
 
-window = sg.Window('Simple Inputs', layout, element_justification='r',finalize=True)
+window = sg.Window('Gui Test', layout, element_justification='r',finalize=True)
 #
 # rem print(window.key_dict.keys()) to list keys in window
 # dict_keys(['-UNAME-', '-DOB-', '-ACCOUNT-', 'Ok'])

@@ -90,12 +90,17 @@ int PyDelObj(char* objname);
 PyObject* List_To_String(PyObject* list);
 
 PyObject* lookup_dict_item(PyObject* dict, const char* key);
+
 void obj_to_str(PyObject* pval);
 
 
 /* python objects for embedded python, these need to hang around between calls! */
 
 PyObject *global_dict, *main_module;  /* global PyObjects that must hang around between calls */
+
+/* pre define the Gui Module we will use, provide function to set this by user*/
+# define PyGuiModuleSz 20
+char PyGuiModule[PyGuiModuleSz] = "FreeSimpleGUI";
 
 #define SD_EVENT_NAME_SIZE 64
 #define SD_EVENT_PAYLOAD_SIZE 4096
@@ -426,66 +431,59 @@ if (mod != NULL) {
 static int sd_py_update_key_value_in_window(PyObject *module, const char *window_title,
                               const char *key_name, const char *new_text)
 {
-    PyObject *window_cls = PyObject_GetAttrString(module, "Window");
-    if (window_cls == NULL) {
+    PyObject *pMainModule = PyImport_ImportModule("__main__");
+    if (pMainModule == NULL) {
         PyErr_Print();
-        return SD_PyErr_GuiWinClass;
+        return SD_PyErr_MainScope;
     }
 
-    PyObject *title = PyUnicode_FromString(window_title);
-    if (title == NULL) {
-        Py_DECREF(window_cls);
-        return SD_PyErr_CreStr;
-    }
-
-    // Equivalent to: win = Window(title)
-    PyObject *win = PyObject_CallFunctionObjArgs(window_cls, title, NULL);
-    Py_DECREF(title);
-    Py_DECREF(window_cls);
-
-    if (win == NULL) {
+    PyObject *pWindow = PyObject_GetAttrString(pMainModule,window_title);
+    Py_DECREF(pMainModule);
+    if (pWindow == NULL) {
+        fprintf(stderr, "Window %s is not found\n",window_title);
         PyErr_Print();
         return SD_PyErr_GuiWinNOF;
     }
 
-    // Build a fake element or use an existing one in the actual window logic
-    // This is just the lookup part. In a real app, the key must already exist.
-    PyObject *all_keys = PyObject_GetAttrString(win, "AllKeysDict");
-    if (all_keys == NULL) {
-        Py_DECREF(win);
+    // Extract 'AllKeysDict' from the Window object
+    PyObject *pDict = PyObject_GetAttrString(pWindow, "AllKeysDict");
+    if (pDict == NULL) {
+        Py_DECREF(pWindow);
+        fprintf(stderr, "GetAttrString: AllKeysDict not found\n");
         PyErr_Print();
         return SD_PyErr_ObjAttrNOF;
     }
 
-    if (!PyDict_Check(all_keys)) {
-        PyErr_SetString(PyExc_TypeError, "AllKeysDict is not a dictionary");
-        Py_DECREF(all_keys);
-        Py_DECREF(win);
+    if (!PyDict_Check(pDict)) {
+        fprintf(stderr, "AllKeysDict is not a dictionary\n");
+        Py_DECREF(pDict);
+        Py_DECREF(pWindow);
         return SD_PyErr_NotDict;
     }
 
     PyObject *key = PyUnicode_FromString(key_name);
     if (key == NULL) {
-        Py_DECREF(all_keys);
-        Py_DECREF(win);
+        Py_DECREF(pDict);
+        Py_DECREF(pWindow);
         return SD_PyErr_CreStr;
     }
 
-    PyObject *element = PyDict_GetItem(all_keys, key);
+    PyObject *element = PyDict_GetItem(pDict, key);
     // rem PyDict_GetItem does not create a new reference. It returns a borrowed reference //
     Py_DECREF(key);
 
     if (element == NULL) {
-        PyErr_Format(PyExc_KeyError, "Key not found in AllKeysDict: %s", key_name);
-        Py_DECREF(all_keys);
-        Py_DECREF(win);
+        // PyErr_Format(PyExc_KeyError, "Key not found in AllKeysDict: %s", key_name);
+        fprintf(stderr,"Key not found in AllKeysDict: %s\n", key_name);
+        Py_DECREF(pDict);
+        Py_DECREF(pWindow);
         return SD_PyEr_Key;
     }
 
     PyObject *value = PyUnicode_FromString(new_text);
     if (value == NULL) {
-        Py_DECREF(all_keys);
-        Py_DECREF(win);
+        Py_DECREF(pDict);
+        Py_DECREF(pWindow);
         return SD_PyErr_CreStr;
     }
 
@@ -495,14 +493,14 @@ static int sd_py_update_key_value_in_window(PyObject *module, const char *window
 
     if (result == NULL) {
         PyErr_Print();
-        Py_DECREF(all_keys);
-        Py_DECREF(win);
+        Py_DECREF(pDict);
+        Py_DECREF(pWindow);
         return SD_PyErr_CallMethod;
     }
 
     Py_DECREF(result);
-    Py_DECREF(all_keys);
-    Py_DECREF(win);
+    Py_DECREF(pDict);
+    Py_DECREF(pWindow);
 
     return 0;
 }
@@ -631,13 +629,14 @@ void sdext_py(int key, char* Arg, char* Arg2, char* Arg3 ){
 
     case SD_PyGuiWinUpdate:
       if (Py_IsInitialized()){
-        // FreeSimpleGUI must have been imported in script 
-        PyObject *mod = PyImport_ImportModule("FreeSimpleGUI");
+        // FreeSimpleGUI must have been imported in script as sg 
+        PyObject *mod = PyImport_ImportModule(PyGuiModule);
         if (mod != NULL) {
           // Arg: "My Window", Arg2: "my_key", Arg3: "new text"
           myResult = sd_py_update_key_value_in_window(mod, Arg, Arg2, Arg3);
           Py_DECREF(mod);
         } else {
+          fprintf(stderr, "%s Module not found, is 'Import %s as sg' in your script?:\n",PyGuiModule,PyGuiModule);
           PyErr_Print();
           myResult = SD_PyErr_NoFreeGui;
         }
