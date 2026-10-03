@@ -2,9 +2,11 @@
 
 _gui_closed = False
 _close_event_sent = False
+values = {} 
 
 def gui_step(max_milliseconds=5):
-    global _gui_closed, _close_event_sent
+    # note we must declare as global otherwise our sd functions will not find in global dict 
+    global _gui_closed, _close_event_sent, values
 
     if _gui_closed:
         return 0
@@ -19,8 +21,9 @@ def gui_step(max_milliseconds=5):
        _gui_closed = True
        _close_event_sent = True
        sd.post_event("window", "closed")
-    elif event == 'Ok':
-        payload = json.dumps(values)
+    elif event == '-OK-':
+       # payload = json.dumps(values)
+        payload = "check values dictionary"
         sd.post_event(event,payload)
     elif event == '__TIMEOUT__':   
        sd.post_event(event, event) 

@@ -289,6 +289,7 @@
       $define SD_PyRunFile     2011  ;* Take the file and path defined in qmBasic variable VAL and run in python interpreter   
       $define SD_PyGuiStep     2020  ;* Process one bounded Python GUI event step
       $define SD_PyPoll        2021  ;* Return the next queued Python GUI event 
+      $define SD_PyGuiWinUpdate 2030  ;* update PyGui Window's Gui Objects values
       
       $define SD_PyGetAtt      2100  ;* Return the (string) value of python attribute defined in qmBasic variable VAL  
       
@@ -311,7 +312,7 @@
       $define SD_PyListAppd    2222  ;* append object to list   
       $define SD_PyListClr     2223  ;* clear list object     
       
-      $define SD_PyGuiWinUpdate 2300  ;* update PyGui Window's Gui Objects values 
+       
       
       * SYSTEM() keys for BASIC Function SYSTEM() as defined in gplsrc/op_sys.c
       $define SYS$PTR_ON        1  ;*   Printer on?

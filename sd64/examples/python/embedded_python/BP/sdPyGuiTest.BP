@@ -1,19 +1,15 @@
 * sdPyGuiTest.BP
 * playing with freesimplegui.py and testing the cooperative scheduler
 * rem must start sd with -internal flag and compiler option must be set
-$internal
-EQUATE SD.PY.INIT TO 2000
-EQUATE SD.PY.FINAL TO 2001
-EQUATE SD.PY.RUN.FILE TO 2011
-EQUATE SD.PY.GUI.STEP TO 2020
-EQUATE SD.PY.POLL TO 2021
-EQUATE SD_PyGuiWinUpdate To 2030
+**$internal
+$include KEYS.H
+$include SDPYFUNC.H
 
 * rem to point these to where you save the python scripts
-SETUP.FILE = "/home/sd/user_accounts/<your account>/BP/sdPyGui_setup.py"
-STEP.FILE = "/home/sd/user_accounts/<your account>/BP/sdPyGui_step.py"
+SETUP.FILE = "/home/sd/user_accounts/mabull/BP/sdPyGui_setup.py"
+STEP.FILE = "/home/sd/user_accounts/mabull/BP/sdPyGui_step.py"
 
-STATUS.VALUE = SDEXT("", 0, SD.PY.INIT)
+STATUS.VALUE = PY_INITIALIZE()
 IF STATUS() # 0 THEN
     crt "Python initialization failed: ":STATUS()
     STOP
@@ -22,17 +18,17 @@ END
 CRT "Python initialized"
 CRT "Setup gui_step function"
 
-STATUS.VALUE = SDEXT(STEP.FILE, 0,SD.PY.RUN.FILE)
+STATUS.VALUE = PY_RUNFILE(STEP.FILE)
 IF STATUS() # 0 THEN
-    crt "Tkinter step setup failed: ":STATUS()
+    crt "PyGui step setup failed: ":STATUS()
     GOTO SHUTDOWN
 END
 
 CRT "Setup Gui Window"
 
-STATUS.VALUE = SDEXT(SETUP.FILE, 0, SD.PY.RUN.FILE)
+STATUS.VALUE = PY_RUNFILE(SETUP.FILE)
 IF STATUS() # 0 THEN
-    crt "Tkinter setup failed: ":STATUS()
+    crt "PYGui setup failed: ":STATUS()
     GOTO SHUTDOWN
 END
 
@@ -42,12 +38,12 @@ DONE = 0
 counter = 0
 LOOP WHILE DONE = 0
     counter += 1
-    STATUS.VALUE = SDEXT("", 0, SD.PY.GUI.STEP)
+    STATUS.VALUE = PY_PYGUISTEP()
     IF STATUS() # 0 THEN
         crt "Tkinter step failed: ":STATUS()
         DONE = 1
     END ELSE
-        EVENT = SDEXT("", 0, SD.PY.POLL)
+        EVENT = PY_PYPOLL()
         IF STATUS() = 0 THEN
             EVENT.NAME = FIELD(EVENT,@FM, 1)
             * just prove that the cooperative scheduler is coming back at a regular interval 
@@ -63,11 +59,34 @@ LOOP WHILE DONE = 0
               * there is a size limit to the payload, perhaps only send the key values then get them from python one at a time?
               crt "  DATA: ":EVENT.DATA
               
+              if EVENT.NAME = "-OK-" then
+              
+                key_list = PY_DICTGETKEYS("values")  ;* returns tab separated list of keys
+                *crt "PY_DICTGETKEYS status: ":status()
+                *crt "key_list: ":key_list
+                key_ct = dcount(key_list,@fm)
+                EVENT.DATA = ''
+                for i = 1 to key_ct
+                  key = key_list<i>
+                  if key = "-TEXTBX-" then
+                    null
+                  end else
+                    value = PY_DICTVALGETS("values",key)
+                    *crt "key: ":key
+                    *crt "value: ":value
+                    EVENT.DATA := key:':':value : char(10)
+                    *crt
+                  end
+                next i
+              end
+              
               * populate the Gui text box with the passed payload info
-              UpdateArgs = "window"       ;* object name of window created with  "window = sg.Window(....)
-              UpdateArgs<2> = "-TEXTBX-"  ;* key to Gui Object we want to change 
-              UpdateArgs<3> = EVENT.DATA  ;* data we want to set the objects text propert to
-              result = SDEXT(UpdateArgs,1,SD_PyGuiWinUpdate)
+                 *UpdateArgs = "window"       ;* object name of window created with  "window = sg.Window(....)
+                 *UpdateArgs<2> = "-TEXTBX-"  ;* key to Gui Object we want to change 
+                 *UpdateArgs<3> = EVENT.DATA  ;* data we want to set the objects text propert to
+                 *result = SDEXT(UpdateArgs,1,SD_PyGuiWinUpdate)
+                 
+              result = PY_GUIWINUPDATE("window","-TEXTBX-",EVENT.DATA)
               crt "window update result: ":result
               
               IF EVENT.NAME = "window" AND EVENT.DATA = "closed" THEN
@@ -79,8 +98,5 @@ LOOP WHILE DONE = 0
 REPEAT
 
 SHUTDOWN:
-*  Rem we do not want to shutdown between runs
-** crt 'shutting down'
-**STATUS.VALUE = SDEXT("shutdown", 0, SD.PY.FINAL)
-crt "SD Tkinter demo ended: ":STATUS.VALUE
+crt "SD FreeSimpleGUI demo ended: ":STATUS.VALUE
 END

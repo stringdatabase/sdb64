@@ -19,10 +19,10 @@ layout = [
             [sg.Text('DOB', size=(12)), sg.Input(key='-DOB-', size=(25))],
             [sg.Text('Account', size=(12)), sg.Input(key='-ACCOUNT-', size=(25))],
             [sg.Multiline("Initial text\n", size=(40, 5), key="-TEXTBX-", autoscroll=True)],
-            [sg.Button('Ok')]
+            [sg.Button('Ok', key='-OK-')]
             ]
 
-window = sg.Window('Gui Test', layout, element_justification='r',finalize=True)
+window = sg.Window('Gui Test', layout, element_justification='r',location=(100, 200), finalize=True)
 #
 # rem print(window.key_dict.keys()) to list keys in window
 # dict_keys(['-UNAME-', '-DOB-', '-ACCOUNT-', 'Ok'])
