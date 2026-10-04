@@ -1,6 +1,7 @@
 /* sdclilib.h
  * SD client C API library functions and tokens.
  * Copyright (c) 2004 Ladybridge Systems, All Rights Reserved
+ * 1.0-3 mab add additional server errors SV_EMSG_PAIR SV_ECONTXT
  */
 
 /* Function definitions */
@@ -119,5 +120,7 @@ DLLEntry void SDWriteu(int fno, char * id, char * data);
 #define SV_ERROR          3    /* Action failed. Error text available     */
 #define SV_LOCKED         4    /* Action took LOCKED clause               */
 #define SV_PROMPT         5    /* Server requesting input                 */
+#define SV_EMSG_PAIR      6    /* Server message_pair error               */
+#define SV_ECONTXT        7    /* Server context_error                    */
 
 /* END-CODE */

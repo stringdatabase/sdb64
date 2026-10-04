@@ -96,6 +96,6 @@ crt 'status = ':status()
 crt str('=',50)
 *
 999: crt 'complete'
-* note we do not finilize here, test in sd.c and finialze there!
+* note we do not finalize here, test in sd.c and finalize there!
 *call !PY_FINALIZE(rtn)
 end

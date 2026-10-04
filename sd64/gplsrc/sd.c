@@ -22,6 +22,9 @@
  * 02 Jul 24 -i  typeo will hit bootstrap option
  * 08 Aug 24 mab add code to embedded python if EMBED_PYTHON defined 
  * rev 0.9.1 Mar 25 return to single rev track 
+ * rev 1.0-3 add safe_malloc and ksafe_malloc
+ *           the way python finalize was designed a user could cause a seqfault
+ *           
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -73,6 +76,8 @@
 #include <stdarg.h>
 /* 20240126 mab add syslog */
 #include <syslog.h>
+// rev 1.0-3 for safe_malloc
+#include <sysexits.h>
 
 // #define DEBUG /* enables harcoded diagnostic output */
 
@@ -96,7 +101,8 @@ extern char *x_option; /* -x option */
 
 /* 20240808 mab embedding python? */
 #ifdef EMBED_PYTHON
-extern void sdext_py(int key, char* Arg);
+extern void sdext_py(int key, char* Arg, char* Arg2, char* Arg3);
+extern int sdext_py_finalize(void);
 #endif
 
 bool bind_sysseg(bool create, char *errmsg);
@@ -248,8 +254,7 @@ int main(int argc, char *argv[]) {
 
   /* 20240808 mab embedding python? */
   #ifdef EMBED_PYTHON
-  char py_shutdown[] = "shutdown";
-  sdext_py(SD_PyFinal, py_shutdown);   /* if python was used, shut it down */
+  sdext_py_finalize();   /* if python was used, shut it down */
   #endif
 
   clean_stop();
@@ -276,7 +281,8 @@ Private void sd_init(int argc, char *argv[]) {
   /* Save the current working directory for use by SYSTEM(1024) */
 
   (void)getcwd(cwd, MAX_PATHNAME_LEN);
-  entry_dir = k_alloc(MAX_PATHNAME_LEN, strlen(cwd) + 1); /* was hard coded at 110 -gwb */
+  // rev 1.0-3 use ksafe_alloc if results not tested
+  entry_dir = ksafe_alloc(109, strlen(cwd) + 1); /* was hard coded at 110 -gwb */
   strcpy(entry_dir, cwd);
 }
 
@@ -451,8 +457,8 @@ Private bool comlin(int argc, char *argv[]) {
     for (n = arg; n < argc; n++) {
       bytes += strlen(argv[n]) + 1;
     }
-
-    single_command = k_alloc(109, bytes);
+    // rev 1.0-3 use ksafe_alloc if results not tested
+    single_command = ksafe_alloc(109, bytes);
     n = 0;
     while (1) {
       strcpy(single_command + n, argv[arg]);
@@ -601,5 +607,32 @@ Private bool load_pcode(char *pname, u_char **ptr) {
   fprintf(stderr, "Pcode item %s not found\n", u_pname);
   return FALSE;
 }
-
+/* rev 1.0-3 safe memory allocation
+      this function added to replace malloc not protected by allocation failure checking
+      intent is to us this in place of malloc where test for returned null pointer is not performed
+*/      
+void *safe_malloc(size_t size) {
+  void *ptr = malloc(size);
+  if (ptr == NULL && size > 0) {
+      fprintf(stderr, "Fatal: Out of memory trying to allocate %zu bytes.\n", size);
+      exit(EX_OSERR); // Halt the program gracefully
+  }
+  return ptr;
+}
+/* rev 1.0-3 ksafe memory allocation
+      this function added to replace k_alloc (malloc) not protected by allocation failure checking
+      intent is to us this in place of k_alloc where test for returned null pointer is not performed
+*/
+void *ksafe_malloc(size_t size) {
+  #define msgsz 256
+  char msg[msgsz];  
+  void *ptr = malloc(size);
+  if (ptr == NULL && size > 0) {
+      snprintf(msg,msgsz,"Fatal: Out of memory trying to allocate %zu bytes.\n", size);
+      k_error(msg);
+      // we should never actually come back from k_error, just in case exit with os error
+      exit(EX_OSERR); // Halt the program gracefully
+  }
+  return ptr;
+}
 /* END-CODE */

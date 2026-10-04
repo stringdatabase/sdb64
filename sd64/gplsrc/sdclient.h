@@ -18,6 +18,7 @@
  * 
  * START-HISTORY:
  * 31 Dec 23 SD launch - prior history suppressed
+ * 1.0-3 mab add additional server errors SV_EMSG_PAIR SV_ECONTXT
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -83,5 +84,6 @@
 #define SV_ERROR          3    /* Action failed. Error text available     */
 #define SV_LOCKED         4    /* Action took LOCKED clause               */
 #define SV_PROMPT         5    /* Server requesting input                 */
-
+#define SV_EMSG_PAIR      6    /* Server message_pair error               */
+#define SV_ECONTXT        7    /* Server context_error                    */
 /* END-CODE */

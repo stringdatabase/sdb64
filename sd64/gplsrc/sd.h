@@ -56,6 +56,7 @@
 /* Memory management */
 
    #define k_alloc(tag, n) malloc(n)
+   #define ksafe_alloc(tag, n) ksafe_malloc(n)
    #define k_free(p) free(p)
 
 #define k_free_ptr(p) if (p != NULL) k_free(p), p = NULL
@@ -137,6 +138,8 @@ Public char * CRLF init("\r\n");
 void fatal(void);
 void dump(u_char * addr, int32_t bytes);
 void set_console_title(void);
+void *safe_malloc(size_t size);
+void *ksafe_malloc(size_t size);
 
 /* ANALYSE.C */
 int64 dir_filesize(FILE_VAR * fvar);
@@ -164,8 +167,8 @@ int StringCompLenNoCase(char * p, char * q, int16_t len);
 void UpperCaseMem(char * str, int16_t len);
 char * UpperCaseString(char * s);
 /* 20240225  add misc dyn array functions for c strings */
-char* Extract(char* src, int fno, int vno, int svno);
-int Dcount(char* src, char* delim_str);
+char* Extract(const char* src, int fno, int vno, int svno);
+int Dcount(const char* src, char* delim_str);
 
 /* DH_FILE.C */
 OSFILE dio_open(char * fn, int mode);
@@ -191,6 +194,11 @@ void k_return(void);
 void k_run_program(void);
 bool raise_event(int16_t event, int16_t user);
 void process_events(void);
+int sd_python_event_fd(void);
+void sd_python_event_ready(void);
+void sd_python_event_drain(void);
+void sd_python_event_clear(void);
+int sd_python_event_count(void);
 void show_stack(void);
 void sigchld_handler(int signum);
 void suspend_updates(void);

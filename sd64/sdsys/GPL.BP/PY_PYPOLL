@@ -1,3 +1,5 @@
+* PY_PYPOLL
+* Return the next queued Python GUI event 
 * Copyright (c)2026 The SD Developers, All Rights Reserved
 *
 * This program is free software; you can redistribute it and/or modify
@@ -14,36 +16,17 @@
 * along with this program; if not, write to the Free Software Foundation,
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
-PROGRAM MSGTEST
-* MAB - Test messages.c 
-CRT 'HERE WE GO'
-*
-OPENPATH "/usr/local/sdsys/MESSAGES" TO MSGFV ELSE ABORT "Cannot open MESSAGES"
-*
-SSELECT MSGFV TO 2 
-*
-READLIST MSGLIST FROM 2 THEN
-*
-  MSGCNT = DCOUNT(MSGLIST,@AM)
-*
-  CRT 'MESSAGE COUNT: ':MSGCNT
-*
-  FOR I = 1 TO MSGCNT
-    IF NUM(MSGLIST<I>) THEN
-      MSG = SYSMSG(MSGLIST<I>)
-      LNS = DCOUNT(MSG,@FM)
-      FOR LN = 1 TO LNS
-            * TEST MARKS IN STRING ??
-            TXT_CNT = DCOUNT(MSG<LN>, @TM)
-            FOR TXT_LN = 1 TO TXT_CNT
+$internal
+$no.symbols
+$no.xref
+function py_pypoll()
+$catalog !py_pypoll
 
-                CRT MSGLIST<I>:' ':LN:' ':FIELD(MSG<LN>,@TM,TXT_LN)
-            NEXT TXT_LN
-      NEXT LN
-    END 
-  NEXT I
+$include KEYS.H
+$include ERR.H
 *
-END
+STATUS.VALUE = SDEXT("", @FALSE, SD_PyPoll)
 *
-CRT 'COMPLETE'
-END
+return STATUS.VALUE
+
+end

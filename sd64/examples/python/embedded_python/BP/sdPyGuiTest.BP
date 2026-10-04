@@ -1,0 +1,101 @@
+* sdPyGuiTest.BP
+* playing with freesimplegui.py and testing the cooperative scheduler
+* rem must start sd with -internal flag and compiler option must be set
+**$internal
+$include KEYS.H
+$include SDPYFUNC.H
+
+* rem to point these to where you save the python scripts
+SETUP.FILE = "/home/sd/user_accounts/mabull/BP/sdPyGui_setup.py"
+STEP.FILE = "/home/sd/user_accounts/mabull/BP/sdPyGui_step.py"
+
+STATUS.VALUE = PY_INITIALIZE()
+IF STATUS() # 0 THEN
+    crt "Python initialization failed: ":STATUS()
+    STOP
+END
+
+CRT "Python initialized"
+CRT "Setup gui_step function"
+
+STATUS.VALUE = PY_RUNFILE(STEP.FILE)
+IF STATUS() # 0 THEN
+    crt "PyGui step setup failed: ":STATUS()
+    GOTO SHUTDOWN
+END
+
+CRT "Setup Gui Window"
+
+STATUS.VALUE = PY_RUNFILE(SETUP.FILE)
+IF STATUS() # 0 THEN
+    crt "PYGui setup failed: ":STATUS()
+    GOTO SHUTDOWN
+END
+
+
+CRT "Run the gui loop"
+DONE = 0
+counter = 0
+LOOP WHILE DONE = 0
+    counter += 1
+    STATUS.VALUE = PY_PYGUISTEP()
+    IF STATUS() # 0 THEN
+        crt "Tkinter step failed: ":STATUS()
+        DONE = 1
+    END ELSE
+        EVENT = PY_PYPOLL()
+        IF STATUS() = 0 THEN
+            EVENT.NAME = FIELD(EVENT,@FM, 1)
+            * just prove that the cooperative scheduler is coming back at a regular interval 
+            if EVENT.NAME = '__TIMEOUT__' then
+              if counter > 1000 then
+                crt '1000 timeouts'
+                counter = 0
+              end
+            end else
+              EVENT.DATA = FIELD(EVENT,@FM, 2)
+              crt "GUI EVENT"
+              crt "  NAME: ":EVENT.NAME
+              * there is a size limit to the payload, perhaps only send the key values then get them from python one at a time?
+              crt "  DATA: ":EVENT.DATA
+              
+              if EVENT.NAME = "-OK-" then
+              
+                key_list = PY_DICTGETKEYS("values")  ;* returns tab separated list of keys
+                *crt "PY_DICTGETKEYS status: ":status()
+                *crt "key_list: ":key_list
+                key_ct = dcount(key_list,@fm)
+                EVENT.DATA = ''
+                for i = 1 to key_ct
+                  key = key_list<i>
+                  if key = "-TEXTBX-" then
+                    null
+                  end else
+                    value = PY_DICTVALGETS("values",key)
+                    *crt "key: ":key
+                    *crt "value: ":value
+                    EVENT.DATA := key:':':value : char(10)
+                    *crt
+                  end
+                next i
+              
+              
+                Key_list = '-UNAME-':@VM: '-DOB-' :@VM :'-ACCOUNT-' :@VM: "-TEXTBX-"
+                Value_list = 'UserName':@VM: 'Birth Date' :@VM :'' :@VM: EVENT.DATA 
+                result = PY_GUIWINUPDATES("window",Key_list,Value_list)   
+              
+                *result = PY_GUIWINUPDATE("window","-TEXTBX-",EVENT.DATA)
+                crt "window update result: ":result
+              end
+              
+              IF EVENT.NAME = "window" AND EVENT.DATA = "closed" THEN
+                DONE = 1
+              END
+            end
+        END
+    END
+REPEAT
+
+SHUTDOWN:
+crt "SD FreeSimpleGUI demo ended: ":STATUS.VALUE
+END

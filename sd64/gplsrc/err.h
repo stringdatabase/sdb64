@@ -22,6 +22,8 @@
  * 30 Jul 24 mab add error codes for SD_ENCRYPT_SODIUM
  * rev 0.9.0 Jan 25 mab sdext_eguid_set error codes
  * rev 0.9-2 Mar 25 mab add sdext_pyobj direct control of python dictionary object
+ * 1.0-3 mab add 4100 Undefined Server Error, 4101 invalid file number, 4102 invalid arg
+ *               various SD_PyErr_GuiErrors
  * END-HISTORY
  *
  * START-DESCRIPTION:
@@ -151,6 +153,9 @@
 
 /* 4000 - 4999   SDClient errors */
 #define ER_SRVRMEM     4000    /* Insufficient memory for packet buffer */
+#define ER_SRVRERR     4100    /* Undefined Server Error */
+#define ER_INV_NBR     4101    /* Invalid File Number */
+#define ER_INV_ARG     4102    /* Invalid Argument */
 
 /* 5000 - 5999   Operating system related issues */
 #define ER_NO_DLL      5000    /* DLL not found */
@@ -324,12 +329,24 @@
 #define SD_PyErr_EnLatin   -12018    /* error encoding latin string to unicode      */
 #define SD_PyErr_NotStr    -12019    /* Object not a String (unicode)  */
 #define SD_PyErr_DelObj    -12020    /* Failed to remove Object from global dictionary */
+#define SD_PyErr_ObjAttrNOF -12021   /* Failed to find attribute name in object */
 
-#define SD_PyErr_NoItems   -12030    /* Python Object contains no items (List?) */
-#define SD_PyErr_CreStr    -12031    /* Failed to create Python String Object   */
+#define SD_PyErr_NoItems   -12030    /* Python Object or String List contains no items */
+#define SD_PyErr_CreStr    -12031    /* Failed to create Python Object from String   */
 #define SD_PyErr_ConCat    -12032    /* Failed to concatinate Python String Objects   */
 #define SD_PyErr_LstItem   -12033    /* Failed to access List Objects Item  */
 #define SD_PyErr_NotList   -12034    /* Object not a list  */
 #define SD_PyErr_LstAppdEr -12035    /* List append failed */
 #define SD_PyErr_LstClrEr  -12036    /* list clear failed  */
+#define SD_PyErr_EventInit -12040    /* Failed to initialize Python event queue */
+#define SD_PyErr_EventEmpty -12041   /* Python event queue is empty */
+#define SD_PyErr_EventFull -12042    /* Python event queue is full */
+#define SD_PyErr_EventClosed -12043  /* Python event queue is closed */
+#define SD_PyErr_EventTooBig -12044  /* Python event is too large */
+#define SD_PyErr_GuiError    -12045  /* Python GUI step failed */
+#define SD_PyErr_NoFreeGui   -12046  /* could not find FreeSimpleGui module */
+#define SD_PyErr_MainScope   -12047  /* could not load Python's __main__ scope  */
+#define SD_PyErr_GuiWinNOF   -12048  /* Window not found (from object name) */ 
+#define SD_PyErr_CallMethod  -12049  /* calling objects method failed */ 
+#define SD_PyErr_KeyValCnt   -12050  /* key list and value list count mismatch */ 
 /* END-CODE */

@@ -1,3 +1,112 @@
+Version 1.0-3
+-------------
+(mab)  Added cooperative scheduler between the VM and python. Description is found in SD GUI Python cooperative scheduling.txt in
+         Documentation folder.
+         Allows both Python GUI (Tkinter) and BASIC program to both remain response with Gui window open.  This is very BETA!!!
+         See SD_TK_DEMO.BP program in sd64/examples/python/embedded_python/BP.
+       Fixed bug with Python finalization that could cause segfault (sdext_py.c) 
+       There are an abundance of instances where sd does not check for successful memory allocation via malloc.
+         Create function safe_malloc which on memory allocation failure reports to stderr and terminates sd with exit(EX_OSERR).
+         This is not an ideal situation but halting the program gracefully is probably better than the eventual segfault.
+         For places where k_alloc is used, if there is a test for successful memory allocation leave as is and assume original author's logic is correct.
+         If k_alloc is not protected, switch to using ksafe_alloc which causes a k_error("some message about allocation failure").
+           Assume we can use K_error because kernel is up and running, this results in a clean stop of the system.
+         Note added program KTAG to BP which was used to parse the gplsrc c code and locate K_ALLOC (now needs mod to also fine KSAFE_ALLOC) and create KTAG file and then KTAG.csv. End result is a listing of c source files and the TAG number which id's the memmory allocation.  May someday be used for debug purpose (maybe the original reason for it being found in the macro???).
+       gplsrc sysseg.c start_sd() treats a failed fork() as success, and the daemon dies silently
+       gplscr sdlnxd.c don't fail silently when attempting to access semaphores
+       gplsrc sp_str4.c op_trimx had int variable skip_count defined as bool (worked because of bool typed as int, but will not work for c2x).
+       gplsrc messages.c Remove test for messages directory hold over from messages being a dynamic file.
+             Use ksafe_alloc() for allocations not tested for success
+             Check for error on fstat() and return message if error
+             SD Only Supports English messages so remove non english message support
+             Add sanity check on message size to avoid buffer overflow
+       Add to examples api_tests/apitest.c  program to test changes made to APISRVR and sdclilib
+       GPL.BP APISRVR use logmsg for debug logging
+          Reformat code and change vb. labels to api.
+          Add ER$INV.NBR - invalid file number
+          Propagate sub set status code back to caller (API.CALL)
+       gplsrc sdclilib.c
+         Add some connection logging to syslog
+         Remove on local connection: set user / group id to user who forked process.
+           Did not make any sense, local connect is forked from running sd process,
+             so by default it must be a valid user.
+           Also causes Apache spawned process to fail, but doesn't if run from test c program ??
+         Test memory allocations (malloc) for failure and abort if unsuccessful, current code would most like seqfault, use exit() instead
+         Add Err_Set Error Set Routine to report errors back to caller
+         SDCallx Correctly return sub name and arg count errors to caller 
+         sdclilib logic error?
+           sdclilib and APISRVR transfer data between each other via packets written and read either over pipes 
+             or sockets. An example of the process from the sdclilib side is as follows:
+             Assume we are processing a read record request from a client (SDRead)
+             SDRead calls
+                read_record which will call message_pair as
+                if (!message_pair()){   <-- remember this issue pointed out below
+                  goto exit_read
+                }
+                .
+                .
+                
+                message_pair:
+                if (write_packet(type, data, bytes)) {
+                  return GetResponse();
+                }
+                return FALSE;
+                
+                GetReponse:
+                  if (!read_packet())
+                    return FALSE;
+                  if (session[session_idx].server_error == SV_ERROR) {
+                    strcpy(session[session_idx].sderror, "Unable to retrieve error text");
+                    write_packet(SrvrGetError, NULL, 0);
+                    if (read_packet())
+                      strcpy(session[session_idx].sderror, buff->data.error.text);
+                    return FALSE;
+                  }
+                  return TRUE;
+                  
+                 read_packet:
+                   reads the packet from the pipe or socket AND
+                   sets server_error and sd_status based on the packet sent from APISRVR                   
+
+            Issue: 
+             1) If server_error is set by APISRVR, GetReponse performs a SrvrGetError request, 
+                which will get the extended error text. Problem is read_packet will reset server.error and sd_status
+                based on the success or failure of the SrvrGetError request. 
+                So now you have the error text but lost the actual error and status code.
+             2) GetReponse returns false (unsuccessful) when there is server error (SV_ERROR).
+                In the read_record function this results in a jump to exit_read, skipping over the code
+                that checks server_error status and results in the value assigned to err being undefined.
+                
+             Proposed solution:
+               Do not treat an SV_ERROR status code returned from APISRVR as a message_pair failure.
+               Most likely the original intent of message_pair returning false would be for this to indicate an actual communication error
+               between the sdclilib and APISRVR.
+
+                GetReponse:
+                int old_status;
+                  if (!read_packet())
+                    return FALSE;
+                  if (session[session_idx].server_error == SV_ERROR) {
+                    // save original error code
+                    old_status = session[session_idx].sd_status;
+                    strcpy(session[session_idx].sderror, "Unable to retrieve error text");
+                    write_packet(SrvrGetError, NULL, 0);
+                    if (read_packet()){
+                      strcpy(session[session_idx].sderror, buff->data.error.text);
+                      // restore original SV_ERROR
+                      session[session_idx].server_error = SV_ERROR;
+                      session[session_idx].sd_status = old_status;
+                      return TRUE;
+                    } else {
+                      return FALSE;
+                    }
+                  }
+                  return TRUE;
+               
+
+               In read_record initialize var status to zero to prevent undefined value, or add additional error codes to
+                Server error status values 6 = message_pair error, 7 = context_error and set as appropriate? 
+
 Version 1.0-2
 -------------
 (mab)  Add back LISTPQ - sentence to list procs (SD.VOCLIB, VOC_TEMPLATE, NEWVOC)

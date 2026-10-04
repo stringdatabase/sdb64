@@ -1,6 +1,6 @@
 * SDPYFUNC.H
 * SD Python Functions  
-* Copyright (c)2025 The SD Developers, All Rights Reserved
+* Copyright (c)2026 The SD Developers, All Rights Reserved
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
@@ -49,3 +49,7 @@ deffun PY_LISTAPPD(listname,objname) calling '!PY_LISTAPPD'
 deffun PY_LISTGETS(listname) calling '!PY_LISTGETS'
 deffun PY_LISTCLR(listname) calling '!PY_LISTCLR'
 *
+deffun PY_PYGUISTEP() calling '!PY_PYGUISTEP'
+deffun PY_PYPOLL() calling '!PY_PYPOLL'
+deffun PY_GUIWINUPDATE(object_name,key,value) calling '!PY_GUIWINUPDATE'
+deffun PY_GUIWINUPDATES(object_name,key_list,value_list) calling '!PY_GUIWINUPDATES'

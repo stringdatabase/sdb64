@@ -23,6 +23,7 @@
  * 09 Aug 24 mab embedded python SDEXT keys
  * rev 0.9.0 Jan 25 mab SD_EUID_SET SD_EUID_RESTORE
  * rev 0.9-2 Mar 25 mab add sdext_pyobj direct control of python dictionary object
+ * rev 1.0-3 mab add sdext_py defines for Py Gui calls
  * 
  * END-HISTORY
  *
@@ -368,6 +369,10 @@
 #define  SD_PyRunStr      2010  /* Take the string in qmBasic variable VAL and run in python interpreter   */
 #define  SD_PyRunFile     2011  /* Take the file and path defined in qmBasic variable VAL and run in python interpreter   */
 #define  SD_PyGetAtt      2100  /* Return the (string) value of python attribute defined in qmBasic variable VAL   */
+#define  SD_PyGuiStep     2020  /* Process one bounded Python GUI event step */
+#define  SD_PyPoll        2021  /* Return the next queued Python GUI event */
+#define  SD_PyGuiWinUpdate  2030  /* update PyGui Window's Gui Object value */
+#define  SD_PyGuiWinUpdateS 2031  /* update multi PyGui Window's Gui Object values */
 
 #define  SD_PyDictCrte    2200  /* Creaete new dictionary for sd */
 #define  SD_PyDictClr     2201  /* Clear  dictionary Keys and Values, (Name remains in global dictionary) for sd */
@@ -388,4 +393,6 @@
 #define SD_PyListGet      2221  /* get list items as fld mrk separated string */
 #define SD_PyListAppd     2222  /* append object to list     */
 #define SD_PyListClr      2223  /* clear list object   */
+
+
 /* END-CODE */
