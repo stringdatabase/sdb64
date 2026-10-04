@@ -167,8 +167,8 @@ int StringCompLenNoCase(char * p, char * q, int16_t len);
 void UpperCaseMem(char * str, int16_t len);
 char * UpperCaseString(char * s);
 /* 20240225  add misc dyn array functions for c strings */
-char* Extract(char* src, int fno, int vno, int svno);
-int Dcount(char* src, char* delim_str);
+char* Extract(const char* src, int fno, int vno, int svno);
+int Dcount(const char* src, char* delim_str);
 
 /* DH_FILE.C */
 OSFILE dio_open(char * fn, int mode);

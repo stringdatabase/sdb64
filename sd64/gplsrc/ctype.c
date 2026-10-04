@@ -178,7 +178,7 @@ char* UpperCaseString(char* s) {
    Dcount()  -  Count fields, values or subvalues                       
    copied from qmclilib.c                                              */
 
-int Dcount(char* src, char* delim_str) {
+int Dcount(const char* src, char* delim_str) {
   int32_t src_len;
   char* p;
   int32_t ct = 0;
@@ -205,7 +205,7 @@ int Dcount(char* src, char* delim_str) {
    Extract()  -  Extract field, value or subvalue                      
    copied from qmclilib.c                                              */
 
-char* Extract(char* src, int fno, int vno, int svno) {
+char* Extract(const char* src, int fno, int vno, int svno) {
   int32_t src_len;
   char* p;
   char* result;

@@ -331,7 +331,7 @@
 #define SD_PyErr_DelObj    -12020    /* Failed to remove Object from global dictionary */
 #define SD_PyErr_ObjAttrNOF -12021   /* Failed to find attribute name in object */
 
-#define SD_PyErr_NoItems   -12030    /* Python Object contains no items (List?) */
+#define SD_PyErr_NoItems   -12030    /* Python Object or String List contains no items */
 #define SD_PyErr_CreStr    -12031    /* Failed to create Python Object from String   */
 #define SD_PyErr_ConCat    -12032    /* Failed to concatinate Python String Objects   */
 #define SD_PyErr_LstItem   -12033    /* Failed to access List Objects Item  */
@@ -348,4 +348,5 @@
 #define SD_PyErr_MainScope   -12047  /* could not load Python's __main__ scope  */
 #define SD_PyErr_GuiWinNOF   -12048  /* Window not found (from object name) */ 
 #define SD_PyErr_CallMethod  -12049  /* calling objects method failed */ 
+#define SD_PyErr_KeyValCnt   -12050  /* key list and value list count mismatch */ 
 /* END-CODE */

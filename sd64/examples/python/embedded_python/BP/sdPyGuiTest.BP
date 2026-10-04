@@ -78,16 +78,15 @@ LOOP WHILE DONE = 0
                     *crt
                   end
                 next i
-              end
               
-              * populate the Gui text box with the passed payload info
-                 *UpdateArgs = "window"       ;* object name of window created with  "window = sg.Window(....)
-                 *UpdateArgs<2> = "-TEXTBX-"  ;* key to Gui Object we want to change 
-                 *UpdateArgs<3> = EVENT.DATA  ;* data we want to set the objects text propert to
-                 *result = SDEXT(UpdateArgs,1,SD_PyGuiWinUpdate)
-                 
-              result = PY_GUIWINUPDATE("window","-TEXTBX-",EVENT.DATA)
-              crt "window update result: ":result
+              
+                Key_list = '-UNAME-':@VM: '-DOB-' :@VM :'-ACCOUNT-' :@VM: "-TEXTBX-"
+                Value_list = 'UserName':@VM: 'Birth Date' :@VM :'' :@VM: EVENT.DATA 
+                result = PY_GUIWINUPDATES("window",Key_list,Value_list)   
+              
+                *result = PY_GUIWINUPDATE("window","-TEXTBX-",EVENT.DATA)
+                crt "window update result: ":result
+              end
               
               IF EVENT.NAME = "window" AND EVENT.DATA = "closed" THEN
                 DONE = 1

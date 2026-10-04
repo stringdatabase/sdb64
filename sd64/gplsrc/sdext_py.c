@@ -137,6 +137,8 @@ static int sd_py_poll(void);
 static int sd_py_update_key_value_in_window(PyObject *module, const char *window_title,
                               const char *key_name, const char *new_text);
 
+static int sd_py_update_multi_key_value_in_window(PyObject *module, const char *window_title,
+                              const char *key_list, const char *value_list);
 
 int sd_python_event_fd(void)
 {
@@ -475,6 +477,7 @@ static int sd_py_update_key_value_in_window(PyObject *module, const char *window
     if (element == NULL) {
         // PyErr_Format(PyExc_KeyError, "Key not found in AllKeysDict: %s", key_name);
         fprintf(stderr,"Key not found in AllKeysDict: %s\n", key_name);
+        PyErr_Print();
         Py_DECREF(pDict);
         Py_DECREF(pWindow);
         return SD_PyEr_Key;
@@ -492,7 +495,7 @@ static int sd_py_update_key_value_in_window(PyObject *module, const char *window
     Py_DECREF(value);
 
     if (result == NULL) {
-        PyErr_Print();
+        fprintf(stderr,"Failed to update: %s\n", key_name);
         Py_DECREF(pDict);
         Py_DECREF(pWindow);
         return SD_PyErr_CallMethod;
@@ -505,6 +508,129 @@ static int sd_py_update_key_value_in_window(PyObject *module, const char *window
     return 0;
 }
 
+static int sd_py_update_multi_key_value_in_window(PyObject *module, const char *window_title,
+                              const char *key_list, const char *value_list)
+{
+    char* key_name;
+    char* new_value;
+    int key_count;
+    int value_count;
+    int keyIdx;
+    
+    char* myVM = "\xFD";
+    
+    PyObject *pMainModule = PyImport_ImportModule("__main__");
+    if (pMainModule == NULL) {
+        PyErr_Print();
+        return SD_PyErr_MainScope;
+    }
+
+    PyObject *pWindow = PyObject_GetAttrString(pMainModule,window_title);
+    Py_DECREF(pMainModule);
+    if (pWindow == NULL) {
+        fprintf(stderr, "Window %s is not found\n",window_title);
+        PyErr_Print();
+        return SD_PyErr_GuiWinNOF;
+    }
+
+    // Extract 'AllKeysDict' from the Window object
+    PyObject *pDict = PyObject_GetAttrString(pWindow, "AllKeysDict");
+    if (pDict == NULL) {
+        Py_DECREF(pWindow);
+        fprintf(stderr, "GetAttrString: AllKeysDict not found\n");
+        PyErr_Print();
+        return SD_PyErr_ObjAttrNOF;
+    }
+
+    if (!PyDict_Check(pDict)) {
+        fprintf(stderr, "AllKeysDict is not a dictionary\n");
+        Py_DECREF(pDict);
+        Py_DECREF(pWindow);
+        return SD_PyErr_NotDict;
+    }
+    
+    // get key / value counts
+    key_count = Dcount(key_list, myVM);
+    value_count = Dcount(value_list, myVM);
+    
+    if (key_count == 0){
+        fprintf(stderr, "String List Contains No Items\n");
+        Py_DECREF(pDict);
+        Py_DECREF(pWindow);
+        return SD_PyErr_NoItems;
+    }
+    
+    if (key_count != value_count){
+        fprintf(stderr, "Keys and Values count mismatch\n");
+        Py_DECREF(pDict);
+        Py_DECREF(pWindow);
+        return SD_PyErr_KeyValCnt; 
+    }
+
+    // now loop thru the key value pairs and update the window objects
+    for (keyIdx = 0; keyIdx < key_count; keyIdx++) { 
+        /* rem Extract allocates our buffer space must be freed when complete */
+        /* rem we are a @vm list                                              */
+        key_name  = Extract(key_list, 1,keyIdx+1, 0);
+        new_value = Extract(value_list, 1,keyIdx+1, 0);
+       
+        PyObject *key = PyUnicode_FromString(key_name);
+        if (key == NULL) {
+            Py_DECREF(pDict);
+            Py_DECREF(pWindow);
+            free(key_name);
+            free(new_value);
+            return SD_PyErr_CreStr;
+        }
+    
+        PyObject *element = PyDict_GetItem(pDict, key);
+        // rem PyDict_GetItem does not create a new reference. It returns a borrowed reference //
+        Py_DECREF(key);
+    
+        if (element == NULL) {
+            // PyErr_Format(PyExc_KeyError, "Key not found in AllKeysDict: %s", key_name);
+            fprintf(stderr,"Key not found in AllKeysDict: %s\n", key_name);
+            Py_DECREF(pDict);
+            Py_DECREF(pWindow);
+            free(key_name);
+            free(new_value);
+            return SD_PyEr_Key;
+        }
+    
+        PyObject *value = PyUnicode_FromString(new_value);
+        if (value == NULL) {
+            Py_DECREF(pDict);
+            Py_DECREF(pWindow);
+            free(key_name);
+            free(new_value);
+            return SD_PyErr_CreStr;
+        }
+    
+        // Equivalent to: element.update(new_text)
+        PyObject *result = PyObject_CallMethod(element, "update", "O", value);
+        Py_DECREF(value);
+    
+        if (result == NULL) {
+            fprintf(stderr,"Failed to update: %s\n", key_name);
+            PyErr_Print();
+            Py_DECREF(pDict);
+            Py_DECREF(pWindow);
+            free(key_name);
+            free(new_value);
+            return SD_PyErr_CallMethod;
+        }
+        
+        Py_DECREF(result);
+        free(key_name);
+        free(new_value);
+        
+    }        
+    
+    Py_DECREF(pDict);
+    Py_DECREF(pWindow);
+
+    return 0;
+}
 
 int sdext_py_finalize(void){
       if (Py_IsInitialized()) {  /* only finalize if previously initialized */
@@ -634,6 +760,27 @@ void sdext_py(int key, char* Arg, char* Arg2, char* Arg3 ){
         if (mod != NULL) {
           // Arg: "My Window", Arg2: "my_key", Arg3: "new text"
           myResult = sd_py_update_key_value_in_window(mod, Arg, Arg2, Arg3);
+          Py_DECREF(mod);
+        } else {
+          fprintf(stderr, "%s Module not found, is 'Import %s as sg' in your script?:\n",PyGuiModule,PyGuiModule);
+          PyErr_Print();
+          myResult = SD_PyErr_NoFreeGui;
+        }
+      } else {
+        myResult = SD_PyEr_NotInit;
+      }
+      process.status = myResult;
+      InitDescr(e_stack, INTEGER);
+      (e_stack++)->data.value = (int32_t)myResult;
+      break;
+    
+    case SD_PyGuiWinUpdateS:
+      if (Py_IsInitialized()){
+        // FreeSimpleGUI must have been imported in script as sg 
+        PyObject *mod = PyImport_ImportModule(PyGuiModule);
+        if (mod != NULL) {
+          // Arg: "My Window", Arg2: vm list of keys, Arg3: vm list of values
+          myResult = sd_py_update_multi_key_value_in_window(mod, Arg, Arg2, Arg3);
           Py_DECREF(mod);
         } else {
           fprintf(stderr, "%s Module not found, is 'Import %s as sg' in your script?:\n",PyGuiModule,PyGuiModule);
