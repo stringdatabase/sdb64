@@ -4,7 +4,7 @@ Gui Development Branch, Use With Caution
 
 Examples found in /sdb64/sd64/examples/python/embedded_python/BP
 
-sdPyGuiTest.BP - controlling program, must be compiled with -internal flag set when starting sd (must edit location of the script files!)
+sdPyGuiTest.BP - controlling program (must edit location of the script files!)
 
 sdPyGui_setup.py and sdPyGui_step.py - python scripts executed to create and service the gui window
 
