@@ -368,12 +368,19 @@
 #define  SD_IsPyInit      2002  /* Is python interpreter initialized   */
 #define  SD_PyRunStr      2010  /* Take the string in qmBasic variable VAL and run in python interpreter   */
 #define  SD_PyRunFile     2011  /* Take the file and path defined in qmBasic variable VAL and run in python interpreter   */
-#define  SD_PyGetAtt      2100  /* Return the (string) value of python attribute defined in qmBasic variable VAL   */
+#define  SD_PyCallFunction 2012 /* call a python modules function resulsts stored in python object */
+#define  SD_PyCallFunctionS 2013 /* call python function and return string to VM */
+
 #define  SD_PyGuiStep     2020  /* Process one bounded Python GUI event step */
 #define  SD_PyPoll        2021  /* Return the next queued Python GUI event */
-#define  SD_PyGuiWinUpdate  2030  /* update PyGui Window's Gui Object value */
-#define  SD_PyGuiWinUpdateS 2031  /* update multi PyGui Window's Gui Object values */
+#define  SD_PyGuiWinUpdate    2030  /* update PyGui Window's Gui Object's value */
+#define  SD_PyGuiWinUpdateS   2031  /* update multi PyGui Window's Gui Objects' value */
+#define  SD_PyGuiWinUpdValues 2032  /* update PyGui Window's Gui Object's values */
+#define  SD_PyGuiTableSet     2033  /* populate existing list with table data from dyn array */
+#define  SD_PyGuiTableGet     2034  /* get (read) Gui table list data into dyn array  */
 
+
+#define  SD_PyGetAtt      2100  /* Return the (string) value of python attribute defined in qmBasic variable VAL   */
 #define  SD_PyDictCrte    2200  /* Creaete new dictionary for sd */
 #define  SD_PyDictClr     2201  /* Clear  dictionary Keys and Values, (Name remains in global dictionary) for sd */
 #define  SD_PyDictVset    2202  /* set dictionary key : value    */
@@ -389,10 +396,10 @@
 #define SD_PyObjLen       2216  /* get object length (return SD_INT_OVERFLW  err overflow > 32bits)*/
 #define SD_PyObjType      2217  /* get object type*/
 
-//#define SD_PyListCrte     2220  /* create list object */
+#define SD_PyListCrte     2220  /* create list object */
 #define SD_PyListGet      2221  /* get list items as fld mrk separated string */
 #define SD_PyListAppd     2222  /* append object to list     */
 #define SD_PyListClr      2223  /* clear list object   */
-
+#define SD_PyListAppdS    2224  /* append dyn array list to list object */
 
 /* END-CODE */

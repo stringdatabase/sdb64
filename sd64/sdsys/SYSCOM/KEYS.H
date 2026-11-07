@@ -3,7 +3,7 @@
       * Copyright (c) 2004, Ladybridge Systems, All Rights Reserved
       
       $list off
-      * rev 1.0-3 Add Python Gui defines for sdext function calls
+      * rev 1.0-3 Add Python Gui and additonal List function keys for sdext function calls
       * rev 0.9-2 Mar 25 mab add sdpyobj
       * rev 0.9.0 Jan 25 mab with the change in ownership of group ACCOUNTS
       *                      add SYSTEM() keys
@@ -286,12 +286,17 @@
       $define SD_PyFinal       2001  ;* Finalize the python interpreter  
       $define SD_IsPyInit      2002  ;* Is python interpreter initialized 
       $define SD_PyRunStr      2010  ;* Take the string in qmBasic variable VAL and run in python interpreter   
-      $define SD_PyRunFile     2011  ;* Take the file and path defined in qmBasic variable VAL and run in python interpreter   
+      $define SD_PyRunFile     2011  ;* Take the file and path defined in qmBasic variable VAL and run in python interpreter#
+      $define SD_PyCallFunction 2012 ;* call a python modules function
+      $define SD_PyCallFunctionS 2013 ;* call python function and return string to VM       
+      
       $define SD_PyGuiStep     2020  ;* Process one bounded Python GUI event step
       $define SD_PyPoll        2021  ;* Return the next queued Python GUI event 
-      $define SD_PyGuiWinUpdate  2030  ;* update PyGui Window's Gui Objects values
-      $define SD_PyGuiWinUpdateS 2031  ;* update multi PyGui Window's Gui Object values
-      
+      $define SD_PyGuiWinUpdate     2030  ;* update PyGui Window's Gui Objects values
+      $define SD_PyGuiWinUpdateS    2031  ;* update multi PyGui Window's Gui Object values
+      $define SD_PyGuiWinUpdValues  2032  ;* update PyGui Window's Gui Object's values 
+      $define SD_PyGuiTableSet      2033  ;* populate existing list with table data from dyn array 
+      $define SD_PyGuiTableGet      2034  ;* get (read) Gui table list data into dyn array  
       $define SD_PyGetAtt      2100  ;* Return the (string) value of python attribute defined in qmBasic variable VAL  
       
       $define SD_PyDictCrte    2200  ;* Creaete new dictionary for sd 
@@ -309,10 +314,11 @@
       $define SD_PyObjLen      2216  ;* get object length (return err overflow > 32bits)
       $define SD_PyObjType     2217  ;* get object type
       
+      $define SD_PyListCrte    2220  ;* create list object 
       $define SD_PyListGet     2221  ;* get list items as tab separated string 
       $define SD_PyListAppd    2222  ;* append object to list   
-      $define SD_PyListClr     2223  ;* clear list object     
-      
+      $define SD_PyListClr     2223  ;* clear list object
+      $define SD_PyListAppdS   2224  ;* append dyn array list to list object
        
       
       * SYSTEM() keys for BASIC Function SYSTEM() as defined in gplsrc/op_sys.c

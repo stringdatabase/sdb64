@@ -21,6 +21,8 @@
  * START-HISTORY:
  * rev 1.0-3 mab move #include "sdext_python_inc.h"  to first include
  *              the way python finalize was designed a user could cause a seqfault
+ *              added cooperative scheuduler between VM and python 
+ *              added sd_py GUI routines
  * rev 0.9-2 Mar 25 mab add sdext_pyobj direct control of python dictionary object
  * rev 0.9.0 Jan 25 mab use install script created file sdext_python_inc.h to tell us where to find python headers
  * 11 Aug 2024 mab add PyErr_Print() to file and string script execution failure
@@ -57,60 +59,33 @@
  * START-CODE
  */
 
-#include "sdext_python_inc.h"  /* NOTE! this file is created by the install script !!! */
-#include "sd.h"
+
+#include "sdext_py.h"
 #include <fcntl.h>
 #include <linux/limits.h>
 #include <libgen.h>            /* needed for basename function */ 
 #include <pthread.h>
 #include <unistd.h>
-
+#include "sd.h"
 #include "keys.h"
-
-int PyDictCrte(char* dictname);
-int PyDictClr(char* dictname );
-int PyDictValSetS(char* dictname, char* key, char* value);
-int PyDictValGetS(char* dictname, char* key);
-int PyDictDel(char* dictname, char* key);
-int PyDictKeysS(char* dictname);
-int PyDictValuesS(char* dictname);
-
-int PyListGet(char* listname);
-int PyListAppd(char* listname, char* objname);
-int PyListClr(char* listname);
-
-int PyStrSet(char* strname, char* strvalue );
-int PyStrGet(char* strname );
-
-int PyObjLen(char* objname);
-int PyObjType(char* objname);
-
-int PyDelObj(char* objname);
-
-PyObject* List_To_String(PyObject* list);
-
-PyObject* lookup_dict_item(PyObject* dict, const char* key);
-
-void obj_to_str(PyObject* pval);
 
 
 /* python objects for embedded python, these need to hang around between calls! */
 
+char PyGuiModule[PyGuiModuleSz] = "FreeSimpleGUI";
 PyObject *global_dict, *main_module;  /* global PyObjects that must hang around between calls */
 
-/* pre define the Gui Module we will use, provide function to set this by user*/
-# define PyGuiModuleSz 20
-char PyGuiModule[PyGuiModuleSz] = "FreeSimpleGUI";
+/* structures and functions for cooperative scheduler */
 
-#define SD_EVENT_NAME_SIZE 64
-#define SD_EVENT_PAYLOAD_SIZE 4096
-#define SD_EVENT_QUEUE_LIMIT 1024
 
-typedef struct SD_EVENT {
-  char name[SD_EVENT_NAME_SIZE];
-  char payload[SD_EVENT_PAYLOAD_SIZE];
-  struct SD_EVENT *next;
-} SD_EVENT;
+static int sd_event_queue_init(void);
+static void sd_event_queue_shutdown(void);
+static int sd_event_enqueue(const char *name, const char *payload);
+static SD_EVENT *sd_event_dequeue(void);
+static void sd_event_drain_wakeup(void);
+static int sd_py_gui_step(void);
+static int sd_py_poll(void);
+static PyObject *sd_post_event(PyObject *self, PyObject *args);
 
 static struct {
   SD_EVENT *head;
@@ -124,22 +99,769 @@ static struct {
   NULL, NULL, 0, -1, -1, FALSE, PTHREAD_MUTEX_INITIALIZER
 };
 
-static volatile bool python_event_pending = FALSE;
-static bool sd_module_registered = FALSE;
+static PyMethodDef sd_methods[] = {
+  {"post_event", sd_post_event, METH_VARARGS,
+   "Queue an event for the SD BASIC program."},
+  {NULL, NULL, 0, NULL}
+};
 
-static int sd_event_queue_init(void);
-static void sd_event_queue_shutdown(void);
-static int sd_event_enqueue(const char *name, const char *payload);
-static SD_EVENT *sd_event_dequeue(void);
-static void sd_event_drain_wakeup(void);
-static int sd_py_gui_step(void);
-static int sd_py_poll(void);
-static int sd_py_update_key_value_in_window(PyObject *module, const char *window_title,
-                              const char *key_name, const char *new_text);
+static struct PyModuleDef sd_module = {
+  PyModuleDef_HEAD_INIT, "sd", "SD Python integration", -1,
+  sd_methods, NULL, NULL, NULL, NULL
+};
 
-static int sd_py_update_multi_key_value_in_window(PyObject *module, const char *window_title,
-                              const char *key_list, const char *value_list);
+PyMODINIT_FUNC PyInit_sd(void)
+{
+  return PyModule_Create(&sd_module);
+}
 
+volatile bool python_event_pending = FALSE;
+bool sd_module_registered = FALSE;
+
+// return_status return a null value in the sd string descriptor pointed to by estack and inc the stack
+ #define return_status(stat){\
+   process.status = stat;\
+   InitDescr(e_stack, INTEGER);\
+   (e_stack++)->data.value = (int32_t)process.status;\
+ }
+
+/* **************************************************************************************************************** */
+/*                                                                                                                  */
+/* All important function that calls the function that implements the python function                               */
+/* key - python function to call , defined in keys.h                                                                */
+/* Arg   thru  Arg7   vary depending on called function                                                             */
+/* somewhat defined in SYSCOM/SDPYFUNC.H                                                                            */
+/* **************************************************************************************************************** */
+int sdext_SD_PyInit(){
+  int myResult;
+  myResult = 0;
+  
+  if (!Py_IsInitialized()) {  /* only initialize if not already so */
+    myResult = sd_event_queue_init();
+    if (myResult != 0){
+      return_status(myResult);
+      return myResult;
+    }
+
+    if (!sd_module_registered) {
+      if (PyImport_AppendInittab("sd", &PyInit_sd) == -1) {
+        myResult = SD_PyErr_MainMod;
+        return_status(myResult);
+        return myResult;
+      }
+      sd_module_registered = TRUE;
+    }
+
+    Py_Initialize();          /* There is no return value; it is a fatal error if the initialization fails. */
+   /* "dictionaries that serve as namespaces for running code are generally required 
+    to have a __builtins__ link to the built-in scope searched last for name lookups"
+    from Programming Python 4th edition, Basic Embedding Techniques,
+    Running Strings in Dictionaries       */
+    if (Py_IsInitialized()) {     /* did initialization succeed? */
+      // 1. Get the main module rem Borrowed reference
+      main_module = PyImport_AddModule("__main__");  
+      if (main_module == NULL) {
+        PyErr_Print();
+        myResult = SD_PyErr_MainMod;  /* could get main module bad news! */
+      }else{
+      // 2. Get the main (global) dictionary rem Borrowed reference
+        global_dict = PyModule_GetDict(main_module);
+        if (global_dict == NULL) {
+          PyErr_Print();
+          myResult = SD_PyErr_GlobDict;  /* could get __main__ dictionary bad news! */
+        } else {
+          PyObject *sd_module = PyImport_ImportModule("sd");
+          if (sd_module == NULL) {
+            PyErr_Print();
+            myResult = SD_PyErr_MainMod;
+          } else {
+            Py_DECREF(sd_module);
+          }
+        }
+
+      }
+
+
+    }else{
+      myResult =  SD_PyEr_NotInit; /* initialization failed */
+    }
+ 
+  } 
+  return_status(myResult);
+  return myResult;
+}
+
+
+/* finalize python interpreter */
+/* only do this if we are truely done for this sd session */
+int sdext_SD_PyFinal(){
+  int myResult;
+  myResult = 0;
+  /* rem  global_dict, main_module are Borrowed Reference, no decref reqd  */
+  myResult = sdext_py_finalize();
+      
+  return_status(myResult);
+  return myResult;
+}
+
+/* Is python interpreter initialized?   */
+int sdext_SD_IsPyInit(){ 
+  int myResult;
+  myResult = 0;
+  myResult = Py_IsInitialized();
+
+  return_status(myResult);
+  return myResult;
+}
+
+/* Take the string in Arg passed from op_sdme_ext (from SDME.EXT Arg value) and run in python interpreter  */
+int sdext_SD_PyRunStr(const char* Arg){
+  int myResult;
+  myResult = 0;
+  if (Py_IsInitialized()) {
+    PyObject *prun = PyRun_String(Arg, Py_file_input, global_dict, global_dict);    /* run statements */
+    if (prun == NULL){
+    /* exception */
+      myResult = SD_PyEr_Excpt;
+      PyErr_Print();
+    } else {
+      Py_DECREF(prun);
+    }
+  }else{
+    myResult = SD_PyEr_NotInit;  
+  }  
+  
+  return_status(myResult);
+  return myResult;
+} 
+
+
+/* Take the string in Arg passed from op_sdme_ext (from SDME.EXT Arg value) and treat as a file to run in python interpreter   */
+/* must move to pyFilePath[PATH_MAX]   */
+int sdext_SD_PyRunFile(const char* Arg){
+  int myResult;
+  myResult = 0;
+  FILE *pyfd;         /* file descriptor for python script file */
+  char *pyscriptname; /* script name from pyfd */
+  char pyFilePath[PATH_MAX+1] = "";   /* max length a file path can be, defined in linux/limits.h */
+  
+  snprintf(pyFilePath, PATH_MAX,"%s",Arg);
+  
+  if (Py_IsInitialized()) {
+    pyfd = fopen(pyFilePath, "r");
+    if (pyfd == NULL) {
+      myResult = SD_PyEr_NOF;  /* failed to open file, could look at global variable errno ?*/
+    }else{
+      pyscriptname = basename(pyFilePath);  /* rem The basename() function may modify the string pointed to by path */
+      PyObject *prun = PyRun_File(pyfd,pyscriptname,Py_file_input, global_dict, global_dict);    /* run statements */
+      if (prun == NULL){
+      /* exception */
+        myResult = SD_PyEr_Excpt;
+        PyErr_Print();
+      } else {
+         Py_DECREF(prun);
+      }
+      fclose(pyfd);
+    }  
+  }else{
+    myResult = SD_PyEr_NotInit;  
+  }  
+  return_status(myResult);
+  return myResult;
+}
+
+/* Take the string in Arg passed from op_sdme_ext (from SDME.EXT Arg value) and treat as the python variable to return   */
+int sdext_SD_PyGetAtt(const char* Arg){
+  PyObject *pval;
+  char nullresult[] = "";
+     /* PyMapping_GetItemString - Fetches (indexes) a dictionary value by key
+       "Besides allowing you to partition code string namespaces independent of any Python
+        module files on the underlying system, this scheme provides a natural communication
+        mechanism. Values that are stored in the new dictionary before code is run serve as
+        inputs, and names assigned by the embedded code can later be fetched out of the dictionary
+        to serve as code outputs." from Programming Python 4th edition, Basic Embedding Techniques,
+         Running Strings in Dictionaries       */
+   
+  /* access the python dictionary entry for the object we are after */
+  
+  if (!Py_IsInitialized()) {
+  /* we dont have a running python interpreter */
+    process.status = SD_PyEr_NotInit;
+    k_put_c_string(nullresult, e_stack);   /* sets descr as type string and place the python value into it */
+    e_stack++;
+  } else {
+  pval =  PyMapping_GetItemString(global_dict, Arg);             /* get my result object */
+  /* convet to string, note obj_to_str handles any errors   from PyMapping_GetItemString and ref cnt for pval */
+  obj_to_str(pval);
+  e_stack++;
+  }
+  return process.status;
+}
+
+/* SD_PyGuiStep  Calls the python function "gui_step" found in the python script being run to enable build in GUI  */
+/* This function is called in the Cooperative Scheduler loop of the BASIC program controlling the GUI window       */
+/* see sd64/Documentation/SD GUI Python Cooperative Schedule.txt for more information                              */
+int sdext_SD_PyGuiStep(){
+  int myResult;
+  myResult = 0;
+  if (Py_IsInitialized()){
+    myResult = sd_py_gui_step();
+  }else{
+    myResult = SD_PyEr_NotInit;
+  }
+  return_status(myResult);
+  return myResult;
+}
+
+
+/* SD_PyPoll consumes the queued Python event                                                                      */
+/* see sd64/Documentation/SD GUI Python Cooperative Schedule.txt for more information                              */
+int sdext_SD_PyPoll(){
+  char nullresult[] = "";
+  if (Py_IsInitialized()){
+    process.status = sd_py_poll();
+  }else{
+    process.status = SD_PyEr_NotInit;
+    k_put_c_string(nullresult, e_stack);
+    e_stack++;
+  }
+  return process.status;
+}
+
+
+/* SD_PyGuiWinUpdate update PyGui Window's Gui Objects value                            */
+/* mimics python statement window['YOUR_ELEMENT_KEY'].update(new_value)                 */
+/* Arg: "My Window", Arg2: "my_key", Arg3: "new text"                                   */
+int sdext_SD_PyGuiWinUpdate(const char *Arg, const char *Arg2, const char *Arg3){ 
+  int myResult;
+  myResult = 0;
+  
+  if (Py_IsInitialized()){
+    // FreeSimpleGUI must have been imported in script as sg 
+    PyObject *mod = PyImport_ImportModule(PyGuiModule);
+    if (mod != NULL) {
+      // Arg: "My Window", Arg2: "my_key", Arg3: "new text"
+      myResult = sd_py_update_key_value_in_window(Arg, Arg2, Arg3);
+      Py_DECREF(mod);
+    } else {
+      fprintf(stderr, "%s Module not found, is 'Import %s as sg' in your script?:\n",PyGuiModule,PyGuiModule);
+      PyErr_Print();
+      myResult = SD_PyErr_NoFreeGui;
+    }
+  } else {
+    myResult = SD_PyEr_NotInit;
+  }
+  return_status(myResult);
+  return myResult;
+}
+
+
+/* SD_PyGuiWinUpdateS  update multi PyGui Window's Gui Object values                                   */
+/* Arg: "My Window", Arg2: vm list of keys, Arg3: vm list of values                                    */
+int sdext_SD_PyGuiWinUpdateS(const char *Arg, const char *Arg2, const char *Arg3){ 
+  int myResult;
+  myResult = 0;
+
+  if (Py_IsInitialized()){
+    // FreeSimpleGUI must have been imported in script as sg 
+    PyObject *mod = PyImport_ImportModule(PyGuiModule);
+    if (mod != NULL) {
+      // Arg: "My Window", Arg2: vm list of keys, Arg3: vm list of values
+      myResult = sd_py_update_multi_key_value_in_window(Arg, Arg2, Arg3);
+      Py_DECREF(mod);
+    } else {
+      fprintf(stderr, "%s Module not found, is 'Import %s as sg' in your script?:\n",PyGuiModule,PyGuiModule);
+      PyErr_Print();
+      myResult = SD_PyErr_NoFreeGui;
+    }
+  } else {
+    myResult = SD_PyEr_NotInit;
+  }
+  return_status(myResult);
+  return myResult;
+}
+
+
+
+
+/* SD_PyGuiWinUpdValues   update PyGui Window's Gui Object's values parameter                             */
+/*                        necessary for dealing with objects with the Values attribute (Combo / Tables)   */
+int sdext_SD_PyGuiWinUpdValues(const char *Arg, const char *Arg2, const char *Arg3){ 
+  int myResult;
+  myResult = 0;
+  
+  if (Py_IsInitialized()){
+    // FreeSimpleGUI must have been imported in script as sg 
+    PyObject *mod = PyImport_ImportModule(PyGuiModule);
+    if (mod != NULL) {
+      // Arg: "My Window", Arg2: "my_key", Arg3: "list object name"
+      //sd_py_update_window_values_list(PyObject* module, const char *window_name, const char *key_name, const char *listname)
+      myResult = sd_py_update_window_values_list(Arg, Arg2, Arg3);
+      Py_DECREF(mod);
+    } else {
+      fprintf(stderr, "%s Module not found, is 'Import %s as sg' in your script?:\n",PyGuiModule,PyGuiModule);
+      PyErr_Print();
+      myResult = SD_PyErr_NoFreeGui;
+    }
+  } else {
+    myResult = SD_PyEr_NotInit;
+  }
+  return_status(myResult);
+  return myResult;
+} 
+
+/*     case SD_PyGuiTableSet                                         */
+/* populate existing list with table data from dyn array             */
+/* Arg: table list name, Arg2: dyn array for table data              */
+int sdext_SD_PyGuiTableSet(const char *Arg, const char *Arg2){ 
+  int myResult;
+  myResult = 0;
+
+  if (Py_IsInitialized()){
+    // Arg: table list name, Arg2: dyn array for table data
+    myResult = sd_py_table_set(Arg, Arg2);
+
+  } else {
+    myResult = SD_PyEr_NotInit;
+  }
+  return_status(myResult);
+  return myResult;
+}
+
+
+/* SD_PyGuiTableGet get (read) Gui table list data into dyn array                             */
+/* populates the sd data object pointed to by e_stack with k_put_c_string(c string, e_stack)  */
+/* dyn array ends up with rows delimeted by @vm, columns by @svm                              */
+/* for this to work the python script must move the table data from the Table object into a   */
+/* the local list Arg                                                                         */
+/* The usefulness of this function has been reduced by the ability to call functions          */
+/*  SD_PyCallFunction and SD_PyCallFunctionS                                                  */
+
+int sdext_SD_PyGuiTableGet(const char *Arg){  
+  char nullresult[] = "";
+  /* get (read) Gui table list data in dyn array */
+  
+  if (!Py_IsInitialized()) {
+  /* we dont have a running python interpreter */
+    process.status = SD_PyEr_NotInit;
+    k_put_c_string(nullresult, e_stack);   /* sets descr as type string and place empty string value into it */
+    e_stack++;
+  } else {
+    sd_py_table_get(Arg);           
+    // rem sd_py_table_get:
+    // populates the sd data object pointed to by e_stack with k_put_c_string(c string, e_stack)  
+    // inc the stack pointer e_stack++
+    // sets process.status
+  }
+return process.status;
+}
+
+
+/* SD_PyCallFunction  call function pre defined in loaded (sdext_SD_PyRunFile) python script                         */
+/* Arg: "Function Name", Arg2: "result_name", Arg3: "Function Arg1", Arg4: "Function Arg2, Arg5: "Function Arg3"     */
+/*                                            Arg6: "Function Arg4", Arg7: "Function Arg5"                           */
+int sdext_SD_PyCallFunction(const char *Arg, const char *Arg2, const char *Arg3, const char *Arg4, const char *Arg5, const char *Arg6, const char *Arg7){ 
+  int myResult;
+  myResult = 0;
+  if (Py_IsInitialized()){
+    /* rem  sd_py_call_function performs return_status(myResult)            */
+    myResult = sd_py_call_function(Arg, Arg2, Arg3, Arg4, Arg5, Arg6, Arg7);
+  }else{ 
+    myResult = SD_PyEr_NotInit; 
+    return_status(myResult);
+  }
+  return myResult;
+}
+      
+/* SD_PyCallFunctionS  call function pre defined in loaded (sdext_SD_PyRunFile) python script                                             */
+/* Arg: "Function Name", Arg2: "Function Arg1", Arg3: "Function Arg2, Arg4: "Function Arg3, Arg5: "Function Arg4", Arg6: "Function Arg5"  */
+/* This version returns the python function result as a string to the vm                                                                  */
+int sdext_SD_PyCallFunctionS(const char *Arg, const char *Arg2, const char *Arg3, const char *Arg4, const char *Arg5, const char *Arg6){ 
+  char nullresult[] = "";
+  if (Py_IsInitialized()){
+    // Arg: "Function Name", Arg2: "Function Arg", Arg3: "Function Arg", Arg4: "Function Arg, Arg5: "Function Arg"
+    // version returns cstring to vm
+    process.status = sd_py_call_functionS(Arg, Arg2, Arg3, Arg4, Arg5, Arg6);
+  }else{
+    process.status = SD_PyEr_NotInit;
+    k_put_c_string(nullresult, e_stack);   /* sets descr as type string and place empty string value into it */
+    e_stack++; 
+  }  
+  return process.status;  
+}
+
+/* shut down python */
+
+int sdext_py_finalize(void){
+      if (Py_IsInitialized()) {  /* only finalize if previously initialized */
+        sd_event_queue_shutdown();
+        return Py_FinalizeEx();
+      } else {
+        return SD_PyEr_NotInit; 
+      }
+}
+
+/* **************************************************************************************************************** */
+/* Function to call python module function                                                                          */
+/* Arg: "Function Name", result_name  "Python object name to recieve function results                               */
+/*                       Arg1 -5 : "Function Arg"                                                                   */
+/* REM we assume function is local to script OR imported by the prior execute script                                */
+/* Either way the assumption is these are names of objects  available in __main__                                   */
+/* Routine handles varible arg count by assuming first NULL arg segnifies the end of passed arguments AND sets      */
+/*  the number of arguments to pass to the python function, kind of a kludge                                        */
+/* **************************************************************************************************************** */
+
+int sd_py_call_function(const char *function_name, const char *result_name, const char *Arg1, const char *Arg2, const char *Arg3,const char *Arg4, const char *Arg5){
+ 
+  int argcnt;
+  PyObject *pArg1, *pArg2, *pArg3, *pArg4, *pArg5, *pResult_Name, *pResult_Value;
+
+  PyObject *pMainModule = PyImport_ImportModule("__main__");
+  if (pMainModule == NULL) {
+      PyErr_Print();
+      return_status(SD_PyErr_MainScope);
+      return SD_PyErr_MainScope ;
+  }
+
+  PyObject *pFunction = PyObject_GetAttrString(pMainModule,function_name);
+  Py_DECREF(pMainModule);
+  if (pFunction == NULL) {
+      fprintf(stderr, "Function %s not found\n\r",function_name);
+      PyErr_Print();
+      return_status(SD_PyErr_ObjNOF);
+      return SD_PyErr_ObjNOF ;
+      
+  }
+
+
+  if (PyCallable_Check(pFunction)) {
+    // get result_name
+    if (result_name != NULL){
+      pResult_Name = lookup_dict_item(global_dict, result_name);
+      if (pResult_Name == NULL) {
+      /* obj dpResultoes not exist, report error */
+        Py_DECREF(pFunction);
+        return_status(SD_PyErr_ObjNOF);
+        return SD_PyErr_ObjNOF ;
+       }
+    }
+
+    // figure out number of args
+    // I know this is ugly but it is what I am doing
+    argcnt = 0;   // default to no args
+    if (Arg1 != NULL){
+      argcnt = 1;
+      pArg1 = lookup_dict_item(global_dict, Arg1);
+      if (pArg1 == NULL) {
+      /* obj does not exist, report error */
+        Py_DECREF(pFunction);
+        Py_DECREF(pResult_Name);
+        return_status(SD_PyErr_ObjNOF);
+        return SD_PyErr_ObjNOF ;
+       }
+    }
+    if (Arg2 != NULL){
+      argcnt = 2;
+      pArg2 = lookup_dict_item(global_dict, Arg2);
+      if (pArg2 == NULL) {
+      /* obj does not exist, report error */
+        Py_DECREF(pFunction);
+        Py_DECREF(pResult_Name);
+        Py_DECREF(pArg1);
+        return_status(SD_PyErr_ObjNOF);
+        return SD_PyErr_ObjNOF ;
+       }
+    }
+    if (Arg3 != NULL){
+      argcnt = 3;
+      pArg3 = lookup_dict_item(global_dict, Arg3);
+      if (pArg3 == NULL) {
+      /* obj does not exist, report error */
+        Py_DECREF(pFunction);
+        Py_DECREF(pResult_Name);
+        Py_DECREF(pArg1);
+        Py_DECREF(pArg2);
+        return_status(SD_PyErr_ObjNOF);
+        return SD_PyErr_ObjNOF ;
+       }
+    }
+    if (Arg4 != NULL){
+      argcnt = 4;
+      pArg4 = lookup_dict_item(global_dict, Arg4);
+      if (pArg4 == NULL) {
+      /* obj does not exist, report error */
+        Py_DECREF(pFunction);
+        Py_DECREF(pResult_Name);
+        Py_DECREF(pArg1);
+        Py_DECREF(pArg2);
+        Py_DECREF(pArg3);
+        return_status(SD_PyErr_ObjNOF);
+        return SD_PyErr_ObjNOF ;
+       }
+    }
+    if (Arg5 != NULL){
+      argcnt = 5;
+      pArg5 = lookup_dict_item(global_dict, Arg5);
+      if (pArg5 == NULL) {
+      /* obj does not exist, report error */
+        Py_DECREF(pFunction);
+        Py_DECREF(pResult_Name);
+        Py_DECREF(pArg1);
+        Py_DECREF(pArg2);
+        Py_DECREF(pArg3);
+        Py_DECREF(pArg4);
+        return_status(SD_PyErr_ObjNOF);
+        return SD_PyErr_ObjNOF ;
+       }
+    }
+    
+    // Execute the Python function
+    // Pass the arguments followed by NULL to signal the end of arguments
+    switch (argcnt){
+        case 0:
+           pResult_Value = PyObject_CallFunctionObjArgs(pFunction, NULL);
+           break;
+        case 1:
+           pResult_Value = PyObject_CallFunctionObjArgs(pFunction, pArg1,NULL);
+           Py_DECREF(pArg1);
+           break;
+        case 2:
+           pResult_Value = PyObject_CallFunctionObjArgs(pFunction, pArg1, pArg2, NULL);
+           Py_DECREF(pArg1);
+           Py_DECREF(pArg2);
+           break;
+        case 3:
+           pResult_Value = PyObject_CallFunctionObjArgs(pFunction, pArg1, pArg2, pArg3, NULL);
+           Py_DECREF(pArg1);
+           Py_DECREF(pArg2);
+           Py_DECREF(pArg3);
+           break;  
+        case 4:
+           pResult_Value = PyObject_CallFunctionObjArgs(pFunction, pArg1, pArg2, pArg3, pArg4, NULL);
+           Py_DECREF(pArg1);
+           Py_DECREF(pArg2);
+           Py_DECREF(pArg3);
+           Py_DECREF(pArg4);
+           break; 
+        case 5:
+           pResult_Value = PyObject_CallFunctionObjArgs(pFunction, pArg1, pArg2, pArg3, pArg4, pArg5, NULL);
+           Py_DECREF(pArg1);
+           Py_DECREF(pArg2);
+           Py_DECREF(pArg3);
+           Py_DECREF(pArg4);
+           Py_DECREF(pArg5);
+           break;
+
+    }
+    Py_DECREF(pFunction);
+    
+    if (pResult_Value != NULL) {
+      // replace exiting object with results of function call
+      int result = PyDict_SetItemString(global_dict, result_name, pResult_Value);
+      if (result < 0){
+        PyErr_Print();
+        fprintf(stderr, "Failed to update %s \n\r",result_name);
+        return_status(SD_PyErr_DictSet);
+      } else {
+        return_status(0);
+      }
+
+      Py_DECREF(pResult_Value);
+
+
+    } else {
+        // Handle Python exceptions during execution
+        PyErr_Print();
+        fprintf(stderr, "Python function call failed\n\r");
+        return_status(SD_PyErr_FuncFail);
+    }
+    
+    Py_DECREF(pResult_Name);
+
+  } else {
+      fprintf(stderr, "Function %s is not callable\n\r",function_name);
+      return_status(SD_PyErr_FuncFail);
+  }
+
+  return process.status;
+}
+
+
+/* **************************************************************************************************************** */
+/* Function to call python module function, returns cstring into VM result                                          */
+/* Arg: "Function Name",   Arg1 -5 : "Function Arg"                                                                 */
+/* REM we assume function is local to script OR imported by the prior execute script                                */
+/* Either way the assumption is these are names of objects  available in __main__                                   */
+/* Routine handles varible arg count by assuming first NULL arg segnifies the end of passed arguments AND sets      */
+/*  the number of arguments to pass to the python function, kind of a kludge                                        */
+/* **************************************************************************************************************** */
+
+int sd_py_call_functionS(const char *function_name, const char *Arg1, const char *Arg2, const char *Arg3,const char *Arg4, const char *Arg5){
+ 
+  char nullresult[] = "";
+  
+  // rtnNull return a null value in the sd string descriptor pointed to by estack and inc the stack
+  #define rtnNull(){\
+    k_put_c_string(nullresult, e_stack);\
+    e_stack++;\
+  }
+
+  int argcnt;
+  PyObject *pArg1, *pArg2, *pArg3, *pArg4, *pArg5, *pResult_Value;
+
+  PyObject *pMainModule = PyImport_ImportModule("__main__");
+  if (pMainModule == NULL) {
+      PyErr_Print();
+      rtnNull();
+      return SD_PyErr_MainScope ;
+  }
+
+  PyObject *pFunction = PyObject_GetAttrString(pMainModule,function_name);
+  Py_DECREF(pMainModule);
+  if (pFunction == NULL) {
+      fprintf(stderr, "Function %s not found\n\r",function_name);
+      PyErr_Print();
+      rtnNull();
+      return SD_PyErr_ObjNOF ;
+      
+  }
+
+
+  if (PyCallable_Check(pFunction)) {
+ 
+    // figure out number of args
+    // I know this is ugly but it is what I am doing
+    argcnt = 0;   // default to no args
+    if (Arg1 != NULL){
+      argcnt = 1;
+      pArg1 = lookup_dict_item(global_dict, Arg1);
+      if (pArg1 == NULL) {
+      /* obj does not exist, report error */
+        Py_DECREF(pFunction);
+        rtnNull();
+        return SD_PyErr_ObjNOF ;
+       }
+    }
+    if (Arg2 != NULL){
+      argcnt = 2;
+      pArg2 = lookup_dict_item(global_dict, Arg2);
+      if (pArg2 == NULL) {
+      /* obj does not exist, report error */
+        Py_DECREF(pFunction);
+        Py_DECREF(pArg1);
+        rtnNull();
+        return SD_PyErr_ObjNOF ;
+       }
+    }
+    if (Arg3 != NULL){
+      argcnt = 3;
+      pArg3 = lookup_dict_item(global_dict, Arg3);
+      if (pArg3 == NULL) {
+      /* obj does not exist, report error */
+        Py_DECREF(pFunction);
+        Py_DECREF(pArg1);
+        Py_DECREF(pArg2);
+        rtnNull();
+        return SD_PyErr_ObjNOF ;
+       }
+    }
+    if (Arg4 != NULL){
+      argcnt = 4;
+      pArg4 = lookup_dict_item(global_dict, Arg4);
+      if (pArg4 == NULL) {
+      /* obj does not exist, report error */
+        Py_DECREF(pFunction);
+        Py_DECREF(pArg1);
+        Py_DECREF(pArg2);
+        Py_DECREF(pArg3);
+        rtnNull();
+        return SD_PyErr_ObjNOF ;
+       }
+    }
+    if (Arg5 != NULL){
+      argcnt = 5;
+      pArg5 = lookup_dict_item(global_dict, Arg5);
+      if (pArg5 == NULL) {
+      /* obj does not exist, report error */
+        Py_DECREF(pFunction);
+        Py_DECREF(pArg1);
+        Py_DECREF(pArg2);
+        Py_DECREF(pArg3);
+        Py_DECREF(pArg4);
+        rtnNull();
+        return SD_PyErr_ObjNOF ;
+       }
+    }
+    
+    // Execute the Python function
+    // Pass the arguments followed by NULL to signal the end of arguments
+    switch (argcnt){
+        case 0:
+           pResult_Value = PyObject_CallFunctionObjArgs(pFunction, NULL);
+           break;
+        case 1:
+           pResult_Value = PyObject_CallFunctionObjArgs(pFunction, pArg1,NULL);
+           Py_DECREF(pArg1);
+           break;
+        case 2:
+           pResult_Value = PyObject_CallFunctionObjArgs(pFunction, pArg1, pArg2, NULL);
+           Py_DECREF(pArg1);
+           Py_DECREF(pArg2);
+           break;
+        case 3:
+           pResult_Value = PyObject_CallFunctionObjArgs(pFunction, pArg1, pArg2, pArg3, NULL);
+           Py_DECREF(pArg1);
+           Py_DECREF(pArg2);
+           Py_DECREF(pArg3);
+           break;  
+        case 4:
+           pResult_Value = PyObject_CallFunctionObjArgs(pFunction, pArg1, pArg2, pArg3, pArg4, NULL);
+           Py_DECREF(pArg1);
+           Py_DECREF(pArg2);
+           Py_DECREF(pArg3);
+           Py_DECREF(pArg4);
+           break; 
+        case 5:
+           pResult_Value = PyObject_CallFunctionObjArgs(pFunction, pArg1, pArg2, pArg3, pArg4, pArg5, NULL);
+           Py_DECREF(pArg1);
+           Py_DECREF(pArg2);
+           Py_DECREF(pArg3);
+           Py_DECREF(pArg4);
+           Py_DECREF(pArg5);
+           break;
+
+    }
+    Py_DECREF(pFunction);
+    
+    if (pResult_Value != NULL) {
+      // return result as string to VM
+      // rem obj_to_str handles PResult_Value ref count
+      obj_to_str(pResult_Value);
+      e_stack++;
+      return 0;
+
+
+    } else {
+        // Handle Python exceptions during execution
+        PyErr_Print();
+        fprintf(stderr, "Python function call failed\n\r");
+        rtnNull();
+        return SD_PyErr_FuncFail;
+    }
+    
+   
+  } else {
+      fprintf(stderr, "Function %s is not callable\n\r",function_name);
+      rtnNull();
+      return SD_PyErr_FuncFail;
+  }
+}
+
+
+/* **************************************************************************************************************** */
+/* Functions for cooperative scheduler                                                                              */
+/*  See ../Documentation/SD GUI Python Cooperative Schedule.txt for more information                                */
+/* **************************************************************************************************************** */
 int sd_python_event_fd(void)
 {
   return sd_event_queue.read_fd;
@@ -346,22 +1068,6 @@ static PyObject *sd_post_event(PyObject *self, PyObject *args)
   return NULL;
 }
 
-static PyMethodDef sd_methods[] = {
-  {"post_event", sd_post_event, METH_VARARGS,
-   "Queue an event for the SD BASIC program."},
-  {NULL, NULL, 0, NULL}
-};
-
-static struct PyModuleDef sd_module = {
-  PyModuleDef_HEAD_INIT, "sd", "SD Python integration", -1,
-  sd_methods, NULL, NULL, NULL, NULL
-};
-
-PyMODINIT_FUNC PyInit_sd(void)
-{
-  return PyModule_Create(&sd_module);
-}
-
 static int sd_py_gui_step(void)
 {
   PyObject *gui_step;
@@ -416,1317 +1122,4 @@ static int sd_py_poll(void)
     sd_python_event_clear();
 
   return 0;
-}
-
-/* FreeSimpleGui window update function
- creates the window object for window named "window_title", looks up Key_name in `AllKeysDict`, gets the element, changes its value to new_text, and then calls `update()` on that element.
-Sample call:
-PyObject *mod = PyImport_ImportModule("FreeSimpleGUI");
-if (mod != NULL) {
-    sd_pyupdate_key_value_in_window(mod, "My Window", "my_key", "new text");
-    Py_DECREF(mod);
-} else {
-    PyErr_Print();
-    return SD_PyErr_NoFreeGui;
-}
-*/    
-static int sd_py_update_key_value_in_window(PyObject *module, const char *window_title,
-                              const char *key_name, const char *new_text)
-{
-    PyObject *pMainModule = PyImport_ImportModule("__main__");
-    if (pMainModule == NULL) {
-        PyErr_Print();
-        return SD_PyErr_MainScope;
-    }
-
-    PyObject *pWindow = PyObject_GetAttrString(pMainModule,window_title);
-    Py_DECREF(pMainModule);
-    if (pWindow == NULL) {
-        fprintf(stderr, "Window %s is not found\n",window_title);
-        PyErr_Print();
-        return SD_PyErr_GuiWinNOF;
-    }
-
-    // Extract 'AllKeysDict' from the Window object
-    PyObject *pDict = PyObject_GetAttrString(pWindow, "AllKeysDict");
-    if (pDict == NULL) {
-        Py_DECREF(pWindow);
-        fprintf(stderr, "GetAttrString: AllKeysDict not found\n");
-        PyErr_Print();
-        return SD_PyErr_ObjAttrNOF;
-    }
-
-    if (!PyDict_Check(pDict)) {
-        fprintf(stderr, "AllKeysDict is not a dictionary\n");
-        Py_DECREF(pDict);
-        Py_DECREF(pWindow);
-        return SD_PyErr_NotDict;
-    }
-
-    PyObject *key = PyUnicode_FromString(key_name);
-    if (key == NULL) {
-        Py_DECREF(pDict);
-        Py_DECREF(pWindow);
-        return SD_PyErr_CreStr;
-    }
-
-    PyObject *element = PyDict_GetItem(pDict, key);
-    // rem PyDict_GetItem does not create a new reference. It returns a borrowed reference //
-    Py_DECREF(key);
-
-    if (element == NULL) {
-        // PyErr_Format(PyExc_KeyError, "Key not found in AllKeysDict: %s", key_name);
-        fprintf(stderr,"Key not found in AllKeysDict: %s\n", key_name);
-        PyErr_Print();
-        Py_DECREF(pDict);
-        Py_DECREF(pWindow);
-        return SD_PyEr_Key;
-    }
-
-    PyObject *value = PyUnicode_FromString(new_text);
-    if (value == NULL) {
-        Py_DECREF(pDict);
-        Py_DECREF(pWindow);
-        return SD_PyErr_CreStr;
-    }
-
-    // Equivalent to: element.update(new_text)
-    PyObject *result = PyObject_CallMethod(element, "update", "O", value);
-    Py_DECREF(value);
-
-    if (result == NULL) {
-        fprintf(stderr,"Failed to update: %s\n", key_name);
-        Py_DECREF(pDict);
-        Py_DECREF(pWindow);
-        return SD_PyErr_CallMethod;
-    }
-
-    Py_DECREF(result);
-    Py_DECREF(pDict);
-    Py_DECREF(pWindow);
-
-    return 0;
-}
-
-static int sd_py_update_multi_key_value_in_window(PyObject *module, const char *window_title,
-                              const char *key_list, const char *value_list)
-{
-    char* key_name;
-    char* new_value;
-    int key_count;
-    int value_count;
-    int keyIdx;
-    
-    char* myVM = "\xFD";
-    
-    PyObject *pMainModule = PyImport_ImportModule("__main__");
-    if (pMainModule == NULL) {
-        PyErr_Print();
-        return SD_PyErr_MainScope;
-    }
-
-    PyObject *pWindow = PyObject_GetAttrString(pMainModule,window_title);
-    Py_DECREF(pMainModule);
-    if (pWindow == NULL) {
-        fprintf(stderr, "Window %s is not found\n",window_title);
-        PyErr_Print();
-        return SD_PyErr_GuiWinNOF;
-    }
-
-    // Extract 'AllKeysDict' from the Window object
-    PyObject *pDict = PyObject_GetAttrString(pWindow, "AllKeysDict");
-    if (pDict == NULL) {
-        Py_DECREF(pWindow);
-        fprintf(stderr, "GetAttrString: AllKeysDict not found\n");
-        PyErr_Print();
-        return SD_PyErr_ObjAttrNOF;
-    }
-
-    if (!PyDict_Check(pDict)) {
-        fprintf(stderr, "AllKeysDict is not a dictionary\n");
-        Py_DECREF(pDict);
-        Py_DECREF(pWindow);
-        return SD_PyErr_NotDict;
-    }
-    
-    // get key / value counts
-    key_count = Dcount(key_list, myVM);
-    value_count = Dcount(value_list, myVM);
-    
-    if (key_count == 0){
-        fprintf(stderr, "String List Contains No Items\n");
-        Py_DECREF(pDict);
-        Py_DECREF(pWindow);
-        return SD_PyErr_NoItems;
-    }
-    
-    if (key_count != value_count){
-        fprintf(stderr, "Keys and Values count mismatch\n");
-        Py_DECREF(pDict);
-        Py_DECREF(pWindow);
-        return SD_PyErr_KeyValCnt; 
-    }
-
-    // now loop thru the key value pairs and update the window objects
-    for (keyIdx = 0; keyIdx < key_count; keyIdx++) { 
-        /* rem Extract allocates our buffer space must be freed when complete */
-        /* rem we are a @vm list                                              */
-        key_name  = Extract(key_list, 1,keyIdx+1, 0);
-        new_value = Extract(value_list, 1,keyIdx+1, 0);
-       
-        PyObject *key = PyUnicode_FromString(key_name);
-        if (key == NULL) {
-            Py_DECREF(pDict);
-            Py_DECREF(pWindow);
-            free(key_name);
-            free(new_value);
-            return SD_PyErr_CreStr;
-        }
-    
-        PyObject *element = PyDict_GetItem(pDict, key);
-        // rem PyDict_GetItem does not create a new reference. It returns a borrowed reference //
-        Py_DECREF(key);
-    
-        if (element == NULL) {
-            // PyErr_Format(PyExc_KeyError, "Key not found in AllKeysDict: %s", key_name);
-            fprintf(stderr,"Key not found in AllKeysDict: %s\n", key_name);
-            Py_DECREF(pDict);
-            Py_DECREF(pWindow);
-            free(key_name);
-            free(new_value);
-            return SD_PyEr_Key;
-        }
-    
-        PyObject *value = PyUnicode_FromString(new_value);
-        if (value == NULL) {
-            Py_DECREF(pDict);
-            Py_DECREF(pWindow);
-            free(key_name);
-            free(new_value);
-            return SD_PyErr_CreStr;
-        }
-    
-        // Equivalent to: element.update(new_text)
-        PyObject *result = PyObject_CallMethod(element, "update", "O", value);
-        Py_DECREF(value);
-    
-        if (result == NULL) {
-            fprintf(stderr,"Failed to update: %s\n", key_name);
-            PyErr_Print();
-            Py_DECREF(pDict);
-            Py_DECREF(pWindow);
-            free(key_name);
-            free(new_value);
-            return SD_PyErr_CallMethod;
-        }
-        
-        Py_DECREF(result);
-        free(key_name);
-        free(new_value);
-        
-    }        
-    
-    Py_DECREF(pDict);
-    Py_DECREF(pWindow);
-
-    return 0;
-}
-
-int sdext_py_finalize(void){
-      if (Py_IsInitialized()) {  /* only finalize if previously initialized */
-        sd_event_queue_shutdown();
-        return Py_FinalizeEx();
-      } else {
-        return SD_PyEr_NotInit; 
-      }
-}
-
-void sdext_py(int key, char* Arg, char* Arg2, char* Arg3 ){
-
-  FILE *pyfd;         /* file descriptor for python script file */
-  char *pyscriptname; /* script name from pyfd */
-  char pyFilePath[PATH_MAX+1] = "";   /* max length a file path can be, defined in linux/limits.h */
-  
-  int myResult;
-
-  PyObject *pval, *prun;
-  char nullresult[] = "";
-  
-  process.status = 0;   /* setup status() value */
-  myResult = 0;         /* init result response */
-  /*Evaluate KEY */
-  
-  switch (key) {
-
-    case SD_PyInit: /* Initialize python */
-      if (!Py_IsInitialized()) {  /* only initialize if not already so */
-        myResult = sd_event_queue_init();
-        if (myResult != 0)
-          break;
-
-        if (!sd_module_registered) {
-          if (PyImport_AppendInittab("sd", &PyInit_sd) == -1) {
-            myResult = SD_PyErr_MainMod;
-            break;
-          }
-          sd_module_registered = TRUE;
-        }
-
-        Py_Initialize();          /* There is no return value; it is a fatal error if the initialization fails. */
-       /* "dictionaries that serve as namespaces for running code are generally required 
-        to have a __builtins__ link to the built-in scope searched last for name lookups"
-        from Programming Python 4th edition, Basic Embedding Techniques,
-        Running Strings in Dictionaries       */
-        if (Py_IsInitialized()) {     /* did initialization succeed? */
-          // 1. Get the main module rem Borrowed reference
-          main_module = PyImport_AddModule("__main__");  
-          if (main_module == NULL) {
-            PyErr_Print();
-            myResult = SD_PyErr_MainMod;  /* could get main module bad news! */
-          }else{
-          // 2. Get the main (global) dictionary rem Borrowed reference
-            global_dict = PyModule_GetDict(main_module);
-            if (global_dict == NULL) {
-              PyErr_Print();
-              myResult = SD_PyErr_GlobDict;  /* could get __main__ dictionary bad news! */
-            }
-
-            if (myResult == 0) {
-              PyObject *sd_module = PyImport_ImportModule("sd");
-              if (sd_module == NULL) {
-                PyErr_Print();
-                myResult = SD_PyErr_MainMod;
-              } else {
-                Py_DECREF(sd_module);
-              }
-            }
-
-          }
-
-
-        }else{
-          myResult =  SD_PyEr_NotInit; /* initialization failed */
-        }
-     
-      } 
-      process.status = myResult;
-      InitDescr(e_stack, INTEGER);
-      (e_stack++)->data.value = (int32_t)myResult;
-      break;
-
-    case SD_PyFinal: /* Finalize the python interpreter   */
-      /* rem  global_dict, main_module are Borrowed Reference  */
-                  
-      myResult = sdext_py_finalize();
-      
-      process.status = myResult;
-      InitDescr(e_stack, INTEGER);
-      (e_stack++)->data.value = (int32_t)myResult;
-
-      break;
-
-    case SD_IsPyInit: /* Is python interpreter initialized?   */
-                  
-      myResult = Py_IsInitialized();
-
-      InitDescr(e_stack, INTEGER);
-      (e_stack++)->data.value = (int32_t)myResult;
-      break;
-
-    case SD_PyGuiStep:
-      if (Py_IsInitialized())
-        myResult = sd_py_gui_step();
-      else
-        myResult = SD_PyEr_NotInit;
-      process.status = myResult;
-      InitDescr(e_stack, INTEGER);
-      (e_stack++)->data.value = (int32_t)myResult;
-      break;
-
-    case SD_PyPoll:
-      if (Py_IsInitialized())
-        (void)sd_py_poll();
-      else {
-        process.status = SD_PyEr_NotInit;
-        k_put_c_string(nullresult, e_stack);
-        e_stack++;
-      }
-      break;
-
-    case SD_PyGuiWinUpdate:
-      if (Py_IsInitialized()){
-        // FreeSimpleGUI must have been imported in script as sg 
-        PyObject *mod = PyImport_ImportModule(PyGuiModule);
-        if (mod != NULL) {
-          // Arg: "My Window", Arg2: "my_key", Arg3: "new text"
-          myResult = sd_py_update_key_value_in_window(mod, Arg, Arg2, Arg3);
-          Py_DECREF(mod);
-        } else {
-          fprintf(stderr, "%s Module not found, is 'Import %s as sg' in your script?:\n",PyGuiModule,PyGuiModule);
-          PyErr_Print();
-          myResult = SD_PyErr_NoFreeGui;
-        }
-      } else {
-        myResult = SD_PyEr_NotInit;
-      }
-      process.status = myResult;
-      InitDescr(e_stack, INTEGER);
-      (e_stack++)->data.value = (int32_t)myResult;
-      break;
-    
-    case SD_PyGuiWinUpdateS:
-      if (Py_IsInitialized()){
-        // FreeSimpleGUI must have been imported in script as sg 
-        PyObject *mod = PyImport_ImportModule(PyGuiModule);
-        if (mod != NULL) {
-          // Arg: "My Window", Arg2: vm list of keys, Arg3: vm list of values
-          myResult = sd_py_update_multi_key_value_in_window(mod, Arg, Arg2, Arg3);
-          Py_DECREF(mod);
-        } else {
-          fprintf(stderr, "%s Module not found, is 'Import %s as sg' in your script?:\n",PyGuiModule,PyGuiModule);
-          PyErr_Print();
-          myResult = SD_PyErr_NoFreeGui;
-        }
-      } else {
-        myResult = SD_PyEr_NotInit;
-      }
-      process.status = myResult;
-      InitDescr(e_stack, INTEGER);
-      (e_stack++)->data.value = (int32_t)myResult;
-      break;
-
-    case SD_PyRunStr:   /* Take the string in Arg passed from op_sdme_ext (from SDME.EXT Arg value) and run in python interpreter  */
-                         
-      if (Py_IsInitialized()) {
-        prun = PyRun_String(Arg, Py_file_input, global_dict, global_dict);    /* run statements */
-        if (prun == NULL){
-        /* exception */
-          myResult = SD_PyEr_Excpt;
-          PyErr_Print();
-        } else {
-          Py_XDECREF(prun);
-        }
-      }else{
-        myResult = SD_PyEr_NotInit;  
-      }  
-      
-      process.status = myResult;
-      InitDescr(e_stack, INTEGER);
-      (e_stack++)->data.value = (int32_t)myResult;
-      break; 
-
-    case SD_PyRunFile:   /* Take the string in Arg passed from op_sdme_ext (from SDME.EXT Arg value) and treat as a file to run in python interpreter   */
-                            /* must move to pyFilePath[PATH_MAX]   */
-	    snprintf(pyFilePath, PATH_MAX,"%s",Arg);
-
-      if (Py_IsInitialized()) {
-        pyfd = fopen(pyFilePath, "r");
-        if (pyfd == NULL) {
-          myResult = SD_PyEr_NOF;  /* failed to open file, could look at global variable errno ?*/
-        }else{
-          pyscriptname = basename(pyFilePath);  /* rem The basename() function may modify the string pointed to by path */
-          prun = PyRun_File(pyfd,pyscriptname,Py_file_input, global_dict, global_dict);    /* run statements */
-          if (prun == NULL){
-          /* exception */
-            myResult = SD_PyEr_Excpt;
-            PyErr_Print();
-          } else {
-             Py_XDECREF(prun);
-          }
-          fclose(pyfd);
-        }  
-      }else{
-        myResult = SD_PyEr_NotInit;  
-      }  
-      process.status = myResult;
-      InitDescr(e_stack, INTEGER);
-      (e_stack++)->data.value = (int32_t)myResult;
-      break;      
-
-    case SD_PyGetAtt:   /* Take the string in Arg passed from op_sdme_ext (from SDME.EXT Arg value) and treat as the python variable to return   */
-
-         /* PyMapping_GetItemString - Fetches (indexes) a dictionary value by key
-           "Besides allowing you to partition code string namespaces independent of any Python
-            module files on the underlying system, this scheme provides a natural communication
-            mechanism. Values that are stored in the new dictionary before code is run serve as
-            inputs, and names assigned by the embedded code can later be fetched out of the dictionary
-            to serve as code outputs." from Programming Python 4th edition, Basic Embedding Techniques,
-             Running Strings in Dictionaries       */
-       
-      /* access the python dictionary entry for the object we are after */
-      
-      if (!Py_IsInitialized()) {
-      /* we dont have a running python interpreter */
-        process.status = SD_PyEr_NotInit;
-        k_put_c_string(nullresult, e_stack);   /* sets descr as type string and place the python value into it */
-        e_stack++;
-        break;
-      }
-      pval =  PyMapping_GetItemString(global_dict, Arg);             /* get my result object */
-      /* convet to string, note obj_to_str handles any errors   from PyMapping_GetItemString */
-      obj_to_str(pval);
-      e_stack++;
-      break;
-  }
-
-  return;
-}
-
-/***************************************************************************************************************************/
-/*  Python Objects Extension             
-* 
-* Some Notes:
-* From Python Documentation https://docs.python.org/3/c-api/index.html
-* Introduction
-*  Objects, Types and Reference Counts
-*    Reference Counts:
-* A safe approach is to always use the generic operations (functions whose name begins with PyObject_, PyNumber_, PySequence_ or PyMapping_). 
-* These operations always create a new strong reference (i.e. increment the reference count) of the object they return.
-* This leaves the caller with the responsibility to call Py_XDECREF() when they are done with the result; this soon becomes second nature.     
-* So we favor Py_Mapping_ to Py_Dict_ function calls
-*/
-/***************************************************************************************************************************/
-
-/***************************************************************************************************************************/
-/*  Create Dictionary                                                                                              */
-/***************************************************************************************************************************/
-int PyDictCrte(char* dictname ){
-  /* create new dictionary for use by SD */
-  /* Arg is name of dictionary           */
- 
-  int myResult;
-  PyObject* dict_lookup;
-  PyObject* new_dict;     /* new dictionary we are creating */
-
-  myResult = 0;
-
-  /* does dicionary (or object with this name) already exist? */ 
-  dict_lookup = lookup_dict_item(global_dict, dictname);
-  if (dict_lookup == NULL) {
-  /* does not exist, create it */
-    new_dict = PyDict_New();
-    if (new_dict == NULL) {
-       // not created
-      PyErr_Print();
-      return SD_PyEr_Dict ;
-    } else {
-      // created, add it to the main_module name space
-      myResult = PyMapping_SetItemString(global_dict, dictname, new_dict);
-      if (myResult != 0){
-        // failed to add to global dictionary namespace !?
-        myResult =  SD_PyErr_NamSpcErr;
-      }
-      // free up ref  (global dict holds a ref to the new_dict, we should be safe to do this)
-      Py_XDECREF(new_dict);
-    }
-
-  } else {
-    // exists, this is an error
-    myResult = SD_PyErr_DictExsts; 
-    Py_XDECREF(dict_lookup);
-
-  }
-
-    return myResult;
-  }
-
-
-/***************************************************************************************************************************/
-/*  Clear Dictionary                                                                                              */
-/***************************************************************************************************************************/
-int PyDictClr(char* dictname ){
-  /* clear  dictionary key values, name remains in globals directory! */
-  /* Note this appears to work the best with no memory listed as      */
-  /* still reachable: 0 bytes in 0 blocks  using Valgrind             */
-   
-  PyObject* dict_lookup;
-  
-  /* does dicionary (or object with this name) exist? */ 
-  dict_lookup = lookup_dict_item(global_dict, dictname);
-  if (dict_lookup == NULL) {
-    // does not exist!
-    return SD_PyErr_ObjNOF;
-  } else {
-    
-    // Is this object a dictionary?
-    if (PyDict_Check(dict_lookup)) {
-      // yes it is a dictionary, clear it's key : values
-      PyDict_Clear(dict_lookup);
-      Py_XDECREF(dict_lookup);
-      return 0;  
-    } else {
-      // object was not a dictionary
-      Py_XDECREF(dict_lookup);
-      return SD_PyErr_NotDict;
-    }
-
-  }
-
-}
-
-/***************************************************************************************************************************/
-/*  Set Dictionary String Value for key                                                                                               */
-/***************************************************************************************************************************/  
-
-int PyDictValSetS(char* dictname, char* key, char* value){
-  /* set a dictionary key's value */  
-  /**/
-
-  int myResult;
-  PyObject* dict_lookup;
-
-  myResult = 0;
-
-  /* does dicionary (or object with this name) exist? */ 
-  dict_lookup = lookup_dict_item(global_dict, dictname);
-  if (dict_lookup == NULL) {
-    // does not exist!
-    return SD_PyErr_ObjNOF;
-  } else {
-    
-    // Is this object a dictionary?
-    if (PyDict_Check(dict_lookup)) {
-      // yes it is a dictionary
-
-      PyObject *Pyvalue = PyUnicode_DecodeLatin1(value, (Py_ssize_t) strlen(value), "strict");
-      if (Pyvalue == NULL){
-        PyErr_Print();
-        //Py_XDECREF(Pykey);
-        Py_XDECREF(dict_lookup);
-        return SD_PyErr_EnLatin;
-      }  
-
-      // Add the key-value pair to the dictionary
-      
-      //if (PyDict_SetItem(dict_lookup, Pykey, Pyvalue) != 0) {
-      if (PyMapping_SetItemString(dict_lookup, key, Pyvalue) != 0) {
-        // Failed to set dictionary key / value
-        myResult = SD_PyErr_DictSet;
-      }
-      // Clean up
-      //Py_XDECREF(Pykey);
-      Py_XDECREF(Pyvalue);
-
-    } else {
-      // object was not a dictionary, report error
-      myResult = SD_PyErr_NotDict;
-    }
-
-    Py_XDECREF(dict_lookup);
-  }
-
-  return myResult;
-}
-
-/***************************************************************************************************************************/
-/*  Get Value as String for dictionary item key                                                                                      */
-/* rem, value ends up in SD descriptor so we really only return a status code                                              */
-/***************************************************************************************************************************/
-
-int PyDictValGetS(char* dictname, char* key){
-  /* get a dictionary key's value */  
-  int myResult;
-  PyObject* dict_lookup;
-
-  myResult = 0;
-  char nullresult[] = "";
-
-  /* does dicionary (or object with this name) exist? */ 
-  dict_lookup = lookup_dict_item(global_dict, dictname);
-  if (dict_lookup == NULL) {
-    // does not exist!
-    k_put_c_string(nullresult, e_stack);   /* return empty string */
-    return SD_PyErr_ObjNOF;
-  } else {
-    
-    // Is this object a dictionary?
-    if (PyDict_Check(dict_lookup)) {
-      // yes it is a dictionary.
-      // if key not found with PyMapping_GetItemString there seems to be 
-      // a large amount of memory reported as: 
-      // still reachable: xxxxx bytes in yyyy blocks  using Valgrind
-      // theoretically this is memory waiting to be released as part of python finalize
-      // but lets not take the chance.        
-      // Create key and check it it exists in dict
-      PyObject *Pykey = PyUnicode_DecodeLatin1(key, (Py_ssize_t) strlen(key), "strict");
-
-      if (Pykey == NULL){
-          PyErr_Print();
-          Py_XDECREF(dict_lookup);
-          k_put_c_string(nullresult, e_stack);   /* return empty string */
-          return SD_PyErr_EnLatin;
-      }
-      if (PyDict_Contains(dict_lookup, Pykey)) {
-        PyObject* value = PyMapping_GetItemString(dict_lookup, key);
-        obj_to_str(value);
-      } else {
-      //  key is not found ??
-      //  PyErr_Print(); // Print Python exception, if any
-        k_put_c_string(nullresult, e_stack);   /* return empty string */
-        myResult = SD_PyEr_Key;
-      } 
-      Py_XDECREF(Pykey);
-
-    } else {
-      // object was not a dictionary, report error
-      k_put_c_string(nullresult, e_stack);   /* return empty string */
-      myResult = SD_PyErr_NotDict;
-    }
-
-    Py_XDECREF(dict_lookup);
-  }
-
-  return myResult;
-}
-/***************************************************************************************************************************/
-/*  Delete Dictionary key  (and value)                                                                                              */
-/***************************************************************************************************************************/  
-
-int PyDictDel(char* dictname, char* key){
-  /* delete dictionary key */  
-
-  int myResult;
-  PyObject* dict_lookup;
-
-  myResult = 0;
-
-  /* does dicionary (or object with this name) exist? */ 
-  dict_lookup = lookup_dict_item(global_dict, dictname);
-  if (dict_lookup == NULL) {
-    // does not exist!
-    return SD_PyErr_ObjNOF;
-  } else {
-    
-    // Is this object a dictionary?
-    if (PyDict_Check(dict_lookup)) {
-      // yes it is a dictionary
-
-      PyObject *PyKey = PyUnicode_DecodeLatin1(key, (Py_ssize_t) strlen(key), "strict");
-      if (PyKey == NULL){
-        PyErr_Print();
-        Py_XDECREF(dict_lookup);
-        return SD_PyErr_EnLatin;
-      }  
-
-      // Remove key-value pair from the dictionary
-      
-      if (PyMapping_DelItem(dict_lookup, PyKey) != 0) {
-        // Failed to delete dictionary key / value
-        myResult = SD_PyErr_DictDel;
-      }
-      // Clean up
-      Py_XDECREF(PyKey);
-
-    } else {
-      // object was not a dictionary, report error
-      myResult = SD_PyErr_NotDict;
-    }
-
-    Py_XDECREF(dict_lookup);
-  }
-
-  return myResult;
-}
-
-/***************************************************************************************************************************/
-/*  Get dictionary keys as string                                                                                          */
-/* rem, value ends up in SD descriptor so we really only return a status code                                              */
-/***************************************************************************************************************************/
-
-int PyDictKeysS(char* dictname){
-  /* get a dictionary's keys in field marked list */  
-  int myResult;
-  PyObject* dict_lookup;
-  PyObject* keys_list; 
-  PyObject* keys_str;
-
-  myResult = 0;
-  char nullresult[] = "";
-
-  /* does dicionary (or object with this name) exist? */ 
-  dict_lookup = lookup_dict_item(global_dict, dictname);
-  if (dict_lookup == NULL) {
-    // does not exist!
-    k_put_c_string(nullresult, e_stack);   /* return empty string */
-    return SD_PyErr_ObjNOF;
-  } else {
-    
-    // Is this object a dictionary?
-    if (PyDict_Check(dict_lookup)) {
-      // yes it is a dictionary.
-      // get a pyobject list of keys
-      keys_list = PyDict_Keys(dict_lookup);
-      keys_str  = List_To_String(keys_list);
-      obj_to_str(keys_str);
-      Py_XDECREF(keys_list);
-      if (process.status != 0){
-        myResult = process.status;    // pass error number back (set by List_To_String)
-      }  
-      /* rem keys_str ref released by obj_to_str */
-    } else {
-      // object was not a dictionary, report error
-      k_put_c_string(nullresult, e_stack);   /* return empty string */
-      myResult = SD_PyErr_NotDict;
-    }
-    
-    Py_XDECREF(dict_lookup);
-  }
-
-  return myResult;
-}
-
-
-/***************************************************************************************************************************/
-/* Get dictionary values as string                                                                                          */
-/* rem, value ends up in SD descriptor so we really only return a status code                                              */
-/***************************************************************************************************************************/
-
-int PyDictValuesS(char* dictname){
-  /* get a dictionary's values in field marked list */  
-  int myResult;
-  PyObject* dict_lookup;
-  PyObject* values_list; 
-  PyObject* values_str;
-
-  myResult = 0;
-  char nullresult[] = "";
-
-  /* does dicionary (or object with this name) exist? */ 
-  dict_lookup = lookup_dict_item(global_dict, dictname);
-  if (dict_lookup == NULL) {
-    // does not exist!
-    k_put_c_string(nullresult, e_stack);   /* return empty string */
-    return SD_PyErr_ObjNOF;
-  } else {
-    
-    // Is this object a dictionary?
-    if (PyDict_Check(dict_lookup)) {
-      // yes it is a dictionary.
-      // get a pyobject list of values
-      values_list = PyDict_Values(dict_lookup);
-      values_str  = List_To_String(values_list);
-      obj_to_str(values_str);
-      Py_XDECREF(values_list);
-      if (process.status != 0){
-        myResult = process.status;    // pass error number back (set by List_To_String)
-      }  
-      /* rem keys_str ref released by obj_to_str */
-    } else {
-      // object was not a dictionary, report error
-      k_put_c_string(nullresult, e_stack);   /* return empty string */
-      myResult = SD_PyErr_NotDict;
-    }
-    
-    Py_XDECREF(dict_lookup);
-  }
-
-  return myResult;
-}
-
-/***************************************************************************************************************************/
-/*  Create and or set String                                                                                               */
-/***************************************************************************************************************************/
-int PyStrSet(char* strname, char* strvalue ){
-  /* Create and or set String  for use by SD */
-  
-  int myResult;
-  PyObject* dict_lookup;
-  PyObject* new_string;     /* new string we are creating */
-
-  myResult = 0;
-
-  /* create string object */
-  new_string = PyUnicode_DecodeLatin1(strvalue, (Py_ssize_t) strlen(strvalue), "strict");
-  if (new_string  == NULL) {
-    // not created
-   PyErr_Print();
-   return SD_PyErr_EnLatin ;
- }
-
-  /* does string object (or object with this name) already exist? */ 
-  dict_lookup = lookup_dict_item(global_dict, strname);
-  if (dict_lookup == NULL) {
-  /* does not exist, add to global dict */
-      myResult = PyMapping_SetItemString(global_dict, strname, new_string);
-      if (myResult != 0){
-        // failed to add to global dictionary namespace !?
-        myResult =  SD_PyErr_NamSpcErr;
-      }
-
-  } else {
-    // exists, is it a string object?
-    if (PyUnicode_Check(dict_lookup)){
-      // yes, update it
-      myResult = PyMapping_SetItemString(global_dict, strname, new_string);
-      if (myResult != 0){
-        // failed to add to global dictionary namespace !?
-        myResult =  SD_PyErr_NamSpcErr;
-      }
-
-    } else {
-      // not a string
-      myResult = SD_PyErr_NotStr; 
-    }
-    Py_XDECREF(dict_lookup);
-  }
-  // free up ref  (global dict holds a ref to the new_string, we should be safe to do this)
-  Py_XDECREF(new_string);
-
-  return myResult;
-  }
-
-/***************************************************************************************************************************/
-/* Get String                                                                                                              */
-/* rem, value ends up in SD descriptor so we really only return a status code                                              */
-/***************************************************************************************************************************/
-
-int PyStrGet(char* strname ){
-  /* get a dictionary key's value */  
-  int myResult;
-  PyObject* dict_lookup;
-
-  myResult = 0;
-  char nullresult[] = "";
-
-  /* does string (or object with this name) exist? */ 
-  dict_lookup = lookup_dict_item(global_dict, strname);
-  if (dict_lookup == NULL) {
-    // does not exist!
-    k_put_c_string(nullresult, e_stack);   /* return empty string */
-    return SD_PyErr_ObjNOF;
-  } else {
-    
-    // exists, is it a unicode object?
-    if (PyUnicode_Check(dict_lookup)){
-        // yes, access and convert to string
-        PyObject* value = PyMapping_GetItemString(global_dict, strname);
-        obj_to_str(value);
-    } else {
-      // object was not a unicode object, report error
-      k_put_c_string(nullresult, e_stack);   /* return empty string */
-      myResult = SD_PyErr_NotStr;
-    }
-
-    Py_XDECREF(dict_lookup);
-  }
-
-  return myResult;
-}
-
-/***************************************************************************************************************************/
-/* Get List                                                                                                            */
-/* rem, value ends up in SD descriptor so we really only return a status code                                              */
-/***************************************************************************************************************************/
-
-int PyListGet(char* listname ){
-  /* get a list of List objects items */  
-  int myResult;
-  PyObject* dict_lookup;
-
-  myResult = 0;
-  char nullresult[] = "";
-
-  /* does list (or object with this name) exist? */ 
-  dict_lookup = lookup_dict_item(global_dict, listname);
-  if (dict_lookup == NULL) {
-    // does not exist!
-    k_put_c_string(nullresult, e_stack);   /* return empty string */
-    return SD_PyErr_ObjNOF;
-  } else {
-    
-    // exists, is it a list object?
-    if (PyList_Check(dict_lookup)){
-        // yes, access list items and convert to string
-        PyObject* list_str  = List_To_String(dict_lookup);
-        obj_to_str(list_str);
-        if (process.status != 0){
-          myResult = process.status;    // pass error number back (set by List_To_String)
-        } 
-    } else {
-      // object was not a list object, report error
-      k_put_c_string(nullresult, e_stack);   /* return empty string */
-      myResult = SD_PyErr_NotList;
-    }
-
-    Py_XDECREF(dict_lookup);
-  }
-
-  return myResult;
-}
-
-/***************************************************************************************************************************/
-/* List append                                                                                                           */
-/* Append  pyobject to list                                          */
-/***************************************************************************************************************************/
-
-int PyListAppd(char* listname, char* objname){
-
-  int myResult;
-  PyObject* list_lookup;
-  PyObject* obj_lookup;
-  myResult = 0;
-
-  /* does listobject (or object with this name) already exist? */ 
-  list_lookup = lookup_dict_item(global_dict, listname);
-  if (list_lookup == NULL) {
-  /* does not exist, report error */
-    return SD_PyErr_ObjNOF;
-  }
- 
-  /* does object to append exist? */ 
-  obj_lookup = lookup_dict_item(global_dict, objname);
-  if (obj_lookup == NULL) {
-  /* does not exist, report error */
-    Py_XDECREF(list_lookup);
-    return SD_PyErr_ObjNOF;
-  
-  } else {
-    // both exists, is it a list object?
-    if (PyList_Check(list_lookup)){
-      // yes, its a list, append object
-      myResult = PyList_Append(list_lookup,obj_lookup);
-      if (myResult != 0){
-        // failed to append
-        PyErr_Print();
-        myResult =  SD_PyErr_LstAppdEr;
-      }
-
-    } else {
-      // not a list
-      myResult = SD_PyErr_NotList; 
-    }
-
-    Py_XDECREF(list_lookup);
-    Py_XDECREF(obj_lookup);
-  }
-
-
-  return myResult;
-}
-
-/***************************************************************************************************************************/
-/* List Clear                                                                                                              */
-/* Deletes objects in list                                                                                                 */
-/***************************************************************************************************************************/
-
-int PyListClr(char* listname){
-
-  int myResult;
-  PyObject* list_lookup;
-  myResult = 0;
- 
-  /* does the list object to append exist? */ 
-  list_lookup = lookup_dict_item(global_dict, listname);
-  if (list_lookup == NULL) {
-  /* does not exist, report error */
-    return SD_PyErr_ObjNOF;
-  
-  } else {
-    // exists, is it a list object?
-    if (PyList_Check(list_lookup)){
-      // yes, its a list, clear the  object
-      PySequence_DelSlice(list_lookup, 0, PySequence_Length(list_lookup));
-      if (myResult != 0){
-        // failed to clear
-        PyErr_Print();
-        myResult =  SD_PyErr_LstClrEr;
-      }
-
-    } else {
-      // not a list
-      myResult = SD_PyErr_NotList; 
-    }
-
-    Py_XDECREF(list_lookup);
-  }
-
-  return myResult;
-}
-
-/***************************************************************************************************************************/
-/*  Return Python Object Length (size)                                                                                     */
-/* Note the max size we can return is 32 bit (its what SD can handle as integer)                                           */
-/***************************************************************************************************************************/  
-int PyObjLen(char* objname){
- 
-  PyObject* obj_lookup;
-  Py_ssize_t obj_lenght;
-  int myResult;
-  myResult = 0;
-
-  /* does object  exist? */ 
-  obj_lookup = lookup_dict_item(global_dict, objname);
-  if (obj_lookup == NULL) {
-  /* does not exist, report error */
-  return SD_PyErr_ObjNOF;
-  }    
-
-  obj_lenght = PyObject_Length(obj_lookup);
-  if (obj_lenght > INT_MAX){
-    myResult = SD_INT_OVERFLW ;
-  }else{
-    myResult = (int) obj_lenght;
-  } 
- 
-  Py_XDECREF(obj_lookup);
-  return myResult;
-}
-
-
-/***************************************************************************************************************************/
-/*  Return Python Object Type                                                                                             */
-/***************************************************************************************************************************/  
-int PyObjType(char* objname){
-
-  int myResult;
-  PyObject* obj_lookup;
-  myResult = 0;
-
-  /* does object  exist? */ 
-  obj_lookup = lookup_dict_item(global_dict, objname);
-  if (obj_lookup == NULL) {
-   /* does not exist, report error */
-   return SD_PyErr_ObjNOF;
-  }    
-  
-  if (PyUnicode_Check(obj_lookup)) {
-    myResult = SD_Obj_Str;
-
-  } else if (PyDict_Check(obj_lookup)) {
-    myResult = SD_Obj_Dict;
-
-  } else if (PyList_Check(obj_lookup)) {
-    myResult = SD_Obj_List;
-
-  } else if (PyLong_Check(obj_lookup)) {
-    myResult = SD_Obj_Long;
-
-  } else if (PyFloat_Check(obj_lookup)) {
-    myResult = SD_Obj_Float;
-
-  } else {
-    myResult = SD_Obj_Unkn;
-  }
-
-  Py_XDECREF(obj_lookup);
-  return myResult;
-}
-
-/***************************************************************************************************************************/
-/*  Delete Python Object (Remove from global dictionary)                                                                                             */
-/***************************************************************************************************************************/  
-
-int PyDelObj(char* objname){
-  /* delete Python Object */  
-
-  int myResult;
-  PyObject* dict_lookup;
-
-  myResult = 0;
-
-  /* does the object with this name exist? */ 
-  dict_lookup = lookup_dict_item(global_dict, objname);
-  if (dict_lookup == NULL) {
-    // does not exist!
-    return SD_PyErr_ObjNOF;
-  } else {
-  
-    PyObject *PyObj = PyUnicode_DecodeLatin1(objname, (Py_ssize_t) strlen(objname), "strict");
-    if (PyObj == NULL){
-      PyErr_Print();
-      Py_XDECREF(dict_lookup);
-      return SD_PyErr_EnLatin;
-    }  
-
-    // Remove from global dictionary
-    // This should remove all references to the object, resulting in its deletion
-    // via python garbage collection
-    
-    if (PyMapping_DelItem(global_dict, PyObj) != 0) {
-      // Failed to remove object reference in global dictionary
-      myResult = SD_PyErr_DelObj;
-    }
-    // Clean up
-    Py_XDECREF(PyObj);
-    Py_XDECREF(dict_lookup);
-  }
-
-  return myResult;
-}
-
-/***************************************************************************************************************************/
-/*  convert python list object to string  object with @fm separator                                                            */
-/***************************************************************************************************************************/
-PyObject* List_To_String(PyObject* list){
-// returns string object, caller is responsible to dec ref when finished with it!
-//
-    int first_pass;
-    first_pass = 1;
-
-// check for elements in list
-
-    Py_ssize_t list_size = PyList_Size(list);
-    if (list_size == 0) {
-        process.status = SD_PyErr_NoItems;
-        return NULL;
-    }
-    // create an empty string object to hold our result
-    // and tab string for separator 
-    PyObject* result_str = PyUnicode_FromString("");
-    if (!result_str) {
-        process.status = SD_PyErr_CreStr;
-        return NULL;
-    }
-
-   // PyObject* tab_str = PyUnicode_FromString("\t");
-    PyObject* sep_str = PyUnicode_FromString("þ"); // field marker character latin (small letter thorn is the character "þ")
-    if (!sep_str) {
-      Py_XDECREF(result_str);
-      process.status = SD_PyErr_CreStr;
-      return NULL;    
-    }
-
-    // iterate over all the list items
-    for (Py_ssize_t i = 0; i < list_size; ++i) {
-	    // get list item i
-        PyObject* item = PySequence_GetItem(list, i);
-        if (!item) {
-          Py_XDECREF(sep_str);
-          Py_XDECREF(result_str);
-          process.status = SD_PyErr_LstItem;
-          return NULL;
-        }
-        // create string object from list item 
-        PyObject* item_str = PyObject_Str(item);
-        Py_XDECREF(item);
-        if (!item_str) {
-          Py_XDECREF(sep_str);
-          Py_XDECREF(result_str);
-          process.status = SD_PyErr_CreStr;
-          return NULL;
-        }
-
-        if (!first_pass){   // only add separator after first pass
-          // concatenate together, but we need to add in separator first!
-          PyObject* temp_sep = PyUnicode_Concat(result_str, sep_str);
-
-          if (!temp_sep) {
-            Py_XDECREF(sep_str);
-            Py_XDECREF(result_str);
-            process.status = SD_PyErr_ConCat;
-            return NULL;
-          }
-          // release the prior version of result_str and point to new concatinated string object
-          Py_XDECREF(result_str);
-          result_str = temp_sep;
-
-        } 
-        
-        first_pass = 0;
-        PyObject* temp_str = PyUnicode_Concat(result_str, item_str);
-        Py_XDECREF(result_str);
-        Py_XDECREF(item_str);
-
-        if (!temp_str) {
-            Py_XDECREF(sep_str);
-            process.status = SD_PyErr_ConCat;
-            return NULL;
-        }
-
-        result_str = temp_str; /* not sure about this result string is a python object pointer created above
-		                            we Py_XDECREF(result_str) before assignment, so the created object "should" be free
-									              we then point result_str to temp_str, which is returned to caller on loop completion.
-									              (caller's responsibility to dec) */
-    }
-    Py_XDECREF(sep_str);
-    return result_str;
-}
-
-/***************************************************************************************************************************/
-/*  convert python object to string                                                                                        */
-/*  this routine is responsible for ref count of passed python object pval                                                 */
-/***************************************************************************************************************************/
-
-void obj_to_str(PyObject* pval){
-  /* pval is reference to obj
-     this routine is responsible for ref count !!!*/
-  PyObject *psval, *pbval;   
-  char *pyResult;
-  char nullresult[] = "";
-
-  if (pval == NULL) {
-    /* we most likely had a key error, clear it*/  
-    PyErr_Clear();  
-    /* most likely fetch of dictionary value was key error  */
-    process.status = SD_PyEr_Key;
-    k_put_c_string(nullresult, e_stack);   /* sets descr as type string and place the python value into it */
-   
-  } else {
-  
-    /* fetch of dictionary value succeeded, so what do we have here? */
-    if (PyBytes_Check(pval)) {
-        
-      /* bytes object hopefully we encoded using latin, otherwise we will have issues with @FM @VM @SVM */
-      pyResult = PyBytes_AsString(pval);   /* get the c string */
-      k_put_c_string(pyResult, e_stack);   /* sets descr as type string and place the python value into it */
-      
-    }else{
-        
-      /* not a byte object */
-      /* for now all non byte objects are converted to string then encoded as Latin, more work to be done here  */
-      psval =  PyObject_Str(pval);              /* convert result object to string representation */
-      
-      if (psval == NULL) {
-                                                /* error converting python object to string */
-        process.status = SD_PyEr_ObToStr;
-        k_put_c_string(nullresult, e_stack);    /* sets descr as type string and place the python value into it */
-        Py_XDECREF(pval);
-        return;      
-      }
-      
-      /* encode our string object to bytes */
-      pbval =  PyUnicode_AsLatin1String(psval); /* encode to bytes using Latin1 */
-      
-      if (pbval == NULL) {
-                                              /* error encoding unicode python string to to Latin */
-        process.status = SD_PyErr_UniToStr;
-        k_put_c_string(nullresult, e_stack);   /* sets descr as type string and place the python value into it */
-        Py_XDECREF(pval);
-        Py_XDECREF(psval);
-        return;
-      }
-
-      pyResult = PyBytes_AsString(pbval);  /* finally get the c string */
-      k_put_c_string(pyResult, e_stack);   /* sets descr as type string and place the python value into it */
-      Py_XDECREF(psval);
-      Py_XDECREF(pbval);
-    }
-
-    Py_XDECREF(pval);
-
-  }
-
-  return;
-
-}
-
-
-/******************************************************************************************/
-/* get dict value (python object) based on passed string key                              */
-/* Rem this creates a strong ref and the caller is responsible to dec the ref count !!!!! */
-/******************************************************************************************/
-PyObject* lookup_dict_item(PyObject* dict, const char* key) {
-  // Look up item using PyMapping_GetItemString
-  // I repeat, this creates a strong ref and the caller is responsible to dec the ref count !!!!!
-
-  PyObject* value = PyMapping_GetItemString(dict, key);
-  
-  // Handle the case where the key is not found
-  if (value == NULL) {
-      PyErr_Clear(); // Clear the exception set by PyMapping_GetItemString
-      return NULL;
-  }
-  
-  // Return the found value
-  return value;
 }

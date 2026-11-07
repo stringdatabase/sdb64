@@ -23,7 +23,7 @@
 * rev 0.9.0 Jan 25 mab sdext_eguid_set error codes
 * rev 0.9-2 Mar 25 mab add sdext_pyobj direct control of python dictionary object
 * 1.0-3 mab add 4100 Undefined Server Error, 4101 invalid file number, 4102 invalid arg
-*               various SD_PyErr_GuiErrors
+*               various SD_PyErr_xxxx error codes
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -301,27 +301,29 @@ $define SD$PyEr.NOF        -12006    ;* could not open script file
 $define SD$PyEr.Key        -12007    ;* failed to find key in dictionary
 $define SD$PyEr.ObToStr    -12008    ;* failed to convert python object to string
 $define SD$PyErr.UniToStr  -12009    ;* error encoding unicode python string to to Latin
+$define SD$PyErr.UniSepIdx -12010    ;* invalid unicode sep index
 
-$define SD$PyErr.MainMod   -12010    ;* cannot import ..main..
-$define SD$PyErr.GlobDict  -12011    ;* could get ..main.. dictionary
-$define SD$PyErr.DictExsts -12012    ;* dictionary already exists
-$define SD$PyErr.NamSpcErr -12013    ;* Failed to add to namespace
-$define SD$PyErr.ObjNOF    -12014    ;* requested object does not exist
-$define SD$PyErr.DictSet   -12015    ;* failed to set dictionary key / value
-$define SD$PyErr.DictDel   -12016    ;* failed to Delete dictionary key / value
-$define SD$PyErr.NotDict   -12017    ;* Object not a dictionary
-$define SD$PyErr.EnLatin   -12018    ;* error encoding latin string to unicode
-$define SD$PyErr.NotStr    -12019    ;* Object not a String (unicode)
-$define SD$PyErr.DelObj    -12020    ;* Failed to remove Object from global dictionary
-$define SD$PyErr.ObjAttrNOF -12021   ;* Failed to find attribute name in object
+$define SD$PyErr.MainMod   -12011    ;* cannot import ..main..
+$define SD$PyErr.GlobDict  -12012    ;* could get ..main.. dictionary
+$define SD$PyErr.ObjExsts  -12013   ;* object already exists
+$define SD$PyErr.NamSpcErr -12014    ;* Failed to add to namespace
+$define SD$PyErr.ObjNOF    -12015    ;* requested object does not exist
+$define SD$PyErr.DictSet   -12016    ;* failed to set dictionary key / value
+$define SD$PyErr.DictDel   -12017    ;* failed to Delete dictionary key / value
+$define SD$PyErr.NotDict   -12018    ;* Object not a dictionary
+$define SD$PyErr.EnLatin   -12019    ;* error encoding latin string to unicode
+$define SD$PyErr.NotStr    -12020    ;* Object not a String (unicode)
+$define SD$PyErr.DelObj    -12021    ;* Failed to remove Object from global dictionary
+$define SD$PyErr.ObjAttrNOF -12022   ;* Failed to find attribute name in object
 
-$define SD$PyErr.NoItems   -12030    ;* Python Object contains no items (List?)
+$define SD$PyErr.NoItems   -12030    ;* Python Object or String List contains no items
 $define SD$PyErr.CreStr    -12031    ;* Failed to create Python Object from String
 $define SD$PyErr.ConCat    -12032    ;* Failed to concatinate Python String Objects
 $define SD$PyErr.LstItem   -12033    ;* Failed to access List Objects Item
 $define SD$PyErr.NotList   -12034    ;* Object not a list
 $define SD$PyErr.LstAppdEr -12035    ;* List append failed
 $define SD$PyErr.LstClrEr  -12036    ;* list clear failed
+$define SD$PyErr.List      -12037    ;* failed to create list
 $define SD$PyErr.EventInit -12040    ;* Failed to initialize Python event queue
 $define SD$PyErr.EventEmpty -12041   ;* Python event queue is empty
 $define SD$PyErr.EventFull -12042    ;* Python event queue is full
@@ -332,4 +334,5 @@ $define SD$PyErr.NoFreeGui   -12046  ;* could not find FreeSimpleGui module
 $define SD$PyErr.MainScope   -12047  ;* could not load Python's ..main.. scope
 $define SD$PyErr.GuiWinNOF   -12048  ;* Window not found (from object name)
 $define SD$PyErr.CallMethod  -12049  ;* calling objects method failed
+$define SD$PyErr.KeyValCnt   -12050  ;* key list and value list count mismatch
 * END-CODE

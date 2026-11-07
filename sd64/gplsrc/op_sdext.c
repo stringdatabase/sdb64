@@ -22,7 +22,7 @@
  * 08 Aug 2024 mab add embedded python
  * rev 0.9.0 Jan 25 mab add sdext_eguid_set set / restore euid egid of process
  * rev 0.9-2 Mar 25 mab mods for sdext_pyobj
- * rev 1.0-3 use safe_malloc
+ * rev 1.0-3 use safe_malloc, up sdext_py arg count
  * 
  * END-HISTORY
  *
@@ -43,7 +43,7 @@
  * START-CODE
  */
 
-
+#include "sdext_py.h"
 #include <linux/limits.h>
 #include <sodium.h>
 
@@ -53,11 +53,6 @@
 extern char* sd_salt();
 extern char* sd_KeyFromPW(char* mypassword, char* mysalt);
 extern void sdext_eguid_set(int key, char* Arg); 
-
-/* 20240808 mab embedding python? */
-#ifdef EMBED_PYTHON
-extern void sdext_py(int key, char* Arg, char* Arg2, char* Arg3 );
-#endif
 
 char* SDMEArgArray[SD_MAX_ARGS];          /* create an array of pointers, for string arguments (for SDEXT call ) not sure if this is correct */
 char* NullString(void); 
@@ -162,6 +157,11 @@ void op_sdext() {
                  /* Using pop would not free the sting blocks                  */
                  /* After dismiss() e_stack  points to descr which will receive RTNVAL */
 
+  // start with all Null arg pointers
+  for (argIdx = 0; argIdx < SD_MAX_ARGS; argIdx++) {
+     SDMEArgArray[argIdx] = NULL;
+  } 
+
 /* now extract arguments from the past arg string */
 
   if (myval_len == 0) {
@@ -186,11 +186,13 @@ void op_sdext() {
         argCnt = 1;                       /* always one args */
         SDMEArgArray[0] = myval_buffer;   /* we just point to the value buffer created earlier */  
     }
-  }   
-  
+  }
+  //  
+  // dispatch logic
+  //
   switch (key) {
       
-      case  SDEXT_TestIt: 
+    case  SDEXT_TestIt: 
     /* simple test to see if any of this works, output args to stdout  */
         for (argIdx = 0; argIdx < argCnt; argIdx++) {
           printf("Arg %d of %d\r\n",argIdx+1, argCnt);
@@ -242,33 +244,111 @@ void op_sdext() {
       break;
 
     /* 20240808 mab embedding python? */
+    /* REM !! all these functions are expected to:                    */
+    /*    handle setting process.status                               */
+    /*    populate descriptor pointed to by estack and inc the stack  */
     #ifdef EMBED_PYTHON
-    case SD_PyInit:  
+    case SD_PyInit: 
+      sdext_SD_PyInit();
+      break;
+      
     case SD_PyFinal:  
+       sdext_SD_PyFinal();
+       break;
+       
     case SD_IsPyInit: 
-    case SD_PyRunStr:  
+      sdext_SD_IsPyInit();
+      break;
+   
+    case SD_PyRunStr: 
+      if (argCnt != 1){
+        sdme_err_rsp(SD_EXT_ARG_CNT);     /* we need 1 args for this to work */
+      }else{
+        sdext_SD_PyRunStr(SDMEArgArray[0]);
+      }
+      break;
+    
     case SD_PyRunFile: 
+      if (argCnt != 1){
+        sdme_err_rsp(SD_EXT_ARG_CNT);     /* we need 1 args for this to work */
+      }else{
+        sdext_SD_PyRunFile(SDMEArgArray[0]);
+      }
+      break;
+
     case SD_PyGetAtt :
+      if (argCnt != 1){
+        sdme_err_rsp(SD_EXT_ARG_CNT);     /* we need 1 args for this to work */
+      }else{
+        sdext_SD_PyGetAtt(SDMEArgArray[0]);
+      }
+      break;
+      
     case SD_PyGuiStep:
+      sdext_SD_PyGuiStep();
+      break;
+      
     case SD_PyPoll:
-  /* embedding Python functions*/
-      sdext_py(key, SDMEArgArray[0], NULL, NULL);
+      sdext_SD_PyPoll();
       break;
+      
     case SD_PyGuiWinUpdate:
-        if (argCnt != 3){
-          sdme_err_rsp(SD_EXT_ARG_CNT);     /* we need 2 args for this to work */
-        }else{
-          sdext_py(SD_PyGuiWinUpdate, SDMEArgArray[0], SDMEArgArray[1], SDMEArgArray[2]);
-        }
+      if (argCnt != 3){
+        sdme_err_rsp(SD_EXT_ARG_CNT);     /* we need 3 args for this to work */
+      }else{
+        sdext_SD_PyGuiWinUpdate(SDMEArgArray[0], SDMEArgArray[1], SDMEArgArray[2]);
+      }
       break;
-        case SD_PyGuiWinUpdateS:
-        if (argCnt != 3){
-          sdme_err_rsp(SD_EXT_ARG_CNT);     /* we need 2 args for this to work */
-        }else{
-          sdext_py(SD_PyGuiWinUpdateS, SDMEArgArray[0], SDMEArgArray[1], SDMEArgArray[2]);
-        }
+      
+    case SD_PyGuiWinUpdateS:
+      if (argCnt != 3){
+        sdme_err_rsp(SD_EXT_ARG_CNT);     /* we need 3 args for this to work */
+      }else{
+        sdext_SD_PyGuiWinUpdateS(SDMEArgArray[0], SDMEArgArray[1], SDMEArgArray[2]);
+      }
       break;
-    #endif  
+
+    case SD_PyGuiWinUpdValues:
+      if (argCnt != 3){
+        sdme_err_rsp(SD_EXT_ARG_CNT);     /* we need 3 args for this to work */
+      }else{
+        sdext_SD_PyGuiWinUpdValues(SDMEArgArray[0], SDMEArgArray[1], SDMEArgArray[2]);
+      }
+      break;
+
+    case SD_PyGuiTableSet:
+      if (argCnt != 2){
+        sdme_err_rsp(SD_EXT_ARG_CNT);     /* we need 2 args for this to work */
+      }else{
+        sdext_SD_PyGuiTableSet(SDMEArgArray[0], SDMEArgArray[1]);
+      }
+      break;  
+
+    case SD_PyGuiTableGet:
+      if (argCnt != 1){
+        sdme_err_rsp(SD_EXT_ARG_CNT);     /* we need 1 args for this to work */
+      }else{
+        sdext_SD_PyGuiTableGet(SDMEArgArray[0]);
+      }
+      break;  
+      
+    case SD_PyCallFunction:
+      if (argCnt < 2){
+        sdme_err_rsp(SD_EXT_ARG_CNT);     /* we need 2 or more args for this to work */
+      }else{
+        sdext_SD_PyCallFunction(SDMEArgArray[0], SDMEArgArray[1],SDMEArgArray[2],SDMEArgArray[3],SDMEArgArray[4],SDMEArgArray[5],SDMEArgArray[6]);
+      }
+      break;  
+
+    case SD_PyCallFunctionS:
+      if (argCnt < 1){
+        sdme_err_rsp(SD_EXT_ARG_CNT);     /* we need 1 or more args for this to work */
+      }else{
+        sdext_SD_PyCallFunctionS(SDMEArgArray[0], SDMEArgArray[1],SDMEArgArray[2],SDMEArgArray[3],SDMEArgArray[4],SDMEArgArray[5]);
+      }
+      break; 
+
+   #endif  
 
 
     default:

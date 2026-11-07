@@ -21,11 +21,12 @@ $include keys.h
 
 deffun typetxt(inx) LOCAL
 
-crt 'embedded python test, hit <enter> to start':
-
+crt 'embedded python test, hit <enter> to start'
+rtn_stat = 0
 *input ok
 crt str('=',50)
 *
+
 crt 'attempt init'
 rtn_stat = PY_INITIALIZE()
 crt 'rtn_stat = ':rtn_stat
@@ -41,8 +42,25 @@ lf = char(10)
  script  = 'FMRK   = chr(254)':lf
  script := 'VMRKM  = chr(253)':lf
  script := 'SVMRK  = chr(252)':lf
+ script := 'def func1(list):':lf
+ script := "  print('func1 here!')":lf
+ script := "  for val in list:":lf
+ script := "    print(val)":lf
+ script := "  rtnstr = 'func1 signing off'":lf
+ script := "  return rtnstr":lf
+ *
+ script := 'def func2(list,adict):':lf
+ script := "  print('func2 here!')":lf
+ script := "  for val in list:":lf
+ script := "    print(val)":lf
+ script := "  for key, val in adict.items():":lf
+ script := '    print(f"Key: {key}, Value: {val}")':lf
+ script := "  rtnstr = 'func2 signing off'":lf
+ script := "  return rtnstr":lf
+ *
  script := 'result = ""':lf
  script := 'alist = ["item 1", "item 2", "item 3", "item 4"]':lf
+ script := 'table = [["rw1c1", "rw1c2", "rw1c3"], ["rw2c1", "rw2c2", "rw2c3"],["rw3c1", "rw3c2", "rw3c3"] ]':lf
  script := 'countdown = {"3" : "Three", "2" : "Two", "1" : "One", "0" : "Ignition!"}':lf
  script := 'for count in countdown:':lf
  script := '  result += count + " " + countdown[count] + FMRK ':lf
@@ -64,7 +82,7 @@ crt 'attempt to run script:'
 rtn_stat = PY_RUNSTRING(script)
 crt 'rtn_stat = ':rtn_stat
 crt 'status()   = ':status()
-if rtn_stat <> 0 then goto 999
+*if rtn_stat <> 0 then goto 999
 crt str('=',50)
 *
 crt 'attempt to access python object: result'
@@ -257,6 +275,111 @@ rtn_string = PY_LISTAPPD("alist","my_str")
 rtn_stat = PY_RUNSTRING("print(alist)")
 crt
 
+crt str('=',50)
+crt 'Now re display contents of alist and my_str via PY_RUNSTRING'
+rtn_stat = PY_RUNSTRING("print(alist)")
+crt
+rtn_stat = PY_RUNSTRING("print(my_str)") 
+crt
+crt 'attempt to append my_str to alist items '
+
+rtn_string = PY_LISTAPPD("alist","my_str")
+rtn_stat = PY_RUNSTRING("print(alist)")
+crt
+crt str('=',50)
+crt 'clear alist'
+rtn_stat = PY_LISTCLR("alist")
+*
+crt 'Now re display contents of alist via PY_RUNSTRING'
+rtn_stat = PY_RUNSTRING("print(alist)")
+crt
+*
+crt str('=',50)
+crt 'create blist'
+rtn_stat = PY_LISTCRTE('blist')
+crt 'Now re display contents of blist via PY_RUNSTRING'
+rtn_stat = PY_RUNSTRING("print(blist)")
+crt
+
+crt str('=',50)
+crt 'append vm list blist to python list object blist'
+blist = "item 1" :@VM: "item 2":@VM: "item 3":@VM: "item 4"
+for i = 1 to dcount(blist,@vm)
+  crt 'blist<1,':i:'> = ':blist<1,i>
+next i
+crt
+rtn_stat = PY_LISTAPPDS('blist',blist)
+crt 'Now re display contents of blist  via PY_RUNSTRING'
+rtn_stat = PY_RUNSTRING("print(blist)")
+crt
+crt str('=',50)
+
+crt 'function call test'
+rtn_st = PY_CALLFUNCTION('func1','result','blist')
+crt  'status() = ':status()
+crt  'rtn_st  = ':rtn_st
+crt 'Now re display contents of result via PY_RUNSTRING'
+rtn_stat = PY_RUNSTRING("print(result)")
+crt str('=',50)
+
+rtn_st = PY_CALLFUNCTION('func2','result','blist','countdown')
+crt  'status() = ':status()
+crt  'rtn_st  = ':rtn_st
+crt 'Now re display contents of result via PY_RUNSTRING'
+rtn_stat = PY_RUNSTRING("print(result)")
+crt str('=',50)
+
+crt 'call function with invalid list name'
+rtn_st = PY_CALLFUNCTION('func2','result','xlist','countdown')
+crt  'status() = ':status()
+crt  'rtn_st  = ':rtn_st
+crt str('=',50)
+
+crt 'call function with invalid arg count'
+rtn_st = PY_CALLFUNCTION('func1','result','blist','countdown')
+crt  'status() = ':status()
+crt  'rtn_st  = ':rtn_st
+crt str('=',50)
+
+crt 'call function with invalid function name (nof)'
+rtn_st = PY_CALLFUNCTION('funcx','result','blist')
+crt  'status() = ':status()
+crt  'rtn_st  = ':rtn_st
+crt str('=',50)
+
+crt 'call function with non callable object name - blist'
+rtn_st = PY_CALLFUNCTION('blist','countdown')
+crt  'status() = ':status()
+crt  'rtn_st  = ':rtn_st
+crt str('=',50)
+
+crt 'call functions '
+rtn_str = PY_CALLFUNCTIONS('func1','blist')
+crt  'status() = ':status()
+crt  'rtn_str  = ':rtn_str
+crt str('=',50)
+
+crt 'call functions with invalid function name (nof)'
+rtn_str = PY_CALLFUNCTIONS('funcx','blist')
+crt  'status() = ':status()
+crt  'rtn_str  = ':rtn_str
+crt str('=',50)
+
+crt 'call tableget function'
+rtn_str = PY_GUITABLEGET('table')
+crt  'status() = ':status()
+crt  'rtn_str  = ':rtn_str
+crt str('=',50)
+
+crt 'call tableset function'
+newtable ='newr1data1':@svm:'newr1data2':@vm:'newr2data1':@svm:'newr2data2'
+rtn_st = PY_GUITABLESET('table',newtable)
+crt  'status() = ':status()
+crt  'rtn_str  = ':rtn_st
+crt 'display via PY_RUNSTRING'
+rtn_stat = PY_RUNSTRING("print(table)")
+
+crt str('=',50)
 *
 * don't finalize, we will check when sd closes
 999: crt 'complete'

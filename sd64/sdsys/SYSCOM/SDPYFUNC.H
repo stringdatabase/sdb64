@@ -1,4 +1,4 @@
-* SDPYFUNC.H
+*  SDPYFUNC.H
 * SD Python Functions  
 * Copyright (c)2026 The SD Developers, All Rights Reserved
 *
@@ -17,7 +17,8 @@
 * Inc., 59 Temple Place - Suite 330, Boston, MA 02111-1307, USA.
 *
 * START-HISTORY:
-* rev 0.9-2 Apr 25 mab 
+* rev 1.0-3  Added PY_LISTCRTE, PY_LISTAPPDS, PY_PYPOLL, PY_PYGUISTEP, PY_GUIWINUPDATE(s) 
+*                  PY_CALLFUNCTION, PY_GUITABLEGET, PY_GUITABLESET
 * END-HISTORY
 *
 * START-DESCRIPTION:
@@ -25,12 +26,21 @@
 * END-DESCRIPTION
 *
 * START-CODE
+
+equate PY_PUP_OK          to    1
+equate PY_PUP_YESNO       to    2
+equate PY_PUP_OKCANCEL    to    3
+
 deffun PY_INITIALIZE() calling '!PY_INITIALIZE'
 deffun PY_IS_INITIALIZED() calling '!PY_IS_INITIALIZED'
 deffun PY_FINALIZE() calling '!PY_FINALIZE'
 deffun PY_GETATTR(objname) calling '!PY_GETATTR'
 deffun PY_RUNFILE(py_script_file) calling '!PY_RUNFILE'
 deffun PY_RUNSTRING(py_script) calling '!PY_RUNSTRING'
+deffun PY_CALLFUNCTION(function_name,result_name,arg1,arg2,arg3,arg4,arg5) calling '!PY_CALLFUNCTION' VAR.ARGS
+deffun PY_CALLFUNCTIONS(function_name,arg1,arg2,arg3,arg4,arg5) calling '!PY_CALLFUNCTIONS' VAR.ARGS
+deffun PY_POPUP(function_name, popup_name, title_name, title_text, message_name, message_text, style_name, style_setting) calling '!PY_POPUP'
+
 deffun PY_OBJTYPE(objname) calling '!PY_OBJTYPE'
 deffun PY_OBJLEN(objname) calling '!PY_OBJLEN'
 *
@@ -45,11 +55,16 @@ deffun PY_DICTGETVALUES(dictname) calling '!PY_DICTGETVALUES'
 deffun PY_STRSET(strname,value) calling '!PY_STRSET'
 deffun PY_STRGET(strname) calling '!PY_STRGET'
 *
+deffun PY_LISTCRTE(listname) calling '!PY_LISTCRTE'
 deffun PY_LISTAPPD(listname,objname) calling '!PY_LISTAPPD'
 deffun PY_LISTGETS(listname) calling '!PY_LISTGETS'
 deffun PY_LISTCLR(listname) calling '!PY_LISTCLR'
+deffun PY_LISTAPPDS(listname,dynlist) calling '!PY_LISTAPPDS'
 *
 deffun PY_PYGUISTEP() calling '!PY_PYGUISTEP'
 deffun PY_PYPOLL() calling '!PY_PYPOLL'
 deffun PY_GUIWINUPDATE(object_name,key,value) calling '!PY_GUIWINUPDATE'
 deffun PY_GUIWINUPDATES(object_name,key_list,value_list) calling '!PY_GUIWINUPDATES'
+deffun PY_GUIWINUPDVALUES(object_name,key,list_name) calling '!PY_GUIWINUPDVALUES'
+deffun PY_GUITABLEGET(table_list_name) calling '!PY_GUITABLEGET'
+deffun PY_GUITABLESET(table_list_name,dyn_array) calling '!PY_GUITABLESET'
