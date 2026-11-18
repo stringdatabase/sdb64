@@ -312,7 +312,13 @@ void kernel() {
 
   if (setjmp(k_exit)) /* Abort, Quit, Logout */
   {
-    unwind_stack();           /* Tidy up e-stack */
+    /* An ABORT unwinds the e-stack level by level below (as STOP does), only as far as the
+       command processor it returns to.  Unwinding the whole stack here meant a TRAPPED abort
+       (EXECUTE ... TRAPPING ABORTS) returned to programs whose own e-stack items were gone:
+       an outer EXECUTE ... CAPTURING's target address among them, and its CAPTURE then read
+       below the stack's base (SIGSEGV). */
+    if (k_exit_cause != K_ABORT)
+      unwind_stack(); /* Tidy up e-stack */
     process.for_init = FALSE; /* Not initialising FOR loop */
     process.op_flags = 0;     /* Clear opcode prefix flags */
     retained_flags = 0;
@@ -358,10 +364,17 @@ void kernel() {
       and IGNORE_ABORTS flags from the aborted command processor.           */
 
     while (!(process.program.flags & HDR_IS_CPROC)) {
+      if (aborting) /* this level's partly evaluated items, and no more */
+      {
+        while (e_stack > e_stack_base + process.program.e_stack_depth)
+          k_dismiss();
+      }
       k_return();
     }
 
     if (aborting) {
+      while (e_stack > e_stack_base + process.program.e_stack_depth) /* the command processor's own, then stop */
+        k_dismiss();
       aborting = FALSE;
       if (capturing) {
         if (capture_head != NULL) {
