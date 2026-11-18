@@ -83,6 +83,25 @@ void op_capture() {
 
     s_free(capture_head);
     capture_head = NULL;
+
+    /* The abort ended only THIS level's capture.  An outer EXECUTE ... CAPTURING stacked
+       under it is taken up again here, as the normal path below does, so the caller's output
+       goes on being captured and the outer CAPTURE finds the capture it started. */
+    if (process.program.flags & PF_CAPTURING) {
+      capture_head = process.program.saved_capture_head;
+      capture_tail = process.program.saved_capture_tail;
+      process.program.saved_capture_head = NULL;
+      process.program.saved_capture_tail = NULL;
+      capturing = TRUE;
+      stack_display_pu();
+      process.program.flags &= ~PF_CAPTURING;
+    }
+
+    /* The abort no longer wipes this program's e-stack (kernel.c unwinds only the levels it
+       casts off), so the target's address is still here: take it off, only when it is above
+       this program's base. */
+    if (e_stack > e_stack_base + process.program.e_stack_depth)
+      k_pop(1);
     return;
   }
 
@@ -182,11 +201,10 @@ void op_execute() {
     {
       process.program.flags |= PF_CAPTURING;
 
-      if (capture_head != NULL) /* Stack data already captured */
-      {
-        process.program.saved_capture_head = capture_head;
-        process.program.saved_capture_tail = capture_tail;
-      }
+      /* Saved ALWAYS, an empty outer capture (NULL) included: saved only when it held data,
+         a stale pointer from an earlier nesting could be restored later. */
+      process.program.saved_capture_head = capture_head;
+      process.program.saved_capture_tail = capture_tail;
     } else {
     }
 
@@ -307,6 +325,10 @@ void op_rtnlist() {
     }
 
     rtnlist = FALSE;
+    k_pop(1);
+  } else if (e_stack > e_stack_base + process.program.e_stack_depth) {
+    /* A trapped abort no longer wipes the e-stack, so the target's address is still here:
+       take it off (the target itself is left as the abort left it). */
     k_pop(1);
   }
 }
